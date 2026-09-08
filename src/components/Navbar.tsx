@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Menu, X, Globe, Calendar } from 'lucide-react';
 import { Language } from '../types';
 import { TRANSLATIONS } from '../data/translations';
-import { PROPERTY_CONFIG } from '../data/propertyConfig';
-import logoImg from './zanzirangi-house-logo.jpg';
+import logoImg from '../assets/Zanzirangi-logo.png';
 
 interface NavbarProps {
   currentLang: Language;
