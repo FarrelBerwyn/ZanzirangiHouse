@@ -110,7 +110,7 @@ zanzirangi-house-v2/
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/FarrelBerwyn/TanzaniaTourism.git
+git clone https://github.com/FarrelBerwyn/ZanzirangiHouse.git
 cd zanzirangi-house-v2
 ```
 
