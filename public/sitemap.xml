@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url>
+    <loc>https://zanzirangihouse.com/</loc>
+    <lastmod>2026-09-24</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+    <!-- Multilingual Alternate Hreflang Tags -->
+    <xhtml:link rel="alternate" hreflang="en" href="https://zanzirangihouse.com/?lang=en" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://zanzirangihouse.com/?lang=fr" />
+    <xhtml:link rel="alternate" hreflang="sw" href="https://zanzirangihouse.com/?lang=sw" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://zanzirangihouse.com/?lang=es" />
+    <xhtml:link rel="alternate" hreflang="it" href="https://zanzirangihouse.com/?lang=it" />
+    <xhtml:link rel="alternate" hreflang="pl" href="https://zanzirangihouse.com/?lang=pl" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://zanzirangihouse.com/?lang=ar" />
+    <xhtml:link rel="alternate" hreflang="zh" href="https://zanzirangihouse.com/?lang=zh" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://zanzirangihouse.com/" />
+    <!-- High Value Image Sitemaps for Google Images & AI Vision Crawlers -->
+    <image:image>
+      <image:loc>https://zanzirangihouse.com/zanzirangi-logo-new.jpeg</image:loc>
+      <image:title>Zanzirangi House Luxury Boutique Villas Zanzibar</image:title>
+      <image:caption>Private oceanfront luxury retreat in Kizimkazi Dimbani, South Coast Zanzibar</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://zanzirangihouse.com/zanzirangi-villas.jpg</image:loc>
+      <image:title>Zanzirangi House Private Villas Architecture</image:title>
+      <image:caption>Barefoot luxury villas blending Swahili heritage with contemporary comfort</image:caption>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://zanzirangihouse.com/#stay</loc>
+    <lastmod>2026-09-24</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://zanzirangihouse.com/#dining</loc>
+    <lastmod>2026-09-24</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://zanzirangihouse.com/#experiences</loc>
+    <lastmod>2026-09-24</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://zanzirangihouse.com/#safari</loc>
+    <lastmod>2026-09-24</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://zanzirangihouse.com/#facilities</loc>
+    <lastmod>2026-09-24</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://zanzirangihouse.com/#itinerary</loc>
+    <lastmod>2026-09-24</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://zanzirangihouse.com/#contact</loc>
+    <lastmod>2026-09-24</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+</urlset>

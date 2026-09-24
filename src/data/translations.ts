@@ -186,8 +186,8 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
     },
     hero: {
       eyebrow: 'ZANZIBAR, TANZANIA',
-      title: 'YOUR PRIVATE GATEWAY TO ZANZIBAR',
-      subtitle: 'Stay, explore and experience the island — with Tanzania beyond.',
+      title: 'ZANZIBAR LUXURY VILLA SANCTUARY',
+      subtitle: 'Experience private plunge pool villas in Kizimkazi, ocean-to-table dining and bespoke Tanzania safaris.',
       exploreProperty: 'EXPLORE THE RETREAT',
       bookYourStay: 'PLAN YOUR JOURNEY',
       scrollIndicator: 'SCROLL TO DISCOVER',

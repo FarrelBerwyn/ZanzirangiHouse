@@ -192,7 +192,7 @@ export const VillasSection: React.FC<VillasSectionProps> = ({
         <div className="relative aspect-[16/11] overflow-hidden bg-[#E7DFD2]/40">
           <img
             src={villa.heroImage}
-            alt={villa.name}
+            alt={`${villa.name} - Luxury Private Plunge Pool Villa Zanzibar`}
             className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
             loading="lazy"
           />

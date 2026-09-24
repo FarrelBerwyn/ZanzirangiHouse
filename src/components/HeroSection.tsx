@@ -100,7 +100,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           transition={{ duration: 0.7, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
           className="font-serif text-2xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-[80px] font-light tracking-[0.06em] sm:tracking-[0.08em] leading-[1.15] sm:leading-[1.12] text-[#FAF8F5] uppercase mb-4 sm:mb-6 drop-shadow-xl"
         >
-          {t.hero.title || 'YOUR PRIVATE GATEWAY TO ZANZIBAR'}
+          {t.hero.title || 'ZANZIBAR LUXURY VILLA SANCTUARY'}
         </motion.h1>
 
         {/* Supporting Narrative */}

@@ -1,0 +1,48 @@
+# Zanzirangi House robots.txt
+# Optimized for Search Engine Optimization (SEO) & Generative Engine Optimization (GEO)
+# Allows standard search engines and AI search/citation crawlers
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+
+# Explicit permissions for AI Search & Generative Citation Crawlers
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+User-agent: meta-externalagent
+Allow: /
+
+# Sitemaps and AI Context
+Sitemap: https://zanzirangihouse.com/sitemap.xml

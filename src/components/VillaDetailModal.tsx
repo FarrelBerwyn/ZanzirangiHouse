@@ -164,7 +164,7 @@ export const VillaDetailModal: React.FC<VillaDetailModalProps> = ({
                         : 'border-transparent opacity-65 hover:opacity-100'
                     }`}
                   >
-                    <img src={img} alt="thumbnail" className="w-full h-full object-cover" />
+                    <img src={img} alt={`${villa.name} photo preview ${idx + 1}`} className="w-full h-full object-cover" />
                   </button>
                 ))}
               </ScrollFadeContainer>
