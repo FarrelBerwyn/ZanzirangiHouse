@@ -795,29 +795,65 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
       siteName: r.site_name || 'Zanzirangi House',
       tagline: r.tagline || 'Private Luxury Villas & Sanctuary in Kizimkazi, Zanzibar',
       defaultCurrency: r.default_currency || 'USD ($)',
-      reservationNotificationEmail: r.reservation_notification_email || 'reservations@zanzirangihouse.com',
+      currency: r.currency || 'USD',
+      defaultLanguage: r.default_language || 'en',
+      phone: r.phone || r.concierge_phone || '+255 777 890 123',
       conciergePhone: r.concierge_phone || '+255 777 890 123',
+      whatsapp: r.whatsapp || '+255 777 890 123',
+      email: r.email || 'info@zanzirangihouse.com',
+      reservationNotificationEmail: r.reservation_notification_email || 'reservations@zanzirangihouse.com',
+      reservationEmail: r.reservation_email || r.reservation_notification_email || 'reservations@zanzirangihouse.com',
+      address: r.address || 'Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania',
+      instagram: r.instagram || 'https://instagram.com/zanzirangi.house',
+      facebook: r.facebook || 'https://facebook.com/zanzirangihouse',
+      youtube: r.youtube || 'https://youtube.com/@zanzirangihouse',
+      bookingUrl: r.booking_url || 'https://zanzirangihouse.com/#stay',
+      logo: r.logo || '/src/assets/zanzirangi-logo-new.jpeg',
+      favicon: r.favicon || '/favicon.svg',
       maintenanceMode: Boolean(r.maintenance_mode),
     };
   }
 
   async updateSettings(data: Partial<SettingsModel>, userEmail: string): Promise<SettingsModel> {
     const pool = this.getPool();
+    const current = await this.getSettings();
+    const merged = { ...current, ...data };
+
     await pool.query(
       `INSERT INTO site_settings 
-        (id, site_name, tagline, default_currency, reservation_notification_email, concierge_phone, maintenance_mode) 
-       VALUES (1, ?, ?, ?, ?, ?, ?) 
+        (id, site_name, tagline, phone, concierge_phone, whatsapp, email, reservation_notification_email, 
+         reservation_email, address, instagram, facebook, youtube, booking_url, currency, default_currency, 
+         default_language, logo, favicon, maintenance_mode) 
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
        ON DUPLICATE KEY UPDATE 
-        site_name = VALUES(site_name), tagline = VALUES(tagline), default_currency = VALUES(default_currency), 
+        site_name = VALUES(site_name), tagline = VALUES(tagline), phone = VALUES(phone), 
+        concierge_phone = VALUES(concierge_phone), whatsapp = VALUES(whatsapp), email = VALUES(email), 
         reservation_notification_email = VALUES(reservation_notification_email), 
-        concierge_phone = VALUES(concierge_phone), maintenance_mode = VALUES(maintenance_mode)`,
+        reservation_email = VALUES(reservation_email), address = VALUES(address), 
+        instagram = VALUES(instagram), facebook = VALUES(facebook), youtube = VALUES(youtube), 
+        booking_url = VALUES(booking_url), currency = VALUES(currency), default_currency = VALUES(default_currency), 
+        default_language = VALUES(default_language), logo = VALUES(logo), favicon = VALUES(favicon), 
+        maintenance_mode = VALUES(maintenance_mode)`,
       [
-        data.siteName || 'Zanzirangi House',
-        data.tagline || '',
-        data.defaultCurrency || 'USD ($)',
-        data.reservationNotificationEmail || 'reservations@zanzirangihouse.com',
-        data.conciergePhone || '+255 777 890 123',
-        data.maintenanceMode ? 1 : 0,
+        merged.siteName || 'Zanzirangi House',
+        merged.tagline || '',
+        merged.phone || merged.conciergePhone || '+255 777 890 123',
+        merged.conciergePhone || '+255 777 890 123',
+        merged.whatsapp || '+255 777 890 123',
+        merged.email || 'info@zanzirangihouse.com',
+        merged.reservationNotificationEmail || 'reservations@zanzirangihouse.com',
+        merged.reservationEmail || merged.reservationNotificationEmail || 'reservations@zanzirangihouse.com',
+        merged.address || 'Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania',
+        merged.instagram || 'https://instagram.com/zanzirangi.house',
+        merged.facebook || 'https://facebook.com/zanzirangihouse',
+        merged.youtube || 'https://youtube.com/@zanzirangihouse',
+        merged.bookingUrl || 'https://zanzirangihouse.com/#stay',
+        merged.currency || 'USD',
+        merged.defaultCurrency || 'USD ($)',
+        merged.defaultLanguage || 'en',
+        merged.logo || '/src/assets/zanzirangi-logo-new.jpeg',
+        merged.favicon || '/favicon.svg',
+        merged.maintenanceMode ? 1 : 0,
       ]
     );
 

@@ -54,17 +54,17 @@ var init_env = __esm({
       PUBLIC_URL: process.env.PUBLIC_URL || (nodeEnv === "production" ? "https://zanzirangihouse.com" : "http://localhost:3000"),
       API_URL: process.env.API_URL || (nodeEnv === "production" ? "https://zanzirangihouse.com/api" : "/api"),
       DATABASE_PROVIDER: process.env.DATABASE_PROVIDER || "json",
-      MYSQL_HOST: process.env.MYSQL_HOST,
-      MYSQL_PORT: parseInt(process.env.MYSQL_PORT || "3306", 10),
-      MYSQL_DATABASE: process.env.MYSQL_DATABASE,
-      MYSQL_USER: process.env.MYSQL_USER,
-      MYSQL_PASSWORD: process.env.MYSQL_PASSWORD,
+      MYSQL_HOST: process.env.DB_HOST || process.env.MYSQL_HOST,
+      MYSQL_PORT: parseInt(process.env.DB_PORT || process.env.MYSQL_PORT || "3306", 10),
+      MYSQL_DATABASE: process.env.DB_NAME || process.env.MYSQL_DATABASE,
+      MYSQL_USER: process.env.DB_USER || process.env.MYSQL_USER,
+      MYSQL_PASSWORD: process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD,
       MYSQL_CONNECTION_LIMIT: parseInt(process.env.MYSQL_CONNECTION_LIMIT || "10", 10),
       JWT_SECRET: process.env.JWT_SECRET || (nodeEnv === "production" ? "" : "zanzirangi_dev_jwt_secret_2026"),
       JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "7d",
       ADMIN_EMAIL: process.env.ADMIN_EMAIL || "info@zanzirangihouse.com",
       MEDIA_STORAGE_PATH: process.env.MEDIA_STORAGE_PATH || path2.resolve(process.cwd(), "uploads"),
-      MAX_UPLOAD_SIZE_MB: parseInt(process.env.MAX_UPLOAD_SIZE_MB || "25", 10),
+      MAX_UPLOAD_SIZE_MB: parseInt(process.env.MAX_UPLOAD_SIZE || process.env.MAX_UPLOAD_SIZE_MB || "25", 10),
       CORS_ORIGIN: parseCorsOrigin(process.env.CORS_ORIGIN || (nodeEnv === "production" ? "https://zanzirangihouse.com" : "http://localhost:3000")),
       LOG_LEVEL: process.env.LOG_LEVEL || (nodeEnv === "production" ? "info" : "debug"),
       APP_VERSION: process.env.npm_package_version || "1.0.0"
@@ -469,8 +469,8 @@ var init_migrateFromJson = __esm({
 
 // server/index.ts
 import express2 from "express";
-import fs4 from "fs";
-import path5 from "path";
+import fs5 from "fs";
+import path6 from "path";
 import { fileURLToPath as fileURLToPath2 } from "url";
 
 // server/api.ts
@@ -1233,8 +1233,21 @@ var DEFAULT_SETTINGS = {
   siteName: "Zanzirangi House",
   tagline: "Private Luxury Villas & Sanctuary in Kizimkazi, Zanzibar",
   defaultCurrency: "USD ($)",
-  reservationNotificationEmail: "reservations@zanzirangihouse.com",
+  currency: "USD",
+  defaultLanguage: "en",
+  phone: "+255 777 890 123",
   conciergePhone: "+255 777 890 123",
+  whatsapp: "+255 777 890 123",
+  email: "info@zanzirangihouse.com",
+  reservationNotificationEmail: "reservations@zanzirangihouse.com",
+  reservationEmail: "reservations@zanzirangihouse.com",
+  address: "Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania",
+  instagram: "https://instagram.com/zanzirangi.house",
+  facebook: "https://facebook.com/zanzirangihouse",
+  youtube: "https://youtube.com/@zanzirangihouse",
+  bookingUrl: "https://zanzirangihouse.com/#stay",
+  logo: "/src/assets/zanzirangi-logo-new.jpeg",
+  favicon: "/favicon.svg",
   maintenanceMode: false
 };
 
@@ -2530,28 +2543,63 @@ var MysqlDatabaseAdapter = class {
       siteName: r.site_name || "Zanzirangi House",
       tagline: r.tagline || "Private Luxury Villas & Sanctuary in Kizimkazi, Zanzibar",
       defaultCurrency: r.default_currency || "USD ($)",
-      reservationNotificationEmail: r.reservation_notification_email || "reservations@zanzirangihouse.com",
+      currency: r.currency || "USD",
+      defaultLanguage: r.default_language || "en",
+      phone: r.phone || r.concierge_phone || "+255 777 890 123",
       conciergePhone: r.concierge_phone || "+255 777 890 123",
+      whatsapp: r.whatsapp || "+255 777 890 123",
+      email: r.email || "info@zanzirangihouse.com",
+      reservationNotificationEmail: r.reservation_notification_email || "reservations@zanzirangihouse.com",
+      reservationEmail: r.reservation_email || r.reservation_notification_email || "reservations@zanzirangihouse.com",
+      address: r.address || "Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania",
+      instagram: r.instagram || "https://instagram.com/zanzirangi.house",
+      facebook: r.facebook || "https://facebook.com/zanzirangihouse",
+      youtube: r.youtube || "https://youtube.com/@zanzirangihouse",
+      bookingUrl: r.booking_url || "https://zanzirangihouse.com/#stay",
+      logo: r.logo || "/src/assets/zanzirangi-logo-new.jpeg",
+      favicon: r.favicon || "/favicon.svg",
       maintenanceMode: Boolean(r.maintenance_mode)
     };
   }
   async updateSettings(data, userEmail) {
     const pool = this.getPool();
+    const current = await this.getSettings();
+    const merged = { ...current, ...data };
     await pool.query(
       `INSERT INTO site_settings 
-        (id, site_name, tagline, default_currency, reservation_notification_email, concierge_phone, maintenance_mode) 
-       VALUES (1, ?, ?, ?, ?, ?, ?) 
+        (id, site_name, tagline, phone, concierge_phone, whatsapp, email, reservation_notification_email, 
+         reservation_email, address, instagram, facebook, youtube, booking_url, currency, default_currency, 
+         default_language, logo, favicon, maintenance_mode) 
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
        ON DUPLICATE KEY UPDATE 
-        site_name = VALUES(site_name), tagline = VALUES(tagline), default_currency = VALUES(default_currency), 
+        site_name = VALUES(site_name), tagline = VALUES(tagline), phone = VALUES(phone), 
+        concierge_phone = VALUES(concierge_phone), whatsapp = VALUES(whatsapp), email = VALUES(email), 
         reservation_notification_email = VALUES(reservation_notification_email), 
-        concierge_phone = VALUES(concierge_phone), maintenance_mode = VALUES(maintenance_mode)`,
+        reservation_email = VALUES(reservation_email), address = VALUES(address), 
+        instagram = VALUES(instagram), facebook = VALUES(facebook), youtube = VALUES(youtube), 
+        booking_url = VALUES(booking_url), currency = VALUES(currency), default_currency = VALUES(default_currency), 
+        default_language = VALUES(default_language), logo = VALUES(logo), favicon = VALUES(favicon), 
+        maintenance_mode = VALUES(maintenance_mode)`,
       [
-        data.siteName || "Zanzirangi House",
-        data.tagline || "",
-        data.defaultCurrency || "USD ($)",
-        data.reservationNotificationEmail || "reservations@zanzirangihouse.com",
-        data.conciergePhone || "+255 777 890 123",
-        data.maintenanceMode ? 1 : 0
+        merged.siteName || "Zanzirangi House",
+        merged.tagline || "",
+        merged.phone || merged.conciergePhone || "+255 777 890 123",
+        merged.conciergePhone || "+255 777 890 123",
+        merged.whatsapp || "+255 777 890 123",
+        merged.email || "info@zanzirangihouse.com",
+        merged.reservationNotificationEmail || "reservations@zanzirangihouse.com",
+        merged.reservationEmail || merged.reservationNotificationEmail || "reservations@zanzirangihouse.com",
+        merged.address || "Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania",
+        merged.instagram || "https://instagram.com/zanzirangi.house",
+        merged.facebook || "https://facebook.com/zanzirangihouse",
+        merged.youtube || "https://youtube.com/@zanzirangihouse",
+        merged.bookingUrl || "https://zanzirangihouse.com/#stay",
+        merged.currency || "USD",
+        merged.defaultCurrency || "USD ($)",
+        merged.defaultLanguage || "en",
+        merged.logo || "/src/assets/zanzirangi-logo-new.jpeg",
+        merged.favicon || "/favicon.svg",
+        merged.maintenanceMode ? 1 : 0
       ]
     );
     await this.addAuditLog({
@@ -2667,6 +2715,197 @@ var MysqlDatabaseAdapter = class {
 
 // server/database/index.ts
 init_env();
+
+// server/database/repositories/homepageRepository.ts
+var HomepageRepository = class {
+  async getHomepage() {
+    return getDatabaseAdapter().getHomepage();
+  }
+  async updateHomepage(data, userEmail) {
+    return getDatabaseAdapter().updateHomepage(data, userEmail);
+  }
+};
+var homepageRepository = new HomepageRepository();
+
+// server/database/repositories/villasRepository.ts
+var VillasRepository = class {
+  async getAll() {
+    return getDatabaseAdapter().getVillas();
+  }
+  async getById(id) {
+    return getDatabaseAdapter().getVillaById(id);
+  }
+  async save(villa, userEmail) {
+    return getDatabaseAdapter().saveVilla(villa, userEmail);
+  }
+  async delete(id, userEmail) {
+    return getDatabaseAdapter().deleteVilla(id, userEmail);
+  }
+};
+var villasRepository = new VillasRepository();
+
+// server/database/repositories/galleryRepository.ts
+var GalleryRepository = class {
+  async getAll() {
+    return getDatabaseAdapter().getGallery();
+  }
+  async save(item, userEmail) {
+    return getDatabaseAdapter().saveGalleryItem(item, userEmail);
+  }
+  async delete(id, userEmail) {
+    return getDatabaseAdapter().deleteGalleryItem(id, userEmail);
+  }
+};
+var galleryRepository = new GalleryRepository();
+
+// server/database/repositories/videosRepository.ts
+var VideosRepository = class {
+  async get() {
+    return getDatabaseAdapter().getVideos();
+  }
+  async update(data, userEmail) {
+    return getDatabaseAdapter().updateVideos(data, userEmail);
+  }
+};
+var videosRepository = new VideosRepository();
+
+// server/database/repositories/facilitiesRepository.ts
+var FacilitiesRepository = class {
+  async getAll() {
+    return getDatabaseAdapter().getFacilities();
+  }
+  async save(facility, userEmail) {
+    return getDatabaseAdapter().saveFacility(facility, userEmail);
+  }
+};
+var facilitiesRepository = new FacilitiesRepository();
+
+// server/database/repositories/testimonialsRepository.ts
+var TestimonialsRepository = class {
+  async getAll() {
+    return getDatabaseAdapter().getTestimonials();
+  }
+  async save(testimonial, userEmail) {
+    return getDatabaseAdapter().saveTestimonial(testimonial, userEmail);
+  }
+  async delete(id, userEmail) {
+    return getDatabaseAdapter().deleteTestimonial(id, userEmail);
+  }
+};
+var testimonialsRepository = new TestimonialsRepository();
+
+// server/database/repositories/contactRepository.ts
+var ContactRepository = class {
+  async getContactInfo() {
+    const settings = await getDatabaseAdapter().getSettings();
+    return {
+      phone: settings.phone || settings.conciergePhone || "+255 777 890 123",
+      conciergePhone: settings.conciergePhone || "+255 777 890 123",
+      whatsapp: settings.whatsapp || "+255 777 890 123",
+      email: settings.email || "info@zanzirangihouse.com",
+      reservationEmail: settings.reservationEmail || settings.reservationNotificationEmail || "reservations@zanzirangihouse.com",
+      address: settings.address || "Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania",
+      bookingUrl: settings.bookingUrl || "https://zanzirangihouse.com/#stay",
+      instagram: settings.instagram || "https://instagram.com/zanzirangi.house",
+      facebook: settings.facebook || "https://facebook.com/zanzirangihouse",
+      youtube: settings.youtube || "https://youtube.com/@zanzirangihouse"
+    };
+  }
+  async updateContactInfo(data, userEmail) {
+    const updatedSettings = await getDatabaseAdapter().updateSettings(
+      {
+        phone: data.phone,
+        conciergePhone: data.conciergePhone || data.phone,
+        whatsapp: data.whatsapp,
+        email: data.email,
+        reservationEmail: data.reservationEmail,
+        reservationNotificationEmail: data.reservationEmail,
+        address: data.address,
+        bookingUrl: data.bookingUrl,
+        instagram: data.instagram,
+        facebook: data.facebook,
+        youtube: data.youtube
+      },
+      userEmail
+    );
+    return {
+      phone: updatedSettings.phone || updatedSettings.conciergePhone,
+      conciergePhone: updatedSettings.conciergePhone,
+      whatsapp: updatedSettings.whatsapp || "+255 777 890 123",
+      email: updatedSettings.email || "info@zanzirangihouse.com",
+      reservationEmail: updatedSettings.reservationEmail || updatedSettings.reservationNotificationEmail,
+      address: updatedSettings.address || "",
+      bookingUrl: updatedSettings.bookingUrl || "",
+      instagram: updatedSettings.instagram || "",
+      facebook: updatedSettings.facebook || "",
+      youtube: updatedSettings.youtube || ""
+    };
+  }
+};
+var contactRepository = new ContactRepository();
+
+// server/database/repositories/seoRepository.ts
+var SeoRepository = class {
+  async getSeo() {
+    return getDatabaseAdapter().getSeo();
+  }
+  async updateSeo(data, userEmail) {
+    return getDatabaseAdapter().updateSeo(data, userEmail);
+  }
+};
+var seoRepository = new SeoRepository();
+
+// server/database/repositories/mediaRepository.ts
+var MediaRepository = class {
+  async getAll() {
+    return getDatabaseAdapter().getMedia();
+  }
+  async save(asset, userEmail) {
+    return getDatabaseAdapter().saveMedia(asset, userEmail);
+  }
+  async delete(id, userEmail) {
+    return getDatabaseAdapter().deleteMedia(id, userEmail);
+  }
+};
+var mediaRepository = new MediaRepository();
+
+// server/database/repositories/settingsRepository.ts
+var SettingsRepository = class {
+  async getSettings() {
+    return getDatabaseAdapter().getSettings();
+  }
+  async updateSettings(data, userEmail) {
+    return getDatabaseAdapter().updateSettings(data, userEmail);
+  }
+};
+var settingsRepository = new SettingsRepository();
+
+// server/database/repositories/usersRepository.ts
+var UsersRepository = class {
+  async findByEmail(email) {
+    return getDatabaseAdapter().findUserByEmail(email);
+  }
+  async save(user) {
+    return getDatabaseAdapter().saveUser(user);
+  }
+  async list() {
+    return getDatabaseAdapter().listUsers();
+  }
+};
+var usersRepository = new UsersRepository();
+
+// server/database/repositories/auditRepository.ts
+var AuditRepository = class {
+  async getLogs(limit = 50) {
+    return getDatabaseAdapter().getAuditLogs(limit);
+  }
+  async log(entry) {
+    return getDatabaseAdapter().addAuditLog(entry);
+  }
+};
+var auditRepository = new AuditRepository();
+
+// server/database/index.ts
 var adapterInstance = null;
 function getDatabaseAdapter() {
   if (!adapterInstance) {
@@ -2776,7 +3015,7 @@ async function loginUser(email, password) {
   };
 }
 
-// server/storage/mediaStorage.ts
+// server/storage/LocalMediaStorage.ts
 init_env();
 import fs3 from "fs";
 import path4 from "path";
@@ -2813,9 +3052,9 @@ var FORBIDDEN_EXTENSIONS = /* @__PURE__ */ new Set([
   ".htaccess",
   ".env"
 ]);
-var MediaStorageService = class {
+var LocalMediaStorage = class {
   constructor(customStorageDir) {
-    this.storageDir = customStorageDir || env.MEDIA_STORAGE_PATH;
+    this.storageDir = customStorageDir || env.MEDIA_STORAGE_PATH || path4.resolve(process.cwd(), "uploads");
     this.ensureDirectoryExists();
   }
   ensureDirectoryExists() {
@@ -2826,9 +3065,9 @@ var MediaStorageService = class {
   getStorageDirectory() {
     return this.storageDir;
   }
-  /**
-   * Validates and saves an uploaded buffer to persistent storage.
-   */
+  getStoragePath() {
+    return this.storageDir;
+  }
   async saveFile(buffer, originalName, mimeType) {
     this.ensureDirectoryExists();
     const ext = path4.extname(originalName).toLowerCase();
@@ -2840,7 +3079,7 @@ var MediaStorageService = class {
     }
     const maxBytes = env.MAX_UPLOAD_SIZE_MB * 1024 * 1024;
     if (buffer.length > maxBytes) {
-      throw new Error(`File size (${(buffer.length / (1024 * 1024)).toFixed(1)}MB) exceeds maximum allowed limit of ${env.MAX_UPLOAD_SIZE_MB}MB.`);
+      throw new Error(`File size (${(buffer.length / (1024 * 1024)).toFixed(1)}MB) exceeds maximum limit of ${env.MAX_UPLOAD_SIZE_MB}MB.`);
     }
     const hash = crypto.randomBytes(16).toString("hex");
     const safeBaseName = path4.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 32);
@@ -2850,18 +3089,15 @@ var MediaStorageService = class {
       throw new Error("Security Exception: Invalid destination path traversal detected.");
     }
     await fs3.promises.writeFile(destinationPath, buffer);
-    const publicUrl = `/uploads/${uniqueFilename}`;
     return {
       filename: uniqueFilename,
-      url: publicUrl,
+      originalFilename: originalName,
+      url: `/uploads/${uniqueFilename}`,
       size: buffer.length,
       mimeType,
       storagePath: destinationPath
     };
   }
-  /**
-   * Deletes a file from persistent storage.
-   */
   async deleteFile(filename) {
     const safeFilename = path4.basename(filename);
     const filePath = path4.resolve(this.storageDir, safeFilename);
@@ -2874,29 +3110,70 @@ var MediaStorageService = class {
     }
     return false;
   }
-  /**
-   * Checks if a file exists in storage.
-   */
   exists(filename) {
     const safeFilename = path4.basename(filename);
     const filePath = path4.resolve(this.storageDir, safeFilename);
     return fs3.existsSync(filePath);
   }
-  /**
-   * Returns the persistent storage directory path on disk.
-   */
-  getStoragePath() {
-    return this.storageDir;
-  }
-  /**
-   * Returns the public URL for a stored filename.
-   */
   getUrl(filename) {
     const safeFilename = path4.basename(filename);
     return `/uploads/${safeFilename}`;
   }
 };
-var mediaStorage = new MediaStorageService();
+
+// server/storage/HostingerMediaStorage.ts
+import fs4 from "fs";
+import path5 from "path";
+init_env();
+var HostingerMediaStorage = class extends LocalMediaStorage {
+  constructor(customStorageDir) {
+    const hostingerDir = customStorageDir || env.MEDIA_STORAGE_PATH || path5.resolve(process.cwd(), "uploads");
+    super(hostingerDir);
+    this.enforceDirectorySecurity();
+  }
+  /**
+   * Drops a protective .htaccess file inside the uploads directory to prevent
+   * any potential executable file execution on Hostinger Apache/LiteSpeed web servers.
+   */
+  enforceDirectorySecurity() {
+    try {
+      const storageDir = this.getStorageDirectory();
+      const htaccessPath = path5.join(storageDir, ".htaccess");
+      const htaccessContent = [
+        "# Zanzirangi House: Security Lockdown for Uploads Directory",
+        "# Prohibit any script execution on Hostinger Apache / LiteSpeed",
+        '<FilesMatch "\\.(php|phtml|php3|php4|php5|phps|pl|py|cgi|sh|bash|exe)$">',
+        "  Order Allow,Deny",
+        "  Deny from all",
+        "</FilesMatch>",
+        "Options -ExecCGI -Indexes",
+        "RemoveHandler .php .phtml .php3 .php4 .php5 .phps",
+        "RemoveType .php .phtml .php3 .php4 .php5 .phps",
+        ""
+      ].join("\n");
+      if (!fs4.existsSync(htaccessPath)) {
+        fs4.writeFileSync(htaccessPath, htaccessContent, "utf-8");
+      }
+    } catch (e) {
+      console.warn("\u26A0\uFE0F Notice: Could not write protective .htaccess to uploads directory:", e.message);
+    }
+  }
+};
+
+// server/storage/index.ts
+init_env();
+var storageInstance = null;
+function getMediaStorage() {
+  if (!storageInstance) {
+    if (env.NODE_ENV === "production") {
+      storageInstance = new HostingerMediaStorage();
+    } else {
+      storageInstance = new LocalMediaStorage();
+    }
+  }
+  return storageInstance;
+}
+var mediaStorage = getMediaStorage();
 
 // server/api.ts
 init_env();
@@ -2934,7 +3211,7 @@ var loginRateLimiter = rateLimit({
 apiApp.get("/health", async (_req, res) => {
   const dbHealth = await getDatabaseAdapter().healthCheck();
   res.json({
-    status: "online",
+    status: "ok",
     service: "Zanzirangi House CMS Engine",
     environment: env.NODE_ENV,
     database: dbHealth.connected ? "connected" : "error",
@@ -2965,7 +3242,7 @@ apiApp.post("/auth/login", loginRateLimiter, async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1e3
       // 7 days
     });
-    await getDatabaseAdapter().addAuditLog({
+    await auditRepository.log({
       action: "USER_LOGIN",
       userEmail: result.user.email,
       details: "Administrator logged into Zanzirangi CMS",
@@ -2996,7 +3273,7 @@ apiApp.get("/auth/me", authenticateAdmin, (req, res) => {
 });
 apiApp.get("/content/homepage", async (_req, res) => {
   try {
-    const data = await getDatabaseAdapter().getHomepage();
+    const data = await homepageRepository.getHomepage();
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to retrieve published homepage content." });
@@ -3004,7 +3281,7 @@ apiApp.get("/content/homepage", async (_req, res) => {
 });
 apiApp.get("/content/villas", async (_req, res) => {
   try {
-    const villas = await getDatabaseAdapter().getVillas();
+    const villas = await villasRepository.getAll();
     const published = villas.filter((v) => v.status === "published");
     res.json({ success: true, data: published });
   } catch (err) {
@@ -3013,7 +3290,7 @@ apiApp.get("/content/villas", async (_req, res) => {
 });
 apiApp.get("/content/gallery", async (_req, res) => {
   try {
-    const gallery = await getDatabaseAdapter().getGallery();
+    const gallery = await galleryRepository.getAll();
     const published = gallery.filter((g) => g.published !== false);
     res.json({ success: true, data: published });
   } catch (err) {
@@ -3022,7 +3299,7 @@ apiApp.get("/content/gallery", async (_req, res) => {
 });
 apiApp.get("/content/facilities", async (_req, res) => {
   try {
-    const facilities = await getDatabaseAdapter().getFacilities();
+    const facilities = await facilitiesRepository.getAll();
     const visible = facilities.filter((f) => f.visible !== false);
     res.json({ success: true, data: visible });
   } catch (err) {
@@ -3031,7 +3308,7 @@ apiApp.get("/content/facilities", async (_req, res) => {
 });
 apiApp.get("/content/testimonials", async (_req, res) => {
   try {
-    const testimonials = await getDatabaseAdapter().getTestimonials();
+    const testimonials = await testimonialsRepository.getAll();
     const visible = testimonials.filter((t) => t.visible !== false);
     res.json({ success: true, data: visible });
   } catch (err) {
@@ -3040,7 +3317,7 @@ apiApp.get("/content/testimonials", async (_req, res) => {
 });
 apiApp.get("/content/videos", async (_req, res) => {
   try {
-    const videos = await getDatabaseAdapter().getVideos();
+    const videos = await videosRepository.get();
     res.json({ success: true, data: videos });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to retrieve video details." });
@@ -3048,22 +3325,43 @@ apiApp.get("/content/videos", async (_req, res) => {
 });
 apiApp.get("/content/seo", async (_req, res) => {
   try {
-    const seo = await getDatabaseAdapter().getSeo();
+    const seo = await seoRepository.getSeo();
     res.json({ success: true, data: seo });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to retrieve SEO configuration." });
   }
 });
+apiApp.get("/content/contact", async (_req, res) => {
+  try {
+    const contactInfo = await contactRepository.getContactInfo();
+    res.json({ success: true, data: contactInfo });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to retrieve contact information." });
+  }
+});
 apiApp.get("/content/settings", async (_req, res) => {
   try {
-    const s = await getDatabaseAdapter().getSettings();
+    const s = await settingsRepository.getSettings();
     res.json({
       success: true,
       data: {
         siteName: s.siteName,
         tagline: s.tagline,
         defaultCurrency: s.defaultCurrency,
+        currency: s.currency || "USD",
+        defaultLanguage: s.defaultLanguage || "en",
+        phone: s.phone || s.conciergePhone,
         conciergePhone: s.conciergePhone,
+        whatsapp: s.whatsapp,
+        email: s.email,
+        reservationEmail: s.reservationEmail || s.reservationNotificationEmail,
+        address: s.address,
+        instagram: s.instagram,
+        facebook: s.facebook,
+        youtube: s.youtube,
+        bookingUrl: s.bookingUrl,
+        logo: s.logo,
+        favicon: s.favicon,
         maintenanceMode: s.maintenanceMode
       }
     });
@@ -3073,7 +3371,7 @@ apiApp.get("/content/settings", async (_req, res) => {
 });
 apiApp.get("/admin/homepage", authenticateAdmin, async (_req, res) => {
   try {
-    const data = await getDatabaseAdapter().getHomepage();
+    const data = await homepageRepository.getHomepage();
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to fetch homepage data." });
@@ -3086,7 +3384,7 @@ apiApp.put("/admin/homepage", authenticateAdmin, async (req, res) => {
       res.status(400).json({ success: false, error: "Invalid payload structure." });
       return;
     }
-    const updated = await getDatabaseAdapter().updateHomepage(body, req.user?.email || "admin");
+    const updated = await homepageRepository.updateHomepage(body, req.user?.email || "admin");
     res.json({
       success: true,
       message: "Homepage content successfully published to live website.",
@@ -3099,7 +3397,7 @@ apiApp.put("/admin/homepage", authenticateAdmin, async (req, res) => {
 });
 apiApp.get("/admin/villas", authenticateAdmin, async (_req, res) => {
   try {
-    const data = await getDatabaseAdapter().getVillas();
+    const data = await villasRepository.getAll();
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to retrieve villas." });
@@ -3113,7 +3411,7 @@ apiApp.post("/admin/villas", authenticateAdmin, async (req, res) => {
       order: req.body.order || 0,
       status: req.body.status || "published"
     };
-    const saved = await getDatabaseAdapter().saveVilla(newVilla, req.user?.email || "admin");
+    const saved = await villasRepository.save(newVilla, req.user?.email || "admin");
     res.json({ success: true, data: saved, message: "Villa successfully created." });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to create villa." });
@@ -3122,13 +3420,13 @@ apiApp.post("/admin/villas", authenticateAdmin, async (req, res) => {
 apiApp.put("/admin/villas/:id", authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const existing = await getDatabaseAdapter().getVillaById(id);
+    const existing = await villasRepository.getById(id);
     if (!existing) {
       res.status(404).json({ success: false, error: "Villa not found." });
       return;
     }
     const merged = { ...existing, ...req.body, id };
-    const saved = await getDatabaseAdapter().saveVilla(merged, req.user?.email || "admin");
+    const saved = await villasRepository.save(merged, req.user?.email || "admin");
     res.json({ success: true, data: saved, message: "Villa updated successfully." });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to update villa." });
@@ -3137,7 +3435,7 @@ apiApp.put("/admin/villas/:id", authenticateAdmin, async (req, res) => {
 apiApp.delete("/admin/villas/:id", authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const deleted = await getDatabaseAdapter().deleteVilla(id, req.user?.email || "admin");
+    const deleted = await villasRepository.delete(id, req.user?.email || "admin");
     if (!deleted) {
       res.status(404).json({ success: false, error: "Villa not found." });
       return;
@@ -3149,7 +3447,7 @@ apiApp.delete("/admin/villas/:id", authenticateAdmin, async (req, res) => {
 });
 apiApp.get("/admin/gallery", authenticateAdmin, async (_req, res) => {
   try {
-    const data = await getDatabaseAdapter().getGallery();
+    const data = await galleryRepository.getAll();
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to retrieve gallery items." });
@@ -3163,7 +3461,7 @@ apiApp.post("/admin/gallery", authenticateAdmin, async (req, res) => {
       order: req.body.order || 0,
       published: req.body.published !== false
     };
-    const saved = await getDatabaseAdapter().saveGalleryItem(newItem, req.user?.email || "admin");
+    const saved = await galleryRepository.save(newItem, req.user?.email || "admin");
     res.json({ success: true, data: saved, message: "Gallery item added." });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to add gallery item." });
@@ -3172,14 +3470,14 @@ apiApp.post("/admin/gallery", authenticateAdmin, async (req, res) => {
 apiApp.put("/admin/gallery/:id", authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const items = await getDatabaseAdapter().getGallery();
+    const items = await galleryRepository.getAll();
     const existing = items.find((g) => g.id === id);
     if (!existing) {
       res.status(404).json({ success: false, error: "Gallery item not found." });
       return;
     }
     const merged = { ...existing, ...req.body, id };
-    const saved = await getDatabaseAdapter().saveGalleryItem(merged, req.user?.email || "admin");
+    const saved = await galleryRepository.save(merged, req.user?.email || "admin");
     res.json({ success: true, data: saved, message: "Gallery item updated." });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to update gallery item." });
@@ -3188,7 +3486,7 @@ apiApp.put("/admin/gallery/:id", authenticateAdmin, async (req, res) => {
 apiApp.delete("/admin/gallery/:id", authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const deleted = await getDatabaseAdapter().deleteGalleryItem(id, req.user?.email || "admin");
+    const deleted = await galleryRepository.delete(id, req.user?.email || "admin");
     if (!deleted) {
       res.status(404).json({ success: false, error: "Gallery item not found." });
       return;
@@ -3200,7 +3498,7 @@ apiApp.delete("/admin/gallery/:id", authenticateAdmin, async (req, res) => {
 });
 apiApp.get("/admin/facilities", authenticateAdmin, async (_req, res) => {
   try {
-    const data = await getDatabaseAdapter().getFacilities();
+    const data = await facilitiesRepository.getAll();
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to retrieve facilities." });
@@ -3209,14 +3507,14 @@ apiApp.get("/admin/facilities", authenticateAdmin, async (_req, res) => {
 apiApp.put("/admin/facilities/:id", authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const facilities = await getDatabaseAdapter().getFacilities();
+    const facilities = await facilitiesRepository.getAll();
     const existing = facilities.find((f) => f.id === id);
     if (!existing) {
       res.status(404).json({ success: false, error: "Facility not found." });
       return;
     }
     const merged = { ...existing, ...req.body, id };
-    const saved = await getDatabaseAdapter().saveFacility(merged, req.user?.email || "admin");
+    const saved = await facilitiesRepository.save(merged, req.user?.email || "admin");
     res.json({ success: true, data: saved, message: "Facility updated." });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to update facility." });
@@ -3224,7 +3522,7 @@ apiApp.put("/admin/facilities/:id", authenticateAdmin, async (req, res) => {
 });
 apiApp.get("/admin/testimonials", authenticateAdmin, async (_req, res) => {
   try {
-    const data = await getDatabaseAdapter().getTestimonials();
+    const data = await testimonialsRepository.getAll();
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to retrieve testimonials." });
@@ -3239,7 +3537,7 @@ apiApp.post("/admin/testimonials", authenticateAdmin, async (req, res) => {
       visible: req.body.visible !== false,
       rating: req.body.rating || 5
     };
-    const saved = await getDatabaseAdapter().saveTestimonial(newTestimonial, req.user?.email || "admin");
+    const saved = await testimonialsRepository.save(newTestimonial, req.user?.email || "admin");
     res.json({ success: true, data: saved, message: "Testimonial added." });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to add testimonial." });
@@ -3248,14 +3546,14 @@ apiApp.post("/admin/testimonials", authenticateAdmin, async (req, res) => {
 apiApp.put("/admin/testimonials/:id", authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const testimonials = await getDatabaseAdapter().getTestimonials();
+    const testimonials = await testimonialsRepository.getAll();
     const existing = testimonials.find((t) => t.id === id);
     if (!existing) {
       res.status(404).json({ success: false, error: "Testimonial not found." });
       return;
     }
     const merged = { ...existing, ...req.body, id };
-    const saved = await getDatabaseAdapter().saveTestimonial(merged, req.user?.email || "admin");
+    const saved = await testimonialsRepository.save(merged, req.user?.email || "admin");
     res.json({ success: true, data: saved, message: "Testimonial updated." });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to update testimonial." });
@@ -3264,7 +3562,7 @@ apiApp.put("/admin/testimonials/:id", authenticateAdmin, async (req, res) => {
 apiApp.delete("/admin/testimonials/:id", authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const deleted = await getDatabaseAdapter().deleteTestimonial(id, req.user?.email || "admin");
+    const deleted = await testimonialsRepository.delete(id, req.user?.email || "admin");
     if (!deleted) {
       res.status(404).json({ success: false, error: "Testimonial not found." });
       return;
@@ -3276,7 +3574,7 @@ apiApp.delete("/admin/testimonials/:id", authenticateAdmin, async (req, res) => 
 });
 apiApp.get("/admin/videos", authenticateAdmin, async (_req, res) => {
   try {
-    const data = await getDatabaseAdapter().getVideos();
+    const data = await videosRepository.get();
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to fetch video details." });
@@ -3284,7 +3582,7 @@ apiApp.get("/admin/videos", authenticateAdmin, async (_req, res) => {
 });
 apiApp.put("/admin/videos", authenticateAdmin, async (req, res) => {
   try {
-    const updated = await getDatabaseAdapter().updateVideos(req.body, req.user?.email || "admin");
+    const updated = await videosRepository.update(req.body, req.user?.email || "admin");
     res.json({ success: true, data: updated, message: "Promotional video details updated." });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to update videos." });
@@ -3292,7 +3590,7 @@ apiApp.put("/admin/videos", authenticateAdmin, async (req, res) => {
 });
 apiApp.get("/admin/seo", authenticateAdmin, async (_req, res) => {
   try {
-    const data = await getDatabaseAdapter().getSeo();
+    const data = await seoRepository.getSeo();
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to fetch SEO configuration." });
@@ -3300,7 +3598,7 @@ apiApp.get("/admin/seo", authenticateAdmin, async (_req, res) => {
 });
 apiApp.put("/admin/seo", authenticateAdmin, async (req, res) => {
   try {
-    const updated = await getDatabaseAdapter().updateSeo(req.body, req.user?.email || "admin");
+    const updated = await seoRepository.updateSeo(req.body, req.user?.email || "admin");
     res.json({ success: true, data: updated, message: "SEO configuration saved." });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to update SEO." });
@@ -3308,7 +3606,7 @@ apiApp.put("/admin/seo", authenticateAdmin, async (req, res) => {
 });
 apiApp.get("/admin/media", authenticateAdmin, async (_req, res) => {
   try {
-    const data = await getDatabaseAdapter().getMedia();
+    const data = await mediaRepository.getAll();
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to fetch media assets." });
@@ -3322,7 +3620,7 @@ apiApp.post("/admin/media", authenticateAdmin, async (req, res) => {
       createdAt: (/* @__PURE__ */ new Date()).toISOString(),
       usageCount: 0
     };
-    const saved = await getDatabaseAdapter().saveMedia(newMedia, req.user?.email || "admin");
+    const saved = await mediaRepository.save(newMedia, req.user?.email || "admin");
     res.json({ success: true, data: saved, message: "Media asset added to registry." });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to save media." });
@@ -3331,7 +3629,7 @@ apiApp.post("/admin/media", authenticateAdmin, async (req, res) => {
 apiApp.delete("/admin/media/:id", authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const deleted = await getDatabaseAdapter().deleteMedia(id, req.user?.email || "admin");
+    const deleted = await mediaRepository.delete(id, req.user?.email || "admin");
     if (!deleted) {
       res.status(404).json({ success: false, error: "Media asset not found." });
       return;
@@ -3362,7 +3660,7 @@ apiApp.post("/admin/media/upload", authenticateAdmin, async (req, res) => {
       usageCount: 0,
       createdAt: (/* @__PURE__ */ new Date()).toISOString()
     };
-    const saved = await getDatabaseAdapter().saveMedia(assetRecord, req.user?.email || "admin");
+    const saved = await mediaRepository.save(assetRecord, req.user?.email || "admin");
     res.json({ success: true, data: saved, message: "File uploaded and registered successfully." });
   } catch (err) {
     console.error("File upload error:", err.message);
@@ -3371,7 +3669,7 @@ apiApp.post("/admin/media/upload", authenticateAdmin, async (req, res) => {
 });
 apiApp.get("/admin/settings", authenticateAdmin, async (_req, res) => {
   try {
-    const data = await getDatabaseAdapter().getSettings();
+    const data = await settingsRepository.getSettings();
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to fetch settings." });
@@ -3379,7 +3677,7 @@ apiApp.get("/admin/settings", authenticateAdmin, async (_req, res) => {
 });
 apiApp.put("/admin/settings", authenticateAdmin, async (req, res) => {
   try {
-    const updated = await getDatabaseAdapter().updateSettings(req.body, req.user?.email || "admin");
+    const updated = await settingsRepository.updateSettings(req.body, req.user?.email || "admin");
     res.json({ success: true, data: updated, message: "Settings saved." });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to update settings." });
@@ -3396,12 +3694,21 @@ apiApp.get("/admin/dashboard-stats", authenticateAdmin, async (_req, res) => {
     res.status(500).json({ success: false, error: "Failed to fetch dashboard metrics." });
   }
 });
+apiApp.get("/admin/audit-logs", authenticateAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(String(req.query.limit || "50"), 10);
+    const logs = await auditRepository.getLogs(limit);
+    res.json({ success: true, data: logs });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to fetch audit logs." });
+  }
+});
 
 // server/index.ts
 init_env();
 validateEnvironment();
 var __filename2 = fileURLToPath2(import.meta.url);
-var __dirname2 = path5.dirname(__filename2);
+var __dirname2 = path6.dirname(__filename2);
 var app = express2();
 getDatabaseAdapter().connect().then(() => {
   console.log(`\u{1F680} Database engine initialized [Provider: ${env.DATABASE_PROVIDER}]`);
@@ -3418,13 +3725,13 @@ getDatabaseAdapter().connect().then(() => {
 });
 app.use("/uploads", express2.static(mediaStorage.getStorageDirectory()));
 app.use("/api", apiApp);
-var distPath = fs4.existsSync(path5.resolve(__dirname2, "../dist")) ? path5.resolve(__dirname2, "../dist") : path5.resolve(__dirname2, "./dist");
+var distPath = fs5.existsSync(path6.resolve(__dirname2, "../dist")) ? path6.resolve(__dirname2, "../dist") : path6.resolve(__dirname2, "./dist");
 app.use(express2.static(distPath));
 app.get("*", (req, res, next) => {
   if (req.path.startsWith("/api") || req.path.startsWith("/uploads")) {
     return next();
   }
-  const indexPath = path5.join(distPath, "index.html");
+  const indexPath = path6.join(distPath, "index.html");
   res.sendFile(indexPath, (err) => {
     if (err) {
       res.status(404).send("Zanzirangi House - Frontend distribution not built yet. Please run `npm run build`.");

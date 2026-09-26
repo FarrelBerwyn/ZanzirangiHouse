@@ -39,6 +39,43 @@ STATUS: ALL SMOKE TESTS PASSED [PASS]
 
 ---
 
+## 2. Comprehensive 18-Point CMS Verification Suite (`npm run test:suites`)
+
+The expanded verification harness tests full CRUD, persistence, authentication guards, and database lifecycle:
+
+```text
+================================================================
+ZANZIRANGI HOUSE: 18-POINT CMS VERIFICATION SUITE
+Target: http://localhost:3000/api | Mode: json
+================================================================
+
+✓ PASS [1/18] - Admin Login (rejects invalid & issues JWT)
+✓ PASS [2/18] - Session Authentication (verified: Zanzirangi Administrator)
+✓ PASS [3/18] - Homepage Read (hero title: "Zanzibar Luxury Villa...")
+✓ PASS [4/18] - Homepage Update (admin PUT accepted)
+✓ PASS [5/18] - Homepage Persistence (atomic state retained)
+✓ PASS [6/18] - Villa CRUD Operations (create, read, update, delete)
+✓ PASS [7/18] - Gallery CRUD Operations (create and delete curation)
+✓ PASS [8/18] - Video Storyboard CRUD (7 scenes)
+✓ PASS [9/18] - Facility Management (6 facilities)
+✓ PASS [10/18] - Testimonials CRUD (created and purged)
+✓ PASS [11/18] - Contact Centralization (phone: +255 777 890 123)
+✓ PASS [12/18] - SEO SERP Metadata Update (route canonicals & meta)
+✓ PASS [13/18] - Site Settings Centralization (no secret leakage)
+✓ PASS [14/18] - Media Metadata Registry (4 assets cataloged)
+✓ PASS [15/18] - Audit Logging Engine (recent logs: 5)
+✓ PASS [16/18] - Restart State Persistence (verified persistent records)
+✓ PASS [17/18] - Database Health & Pool Connection (provider: json)
+✓ PASS [18/18] - JSON → MySQL Migration System (backup & script verified)
+
+================================================================
+TOTAL SUITE RESULTS: 18/18 PASSED | 0 FAILED
+STATUS: ALL 18 TESTS PASSED [READY]
+================================================================
+```
+
+---
+
 ## 2. Content & Media Persistence Test Suite (`node scripts/persistence-test.mjs`)
 
 This suite verifies that:

@@ -116,7 +116,7 @@ export const AdminSettingsManager: React.FC = () => {
       <div className="space-y-6">
         {/* Sanctuary Branding */}
         <div className="bg-[#181716] p-6 rounded-xl border border-[#2C2B28] space-y-4">
-          <h3 className="font-serif text-lg text-[#FAF8F5]">Sanctuary Identity</h3>
+          <h3 className="font-serif text-lg text-[#FAF8F5]">Sanctuary Identity & Localization</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
@@ -124,7 +124,7 @@ export const AdminSettingsManager: React.FC = () => {
               </label>
               <input
                 type="text"
-                value={settings.siteName}
+                value={settings.siteName || ''}
                 onChange={(e) => setSettings({ ...settings, siteName: e.target.value })}
                 className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
               />
@@ -136,7 +136,7 @@ export const AdminSettingsManager: React.FC = () => {
               </label>
               <input
                 type="text"
-                value={settings.tagline}
+                value={settings.tagline || ''}
                 onChange={(e) => setSettings({ ...settings, tagline: e.target.value })}
                 className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
               />
@@ -148,7 +148,7 @@ export const AdminSettingsManager: React.FC = () => {
               </label>
               <input
                 type="text"
-                value={settings.defaultCurrency}
+                value={settings.defaultCurrency || ''}
                 onChange={(e) => setSettings({ ...settings, defaultCurrency: e.target.value })}
                 className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
               />
@@ -156,14 +156,113 @@ export const AdminSettingsManager: React.FC = () => {
 
             <div>
               <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
-                Reservation Alerts Recipient Email
+                Default Language
+              </label>
+              <input
+                type="text"
+                value={settings.defaultLanguage || 'en'}
+                onChange={(e) => setSettings({ ...settings, defaultLanguage: e.target.value })}
+                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Centralized Contact & Booking */}
+        <div className="bg-[#181716] p-6 rounded-xl border border-[#2C2B28] space-y-4">
+          <h3 className="font-serif text-lg text-[#FAF8F5]">Authoritative Contact & Reservations</h3>
+          <p className="text-xs text-[#8E8B85]">
+            Single authoritative source used across Header, Footer, Contact, WhatsApp CTA, and Reservation section.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                Concierge Phone
+              </label>
+              <input
+                type="text"
+                value={settings.conciergePhone || settings.phone || ''}
+                onChange={(e) =>
+                  setSettings({ ...settings, conciergePhone: e.target.value, phone: e.target.value })
+                }
+                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                WhatsApp Hotline
+              </label>
+              <input
+                type="text"
+                value={settings.whatsapp || ''}
+                onChange={(e) => setSettings({ ...settings, whatsapp: e.target.value })}
+                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                Public Inquiries Email
               </label>
               <input
                 type="email"
-                value={settings.reservationNotificationEmail}
+                value={settings.email || ''}
+                onChange={(e) => setSettings({ ...settings, email: e.target.value })}
+                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                Reservation Alerts Email
+              </label>
+              <input
+                type="email"
+                value={settings.reservationNotificationEmail || ''}
                 onChange={(e) =>
-                  setSettings({ ...settings, reservationNotificationEmail: e.target.value })
+                  setSettings({
+                    ...settings,
+                    reservationNotificationEmail: e.target.value,
+                    reservationEmail: e.target.value,
+                  })
                 }
+                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                Physical Property Address
+              </label>
+              <input
+                type="text"
+                value={settings.address || ''}
+                onChange={(e) => setSettings({ ...settings, address: e.target.value })}
+                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                Direct Booking URL
+              </label>
+              <input
+                type="text"
+                value={settings.bookingUrl || ''}
+                onChange={(e) => setSettings({ ...settings, bookingUrl: e.target.value })}
+                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                Instagram Profile Link
+              </label>
+              <input
+                type="text"
+                value={settings.instagram || ''}
+                onChange={(e) => setSettings({ ...settings, instagram: e.target.value })}
                 className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
               />
             </div>

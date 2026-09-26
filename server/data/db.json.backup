@@ -288,7 +288,7 @@
       "tagline": "A tranquil coastal sanctuary in Kizimkazi Dimbani."
     },
     "meta": {
-      "lastUpdated": "2026-09-26T16:39:02.791Z",
+      "lastUpdated": "2026-09-26T14:40:00.675Z",
       "updatedBy": "info@zanzirangihouse.com"
     }
   },
@@ -708,264 +708,6 @@
       "details": "Administrator logged into Zanzirangi CMS",
       "ipAddress": "127.0.0.1",
       "timestamp": "2026-09-26T16:10:50.390Z"
-    },
-    {
-      "action": "USER_LOGIN",
-      "userEmail": "info@zanzirangihouse.com",
-      "details": "Administrator logged into Zanzirangi CMS",
-      "ipAddress": "127.0.0.1",
-      "timestamp": "2026-09-26T16:30:09.217Z"
-    },
-    {
-      "action": "USER_LOGIN",
-      "userEmail": "info@zanzirangihouse.com",
-      "details": "Administrator logged into Zanzirangi CMS",
-      "ipAddress": "127.0.0.1",
-      "timestamp": "2026-09-26T16:31:19.422Z"
-    },
-    {
-      "action": "HOMEPAGE_UPDATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:31:19.435Z",
-      "details": "Updated sanctuary homepage content & layout"
-    },
-    {
-      "action": "VILLA_CREATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:31:19.446Z",
-      "details": "Saved villa entity: Test Private Plunge Villa (test-villa-1790440279439)"
-    },
-    {
-      "action": "VILLA_UPDATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:31:19.458Z",
-      "details": "Saved villa entity: Test Private Plunge Villa (test-villa-1790440279439)"
-    },
-    {
-      "action": "VILLA_DELETED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:31:19.468Z",
-      "details": "Removed villa ID: test-villa-1790440279439"
-    },
-    {
-      "action": "GALLERY_CREATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:31:19.480Z",
-      "details": "Saved gallery photograph: Sunset Deck Ocean View (test-g-1790440279468)"
-    },
-    {
-      "action": "GALLERY_DELETED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:31:19.487Z",
-      "details": "Removed gallery item ID: test-g-1790440279468"
-    },
-    {
-      "action": "VIDEOS_UPDATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:31:19.499Z",
-      "details": "Updated 4K cinematic film & storyboard scenes"
-    },
-    {
-      "action": "FACILITY_UPDATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:31:19.508Z",
-      "details": "Saved facility: Oceanfront Infinity Pool (pool)"
-    },
-    {
-      "action": "TESTIMONIAL_CREATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:31:19.515Z",
-      "details": "Saved guest impression: Sir Arthur Wellesley (test-rev-1790440279507)"
-    },
-    {
-      "action": "TESTIMONIAL_DELETED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:31:19.521Z",
-      "details": "Removed testimonial ID: test-rev-1790440279507"
-    },
-    {
-      "action": "SEO_UPDATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:31:19.546Z",
-      "details": "Updated SERP metadata and route SEO configurations"
-    },
-    {
-      "action": "SETTINGS_UPDATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:31:19.555Z",
-      "details": "Updated sanctuary system settings"
-    },
-    {
-      "action": "USER_LOGIN",
-      "userEmail": "info@zanzirangihouse.com",
-      "details": "Administrator logged into Zanzirangi CMS",
-      "ipAddress": "127.0.0.1",
-      "timestamp": "2026-09-26T16:32:13.429Z"
-    },
-    {
-      "action": "HOMEPAGE_UPDATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:32:13.440Z",
-      "details": "Updated sanctuary homepage content & layout"
-    },
-    {
-      "action": "VILLA_CREATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:32:13.447Z",
-      "details": "Saved villa entity: Test Private Plunge Villa (test-villa-1790440333445)"
-    },
-    {
-      "action": "VILLA_UPDATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:32:13.452Z",
-      "details": "Saved villa entity: Test Private Plunge Villa (test-villa-1790440333445)"
-    },
-    {
-      "action": "VILLA_DELETED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:32:13.456Z",
-      "details": "Removed villa ID: test-villa-1790440333445"
-    },
-    {
-      "action": "GALLERY_CREATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:32:13.460Z",
-      "details": "Saved gallery photograph: Sunset Deck Ocean View (test-g-1790440333458)"
-    },
-    {
-      "action": "GALLERY_DELETED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:32:13.463Z",
-      "details": "Removed gallery item ID: test-g-1790440333458"
-    },
-    {
-      "action": "VIDEOS_UPDATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:32:13.469Z",
-      "details": "Updated 4K cinematic film & storyboard scenes"
-    },
-    {
-      "action": "FACILITY_UPDATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:32:13.476Z",
-      "details": "Saved facility: Oceanfront Infinity Pool (pool)"
-    },
-    {
-      "action": "TESTIMONIAL_CREATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:32:13.481Z",
-      "details": "Saved guest impression: Sir Arthur Wellesley (test-rev-1790440333478)"
-    },
-    {
-      "action": "TESTIMONIAL_DELETED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:32:13.483Z",
-      "details": "Removed testimonial ID: test-rev-1790440333478"
-    },
-    {
-      "action": "SEO_UPDATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:32:13.493Z",
-      "details": "Updated SERP metadata and route SEO configurations"
-    },
-    {
-      "action": "SETTINGS_UPDATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:32:13.499Z",
-      "details": "Updated sanctuary system settings"
-    },
-    {
-      "action": "USER_LOGIN",
-      "userEmail": "info@zanzirangihouse.com",
-      "details": "Administrator logged into Zanzirangi CMS",
-      "ipAddress": "127.0.0.1",
-      "timestamp": "2026-09-26T16:32:19.690Z"
-    },
-    {
-      "action": "USER_LOGIN",
-      "userEmail": "info@zanzirangihouse.com",
-      "details": "Administrator logged into Zanzirangi CMS",
-      "ipAddress": "127.0.0.1",
-      "timestamp": "2026-09-26T16:34:44.128Z"
-    },
-    {
-      "action": "USER_LOGIN",
-      "userEmail": "info@zanzirangihouse.com",
-      "details": "Administrator logged into Zanzirangi CMS",
-      "ipAddress": "127.0.0.1",
-      "timestamp": "2026-09-26T16:39:02.772Z"
-    },
-    {
-      "action": "HOMEPAGE_UPDATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:39:02.791Z",
-      "details": "Updated sanctuary homepage content & layout"
-    },
-    {
-      "action": "VILLA_CREATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:39:02.803Z",
-      "details": "Saved villa entity: Test Private Plunge Villa (test-villa-1790440742798)"
-    },
-    {
-      "action": "VILLA_UPDATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:39:02.818Z",
-      "details": "Saved villa entity: Test Private Plunge Villa (test-villa-1790440742798)"
-    },
-    {
-      "action": "VILLA_DELETED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:39:02.828Z",
-      "details": "Removed villa ID: test-villa-1790440742798"
-    },
-    {
-      "action": "GALLERY_CREATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:39:02.835Z",
-      "details": "Saved gallery photograph: Sunset Deck Ocean View (test-g-1790440742832)"
-    },
-    {
-      "action": "GALLERY_DELETED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:39:02.844Z",
-      "details": "Removed gallery item ID: test-g-1790440742832"
-    },
-    {
-      "action": "VIDEOS_UPDATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:39:02.860Z",
-      "details": "Updated 4K cinematic film & storyboard scenes"
-    },
-    {
-      "action": "FACILITY_UPDATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:39:02.874Z",
-      "details": "Saved facility: Oceanfront Infinity Pool (pool)"
-    },
-    {
-      "action": "TESTIMONIAL_CREATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:39:02.883Z",
-      "details": "Saved guest impression: Sir Arthur Wellesley (test-rev-1790440742878)"
-    },
-    {
-      "action": "TESTIMONIAL_DELETED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:39:02.891Z",
-      "details": "Removed testimonial ID: test-rev-1790440742878"
-    },
-    {
-      "action": "SEO_UPDATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:39:02.910Z",
-      "details": "Updated SERP metadata and route SEO configurations"
-    },
-    {
-      "action": "SETTINGS_UPDATED",
-      "userEmail": "info@zanzirangihouse.com",
-      "timestamp": "2026-09-26T16:39:02.921Z",
-      "details": "Updated sanctuary system settings"
     }
   ],
   "villas": [
@@ -1381,7 +1123,7 @@
       "description": "Suspended above the turquoise tides of the Indian Ocean, our 25-meter freshwater infinity pool mirrors the sky and ocean horizons with sunken sunbeds and attentive poolside service.",
       "image": "https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?auto=format&fit=crop&w=1200&q=85",
       "hours": "06:30 – 22:00 Daily",
-      "highlight": "Bespoke In-Villa Butler",
+      "highlight": "Heated freshwater with ocean horizon views",
       "order": 1,
       "visible": true
     },
@@ -1521,7 +1263,7 @@
   "videos": {
     "id": "main-brand-reel",
     "title": "Cinematic Brand Reel",
-    "eyebrow": "CINEMATIC LUXURY",
+    "eyebrow": "Experience The Sanctuary",
     "badge": "4K Ultra HD • Concept Storyboard",
     "videoUrl": "./Zanzirangi-home.mp4",
     "posterImage": "https://images.unsplash.com/photo-1540541338287-41700207dee6?auto=format&fit=crop&w=1600&q=85",

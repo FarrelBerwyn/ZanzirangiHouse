@@ -82,7 +82,7 @@ async function run() {
   try {
     const res = await fetch(`${BASE_URL}/health`);
     const data = await res.json();
-    const ok = res.status === 200 && data.status === 'online' && data.database === 'connected';
+    const ok = res.status === 200 && (data.status === 'ok' || data.status === 'online') && data.database === 'connected';
     // Verify no secret leak in health
     const noSecretLeak = !data.jwt_secret && !data.password && !data.user;
     record('1. GET /api/health', ok && noSecretLeak, `status: ${data.status}, db: ${data.database}`);

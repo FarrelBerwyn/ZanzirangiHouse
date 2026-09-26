@@ -2,9 +2,22 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
-import { getDatabaseAdapter } from './database/index.ts';
+import {
+  homepageRepository,
+  villasRepository,
+  galleryRepository,
+  facilitiesRepository,
+  testimonialsRepository,
+  videosRepository,
+  seoRepository,
+  mediaRepository,
+  settingsRepository,
+  contactRepository,
+  auditRepository,
+  getDatabaseAdapter,
+} from './database/index.ts';
 import { authenticateAdmin, loginUser, AuthenticatedRequest } from './auth.ts';
-import { mediaStorage } from './storage/mediaStorage.ts';
+import { mediaStorage } from './storage/index.ts';
 import { env } from './config/env.ts';
 
 export const apiApp = express();
@@ -47,12 +60,12 @@ const loginRateLimiter = rateLimit({
 });
 
 // -------------------------------------------------------------
-// Health Check (Safe Public Endpoint)
+// Health Check (Safe Public Endpoint - Section 13)
 // -------------------------------------------------------------
 apiApp.get('/health', async (_req: Request, res: Response) => {
   const dbHealth = await getDatabaseAdapter().healthCheck();
   res.json({
-    status: 'online',
+    status: 'ok',
     service: 'Zanzirangi House CMS Engine',
     environment: env.NODE_ENV,
     database: dbHealth.connected ? 'connected' : 'error',
@@ -89,7 +102,7 @@ apiApp.post('/auth/login', loginRateLimiter, async (req: Request, res: Response)
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-    await getDatabaseAdapter().addAuditLog({
+    await auditRepository.log({
       action: 'USER_LOGIN',
       userEmail: result.user!.email,
       details: 'Administrator logged into Zanzirangi CMS',
@@ -127,7 +140,7 @@ apiApp.get('/auth/me', authenticateAdmin, (req: AuthenticatedRequest, res: Respo
 // -------------------------------------------------------------
 apiApp.get('/content/homepage', async (_req: Request, res: Response) => {
   try {
-    const data = await getDatabaseAdapter().getHomepage();
+    const data = await homepageRepository.getHomepage();
     res.json({ success: true, data });
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Failed to retrieve published homepage content.' });
@@ -136,7 +149,7 @@ apiApp.get('/content/homepage', async (_req: Request, res: Response) => {
 
 apiApp.get('/content/villas', async (_req: Request, res: Response) => {
   try {
-    const villas = await getDatabaseAdapter().getVillas();
+    const villas = await villasRepository.getAll();
     const published = villas.filter((v) => v.status === 'published');
     res.json({ success: true, data: published });
   } catch (err: any) {
@@ -146,7 +159,7 @@ apiApp.get('/content/villas', async (_req: Request, res: Response) => {
 
 apiApp.get('/content/gallery', async (_req: Request, res: Response) => {
   try {
-    const gallery = await getDatabaseAdapter().getGallery();
+    const gallery = await galleryRepository.getAll();
     const published = gallery.filter((g) => g.published !== false);
     res.json({ success: true, data: published });
   } catch (err: any) {
@@ -156,7 +169,7 @@ apiApp.get('/content/gallery', async (_req: Request, res: Response) => {
 
 apiApp.get('/content/facilities', async (_req: Request, res: Response) => {
   try {
-    const facilities = await getDatabaseAdapter().getFacilities();
+    const facilities = await facilitiesRepository.getAll();
     const visible = facilities.filter((f) => f.visible !== false);
     res.json({ success: true, data: visible });
   } catch (err: any) {
@@ -166,7 +179,7 @@ apiApp.get('/content/facilities', async (_req: Request, res: Response) => {
 
 apiApp.get('/content/testimonials', async (_req: Request, res: Response) => {
   try {
-    const testimonials = await getDatabaseAdapter().getTestimonials();
+    const testimonials = await testimonialsRepository.getAll();
     const visible = testimonials.filter((t) => t.visible !== false);
     res.json({ success: true, data: visible });
   } catch (err: any) {
@@ -176,7 +189,7 @@ apiApp.get('/content/testimonials', async (_req: Request, res: Response) => {
 
 apiApp.get('/content/videos', async (_req: Request, res: Response) => {
   try {
-    const videos = await getDatabaseAdapter().getVideos();
+    const videos = await videosRepository.get();
     res.json({ success: true, data: videos });
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Failed to retrieve video details.' });
@@ -185,16 +198,25 @@ apiApp.get('/content/videos', async (_req: Request, res: Response) => {
 
 apiApp.get('/content/seo', async (_req: Request, res: Response) => {
   try {
-    const seo = await getDatabaseAdapter().getSeo();
+    const seo = await seoRepository.getSeo();
     res.json({ success: true, data: seo });
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Failed to retrieve SEO configuration.' });
   }
 });
 
+apiApp.get('/content/contact', async (_req: Request, res: Response) => {
+  try {
+    const contactInfo = await contactRepository.getContactInfo();
+    res.json({ success: true, data: contactInfo });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Failed to retrieve contact information.' });
+  }
+});
+
 apiApp.get('/content/settings', async (_req: Request, res: Response) => {
   try {
-    const s = await getDatabaseAdapter().getSettings();
+    const s = await settingsRepository.getSettings();
     // Expose only safe public settings
     res.json({
       success: true,
@@ -202,7 +224,20 @@ apiApp.get('/content/settings', async (_req: Request, res: Response) => {
         siteName: s.siteName,
         tagline: s.tagline,
         defaultCurrency: s.defaultCurrency,
+        currency: s.currency || 'USD',
+        defaultLanguage: s.defaultLanguage || 'en',
+        phone: s.phone || s.conciergePhone,
         conciergePhone: s.conciergePhone,
+        whatsapp: s.whatsapp,
+        email: s.email,
+        reservationEmail: s.reservationEmail || s.reservationNotificationEmail,
+        address: s.address,
+        instagram: s.instagram,
+        facebook: s.facebook,
+        youtube: s.youtube,
+        bookingUrl: s.bookingUrl,
+        logo: s.logo,
+        favicon: s.favicon,
         maintenanceMode: s.maintenanceMode,
       },
     });
@@ -218,7 +253,7 @@ apiApp.get('/content/settings', async (_req: Request, res: Response) => {
 // --- Homepage CMS ---
 apiApp.get('/admin/homepage', authenticateAdmin, async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    const data = await getDatabaseAdapter().getHomepage();
+    const data = await homepageRepository.getHomepage();
     res.json({ success: true, data });
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Failed to fetch homepage data.' });
@@ -233,7 +268,7 @@ apiApp.put('/admin/homepage', authenticateAdmin, async (req: AuthenticatedReques
       return;
     }
 
-    const updated = await getDatabaseAdapter().updateHomepage(body, req.user?.email || 'admin');
+    const updated = await homepageRepository.updateHomepage(body, req.user?.email || 'admin');
     res.json({
       success: true,
       message: 'Homepage content successfully published to live website.',
@@ -248,7 +283,7 @@ apiApp.put('/admin/homepage', authenticateAdmin, async (req: AuthenticatedReques
 // --- Rooms & Villas CRUD ---
 apiApp.get('/admin/villas', authenticateAdmin, async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    const data = await getDatabaseAdapter().getVillas();
+    const data = await villasRepository.getAll();
     res.json({ success: true, data });
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Failed to retrieve villas.' });
@@ -263,7 +298,7 @@ apiApp.post('/admin/villas', authenticateAdmin, async (req: AuthenticatedRequest
       order: req.body.order || 0,
       status: req.body.status || 'published',
     };
-    const saved = await getDatabaseAdapter().saveVilla(newVilla, req.user?.email || 'admin');
+    const saved = await villasRepository.save(newVilla, req.user?.email || 'admin');
     res.json({ success: true, data: saved, message: 'Villa successfully created.' });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to create villa.' });
@@ -273,13 +308,13 @@ apiApp.post('/admin/villas', authenticateAdmin, async (req: AuthenticatedRequest
 apiApp.put('/admin/villas/:id', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const existing = await getDatabaseAdapter().getVillaById(id);
+    const existing = await villasRepository.getById(id);
     if (!existing) {
       res.status(404).json({ success: false, error: 'Villa not found.' });
       return;
     }
     const merged = { ...existing, ...req.body, id };
-    const saved = await getDatabaseAdapter().saveVilla(merged, req.user?.email || 'admin');
+    const saved = await villasRepository.save(merged, req.user?.email || 'admin');
     res.json({ success: true, data: saved, message: 'Villa updated successfully.' });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to update villa.' });
@@ -289,7 +324,7 @@ apiApp.put('/admin/villas/:id', authenticateAdmin, async (req: AuthenticatedRequ
 apiApp.delete('/admin/villas/:id', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const deleted = await getDatabaseAdapter().deleteVilla(id, req.user?.email || 'admin');
+    const deleted = await villasRepository.delete(id, req.user?.email || 'admin');
     if (!deleted) {
       res.status(404).json({ success: false, error: 'Villa not found.' });
       return;
@@ -303,7 +338,7 @@ apiApp.delete('/admin/villas/:id', authenticateAdmin, async (req: AuthenticatedR
 // --- Gallery CRUD ---
 apiApp.get('/admin/gallery', authenticateAdmin, async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    const data = await getDatabaseAdapter().getGallery();
+    const data = await galleryRepository.getAll();
     res.json({ success: true, data });
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Failed to retrieve gallery items.' });
@@ -318,7 +353,7 @@ apiApp.post('/admin/gallery', authenticateAdmin, async (req: AuthenticatedReques
       order: req.body.order || 0,
       published: req.body.published !== false,
     };
-    const saved = await getDatabaseAdapter().saveGalleryItem(newItem, req.user?.email || 'admin');
+    const saved = await galleryRepository.save(newItem, req.user?.email || 'admin');
     res.json({ success: true, data: saved, message: 'Gallery item added.' });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to add gallery item.' });
@@ -328,14 +363,14 @@ apiApp.post('/admin/gallery', authenticateAdmin, async (req: AuthenticatedReques
 apiApp.put('/admin/gallery/:id', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const items = await getDatabaseAdapter().getGallery();
+    const items = await galleryRepository.getAll();
     const existing = items.find((g) => g.id === id);
     if (!existing) {
       res.status(404).json({ success: false, error: 'Gallery item not found.' });
       return;
     }
     const merged = { ...existing, ...req.body, id };
-    const saved = await getDatabaseAdapter().saveGalleryItem(merged, req.user?.email || 'admin');
+    const saved = await galleryRepository.save(merged, req.user?.email || 'admin');
     res.json({ success: true, data: saved, message: 'Gallery item updated.' });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to update gallery item.' });
@@ -345,7 +380,7 @@ apiApp.put('/admin/gallery/:id', authenticateAdmin, async (req: AuthenticatedReq
 apiApp.delete('/admin/gallery/:id', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const deleted = await getDatabaseAdapter().deleteGalleryItem(id, req.user?.email || 'admin');
+    const deleted = await galleryRepository.delete(id, req.user?.email || 'admin');
     if (!deleted) {
       res.status(404).json({ success: false, error: 'Gallery item not found.' });
       return;
@@ -359,7 +394,7 @@ apiApp.delete('/admin/gallery/:id', authenticateAdmin, async (req: Authenticated
 // --- Facilities CRUD ---
 apiApp.get('/admin/facilities', authenticateAdmin, async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    const data = await getDatabaseAdapter().getFacilities();
+    const data = await facilitiesRepository.getAll();
     res.json({ success: true, data });
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Failed to retrieve facilities.' });
@@ -369,14 +404,14 @@ apiApp.get('/admin/facilities', authenticateAdmin, async (_req: AuthenticatedReq
 apiApp.put('/admin/facilities/:id', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const facilities = await getDatabaseAdapter().getFacilities();
+    const facilities = await facilitiesRepository.getAll();
     const existing = facilities.find((f) => f.id === id);
     if (!existing) {
       res.status(404).json({ success: false, error: 'Facility not found.' });
       return;
     }
     const merged = { ...existing, ...req.body, id };
-    const saved = await getDatabaseAdapter().saveFacility(merged, req.user?.email || 'admin');
+    const saved = await facilitiesRepository.save(merged, req.user?.email || 'admin');
     res.json({ success: true, data: saved, message: 'Facility updated.' });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to update facility.' });
@@ -386,7 +421,7 @@ apiApp.put('/admin/facilities/:id', authenticateAdmin, async (req: Authenticated
 // --- Testimonials CRUD ---
 apiApp.get('/admin/testimonials', authenticateAdmin, async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    const data = await getDatabaseAdapter().getTestimonials();
+    const data = await testimonialsRepository.getAll();
     res.json({ success: true, data });
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Failed to retrieve testimonials.' });
@@ -402,7 +437,7 @@ apiApp.post('/admin/testimonials', authenticateAdmin, async (req: AuthenticatedR
       visible: req.body.visible !== false,
       rating: req.body.rating || 5,
     };
-    const saved = await getDatabaseAdapter().saveTestimonial(newTestimonial, req.user?.email || 'admin');
+    const saved = await testimonialsRepository.save(newTestimonial, req.user?.email || 'admin');
     res.json({ success: true, data: saved, message: 'Testimonial added.' });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to add testimonial.' });
@@ -412,14 +447,14 @@ apiApp.post('/admin/testimonials', authenticateAdmin, async (req: AuthenticatedR
 apiApp.put('/admin/testimonials/:id', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const testimonials = await getDatabaseAdapter().getTestimonials();
+    const testimonials = await testimonialsRepository.getAll();
     const existing = testimonials.find((t) => t.id === id);
     if (!existing) {
       res.status(404).json({ success: false, error: 'Testimonial not found.' });
       return;
     }
     const merged = { ...existing, ...req.body, id };
-    const saved = await getDatabaseAdapter().saveTestimonial(merged, req.user?.email || 'admin');
+    const saved = await testimonialsRepository.save(merged, req.user?.email || 'admin');
     res.json({ success: true, data: saved, message: 'Testimonial updated.' });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to update testimonial.' });
@@ -429,7 +464,7 @@ apiApp.put('/admin/testimonials/:id', authenticateAdmin, async (req: Authenticat
 apiApp.delete('/admin/testimonials/:id', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const deleted = await getDatabaseAdapter().deleteTestimonial(id, req.user?.email || 'admin');
+    const deleted = await testimonialsRepository.delete(id, req.user?.email || 'admin');
     if (!deleted) {
       res.status(404).json({ success: false, error: 'Testimonial not found.' });
       return;
@@ -443,7 +478,7 @@ apiApp.delete('/admin/testimonials/:id', authenticateAdmin, async (req: Authenti
 // --- Videos ---
 apiApp.get('/admin/videos', authenticateAdmin, async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    const data = await getDatabaseAdapter().getVideos();
+    const data = await videosRepository.get();
     res.json({ success: true, data });
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Failed to fetch video details.' });
@@ -452,7 +487,7 @@ apiApp.get('/admin/videos', authenticateAdmin, async (_req: AuthenticatedRequest
 
 apiApp.put('/admin/videos', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const updated = await getDatabaseAdapter().updateVideos(req.body, req.user?.email || 'admin');
+    const updated = await videosRepository.update(req.body, req.user?.email || 'admin');
     res.json({ success: true, data: updated, message: 'Promotional video details updated.' });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to update videos.' });
@@ -462,7 +497,7 @@ apiApp.put('/admin/videos', authenticateAdmin, async (req: AuthenticatedRequest,
 // --- SEO ---
 apiApp.get('/admin/seo', authenticateAdmin, async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    const data = await getDatabaseAdapter().getSeo();
+    const data = await seoRepository.getSeo();
     res.json({ success: true, data });
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Failed to fetch SEO configuration.' });
@@ -471,7 +506,7 @@ apiApp.get('/admin/seo', authenticateAdmin, async (_req: AuthenticatedRequest, r
 
 apiApp.put('/admin/seo', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const updated = await getDatabaseAdapter().updateSeo(req.body, req.user?.email || 'admin');
+    const updated = await seoRepository.updateSeo(req.body, req.user?.email || 'admin');
     res.json({ success: true, data: updated, message: 'SEO configuration saved.' });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to update SEO.' });
@@ -481,7 +516,7 @@ apiApp.put('/admin/seo', authenticateAdmin, async (req: AuthenticatedRequest, re
 // --- Media Library ---
 apiApp.get('/admin/media', authenticateAdmin, async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    const data = await getDatabaseAdapter().getMedia();
+    const data = await mediaRepository.getAll();
     res.json({ success: true, data });
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Failed to fetch media assets.' });
@@ -496,7 +531,7 @@ apiApp.post('/admin/media', authenticateAdmin, async (req: AuthenticatedRequest,
       createdAt: new Date().toISOString(),
       usageCount: 0,
     };
-    const saved = await getDatabaseAdapter().saveMedia(newMedia, req.user?.email || 'admin');
+    const saved = await mediaRepository.save(newMedia, req.user?.email || 'admin');
     res.json({ success: true, data: saved, message: 'Media asset added to registry.' });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to save media.' });
@@ -506,7 +541,7 @@ apiApp.post('/admin/media', authenticateAdmin, async (req: AuthenticatedRequest,
 apiApp.delete('/admin/media/:id', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const deleted = await getDatabaseAdapter().deleteMedia(id, req.user?.email || 'admin');
+    const deleted = await mediaRepository.delete(id, req.user?.email || 'admin');
     if (!deleted) {
       res.status(404).json({ success: false, error: 'Media asset not found.' });
       return;
@@ -543,7 +578,7 @@ apiApp.post('/admin/media/upload', authenticateAdmin, async (req: AuthenticatedR
       createdAt: new Date().toISOString(),
     };
 
-    const saved = await getDatabaseAdapter().saveMedia(assetRecord, req.user?.email || 'admin');
+    const saved = await mediaRepository.save(assetRecord, req.user?.email || 'admin');
     res.json({ success: true, data: saved, message: 'File uploaded and registered successfully.' });
   } catch (err: any) {
     console.error('File upload error:', err.message);
@@ -554,7 +589,7 @@ apiApp.post('/admin/media/upload', authenticateAdmin, async (req: AuthenticatedR
 // --- Settings ---
 apiApp.get('/admin/settings', authenticateAdmin, async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    const data = await getDatabaseAdapter().getSettings();
+    const data = await settingsRepository.getSettings();
     res.json({ success: true, data });
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Failed to fetch settings.' });
@@ -563,7 +598,7 @@ apiApp.get('/admin/settings', authenticateAdmin, async (_req: AuthenticatedReque
 
 apiApp.put('/admin/settings', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const updated = await getDatabaseAdapter().updateSettings(req.body, req.user?.email || 'admin');
+    const updated = await settingsRepository.updateSettings(req.body, req.user?.email || 'admin');
     res.json({ success: true, data: updated, message: 'Settings saved.' });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to update settings.' });
@@ -582,3 +617,15 @@ apiApp.get('/admin/dashboard-stats', authenticateAdmin, async (_req: Authenticat
     res.status(500).json({ success: false, error: 'Failed to fetch dashboard metrics.' });
   }
 });
+
+// --- Audit Logs ---
+apiApp.get('/admin/audit-logs', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const limit = parseInt(String(req.query.limit || '50'), 10);
+    const logs = await auditRepository.getLogs(limit);
+    res.json({ success: true, data: logs });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Failed to fetch audit logs.' });
+  }
+});
+

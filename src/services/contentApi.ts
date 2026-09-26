@@ -192,8 +192,21 @@ export interface SettingsModel {
   siteName: string;
   tagline: string;
   defaultCurrency: string;
-  reservationNotificationEmail: string;
+  currency?: string;
+  defaultLanguage?: string;
+  phone?: string;
   conciergePhone: string;
+  whatsapp?: string;
+  email?: string;
+  reservationNotificationEmail: string;
+  reservationEmail?: string;
+  address?: string;
+  instagram?: string;
+  facebook?: string;
+  youtube?: string;
+  bookingUrl?: string;
+  logo?: string;
+  favicon?: string;
   maintenanceMode: boolean;
 }
 

@@ -19,8 +19,10 @@
     "lint": "tsc --noEmit",
     "audit": "node scripts/seo_audit.js",
     "db:migrate": "tsx server/database/migrateFromJson.ts",
+    "db:migrate:mysql": "tsx scripts/migrate-json-to-mysql.ts",
     "admin:create": "node scripts/create_admin.js",
-    "smoke-test": "node scripts/production-smoke-test.mjs"
+    "smoke-test": "node scripts/production-smoke-test.mjs",
+    "test:suites": "node scripts/test-cms-suites.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

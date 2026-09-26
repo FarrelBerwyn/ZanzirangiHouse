@@ -30,3 +30,4 @@ export function fallbackToJsonAdapter(): DatabaseAdapter {
 }
 
 export * from './adapter.ts';
+export * from './repositories/index.ts';
