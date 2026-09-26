@@ -7,6 +7,7 @@ export interface AdminUser {
 
 const TOKEN_KEY = 'zanzirangi_cms_jwt_token';
 const USER_KEY = 'zanzirangi_cms_user';
+export const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
 export const authApi = {
   getToken(): string | null {
@@ -57,7 +58,7 @@ export const authApi = {
 
   async login(email: string, password: string): Promise<{ success: boolean; user?: AdminUser; token?: string; error?: string }> {
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -90,7 +91,7 @@ export const authApi = {
 
   async logout(): Promise<void> {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
     } catch {
       // Ignore network errors on logout
     } finally {
@@ -103,7 +104,7 @@ export const authApi = {
     if (!token) return null;
 
     try {
-      const res = await fetch('/api/auth/me', {
+      const res = await fetch(`${API_BASE}/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

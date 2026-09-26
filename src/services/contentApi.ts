@@ -254,11 +254,13 @@ function getAuthHeaders() {
   };
 }
 
+export const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
+
 export const contentApi = {
   // --- Homepage ---
   async getHomepage(): Promise<HomepageContent> {
     try {
-      const res = await fetch('/api/content/homepage');
+      const res = await fetch(`${API_BASE}/content/homepage`);
       if (!res.ok) return FALLBACK_HOMEPAGE_CONTENT;
       const json = await res.json();
       return json.success && json.data ? json.data : FALLBACK_HOMEPAGE_CONTENT;
@@ -268,7 +270,7 @@ export const contentApi = {
   },
 
   async getAdminHomepage(): Promise<HomepageContent> {
-    const res = await fetch('/api/admin/homepage', { headers: getAuthHeaders() });
+    const res = await fetch(`${API_BASE}/admin/homepage`, { headers: getAuthHeaders() });
     if (res.status === 401) {
       authApi.clearSession();
       throw new Error('Session expired');
@@ -278,7 +280,7 @@ export const contentApi = {
   },
 
   async updateHomepage(data: Partial<HomepageContent>): Promise<HomepageContent> {
-    const res = await fetch('/api/admin/homepage', {
+    const res = await fetch(`${API_BASE}/admin/homepage`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -291,7 +293,7 @@ export const contentApi = {
   // --- Villas ---
   async getVillas(): Promise<VillaModel[]> {
     try {
-      const res = await fetch('/api/content/villas');
+      const res = await fetch(`${API_BASE}/content/villas`);
       if (!res.ok) return DEFAULT_VILLAS as any;
       const json = await res.json();
       return json.success && json.data ? json.data : (DEFAULT_VILLAS as any);
@@ -301,13 +303,13 @@ export const contentApi = {
   },
 
   async getAdminVillas(): Promise<VillaModel[]> {
-    const res = await fetch('/api/admin/villas', { headers: getAuthHeaders() });
+    const res = await fetch(`${API_BASE}/admin/villas`, { headers: getAuthHeaders() });
     const json = await res.json();
     return json.data || [];
   },
 
   async createVilla(data: Partial<VillaModel>): Promise<VillaModel> {
-    const res = await fetch('/api/admin/villas', {
+    const res = await fetch(`${API_BASE}/admin/villas`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -317,7 +319,7 @@ export const contentApi = {
   },
 
   async updateVilla(id: string, data: Partial<VillaModel>): Promise<VillaModel> {
-    const res = await fetch(`/api/admin/villas/${id}`, {
+    const res = await fetch(`${API_BASE}/admin/villas/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -327,7 +329,7 @@ export const contentApi = {
   },
 
   async deleteVilla(id: string): Promise<void> {
-    await fetch(`/api/admin/villas/${id}`, {
+    await fetch(`${API_BASE}/admin/villas/${id}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
@@ -336,7 +338,7 @@ export const contentApi = {
   // --- Gallery ---
   async getGallery(): Promise<GalleryModel[]> {
     try {
-      const res = await fetch('/api/content/gallery');
+      const res = await fetch(`${API_BASE}/content/gallery`);
       if (!res.ok) return DEFAULT_GALLERY as any;
       const json = await res.json();
       return json.success && json.data ? json.data : (DEFAULT_GALLERY as any);
@@ -346,13 +348,13 @@ export const contentApi = {
   },
 
   async getAdminGallery(): Promise<GalleryModel[]> {
-    const res = await fetch('/api/admin/gallery', { headers: getAuthHeaders() });
+    const res = await fetch(`${API_BASE}/admin/gallery`, { headers: getAuthHeaders() });
     const json = await res.json();
     return json.data || [];
   },
 
   async createGalleryItem(data: Partial<GalleryModel>): Promise<GalleryModel> {
-    const res = await fetch('/api/admin/gallery', {
+    const res = await fetch(`${API_BASE}/admin/gallery`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -362,7 +364,7 @@ export const contentApi = {
   },
 
   async updateGalleryItem(id: string, data: Partial<GalleryModel>): Promise<GalleryModel> {
-    const res = await fetch(`/api/admin/gallery/${id}`, {
+    const res = await fetch(`${API_BASE}/admin/gallery/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -381,7 +383,7 @@ export const contentApi = {
   // --- Facilities ---
   async getFacilities(): Promise<FacilityModel[]> {
     try {
-      const res = await fetch('/api/content/facilities');
+      const res = await fetch(`${API_BASE}/content/facilities`);
       if (!res.ok) return DEFAULT_FACILITIES;
       const json = await res.json();
       return json.success && json.data ? json.data : DEFAULT_FACILITIES;
@@ -391,13 +393,13 @@ export const contentApi = {
   },
 
   async getAdminFacilities(): Promise<FacilityModel[]> {
-    const res = await fetch('/api/admin/facilities', { headers: getAuthHeaders() });
+    const res = await fetch(`${API_BASE}/admin/facilities`, { headers: getAuthHeaders() });
     const json = await res.json();
     return json.data || [];
   },
 
   async createFacility(data: Partial<FacilityModel>): Promise<FacilityModel> {
-    const res = await fetch('/api/admin/facilities', {
+    const res = await fetch(`${API_BASE}/admin/facilities`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -407,7 +409,7 @@ export const contentApi = {
   },
 
   async updateFacility(id: string, data: Partial<FacilityModel>): Promise<FacilityModel> {
-    const res = await fetch(`/api/admin/facilities/${id}`, {
+    const res = await fetch(`${API_BASE}/admin/facilities/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -417,7 +419,7 @@ export const contentApi = {
   },
 
   async deleteFacility(id: string): Promise<void> {
-    await fetch(`/api/admin/facilities/${id}`, {
+    await fetch(`${API_BASE}/admin/facilities/${id}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
@@ -426,7 +428,7 @@ export const contentApi = {
   // --- Testimonials ---
   async getTestimonials(): Promise<TestimonialModel[]> {
     try {
-      const res = await fetch('/api/content/testimonials');
+      const res = await fetch(`${API_BASE}/content/testimonials`);
       if (!res.ok) return DEFAULT_TESTIMONIALS;
       const json = await res.json();
       return json.success && json.data ? json.data : DEFAULT_TESTIMONIALS;
@@ -436,13 +438,13 @@ export const contentApi = {
   },
 
   async getAdminTestimonials(): Promise<TestimonialModel[]> {
-    const res = await fetch('/api/admin/testimonials', { headers: getAuthHeaders() });
+    const res = await fetch(`${API_BASE}/admin/testimonials`, { headers: getAuthHeaders() });
     const json = await res.json();
     return json.data || [];
   },
 
   async createTestimonial(data: Partial<TestimonialModel>): Promise<TestimonialModel> {
-    const res = await fetch('/api/admin/testimonials', {
+    const res = await fetch(`${API_BASE}/admin/testimonials`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -452,7 +454,7 @@ export const contentApi = {
   },
 
   async updateTestimonial(id: string, data: Partial<TestimonialModel>): Promise<TestimonialModel> {
-    const res = await fetch(`/api/admin/testimonials/${id}`, {
+    const res = await fetch(`${API_BASE}/admin/testimonials/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -462,7 +464,7 @@ export const contentApi = {
   },
 
   async deleteTestimonial(id: string): Promise<void> {
-    await fetch(`/api/admin/testimonials/${id}`, {
+    await fetch(`${API_BASE}/admin/testimonials/${id}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
@@ -471,7 +473,7 @@ export const contentApi = {
   // --- Videos ---
   async getVideos(): Promise<VideoModel> {
     try {
-      const res = await fetch('/api/content/videos');
+      const res = await fetch(`${API_BASE}/content/videos`);
       if (!res.ok) return DEFAULT_VIDEOS;
       const json = await res.json();
       return json.success && json.data ? json.data : DEFAULT_VIDEOS;
@@ -481,13 +483,13 @@ export const contentApi = {
   },
 
   async getAdminVideos(): Promise<VideoModel> {
-    const res = await fetch('/api/admin/videos', { headers: getAuthHeaders() });
+    const res = await fetch(`${API_BASE}/admin/videos`, { headers: getAuthHeaders() });
     const json = await res.json();
     return json.data || DEFAULT_VIDEOS;
   },
 
   async updateVideos(data: Partial<VideoModel>): Promise<VideoModel> {
-    const res = await fetch('/api/admin/videos', {
+    const res = await fetch(`${API_BASE}/admin/videos`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -499,7 +501,7 @@ export const contentApi = {
   // --- SEO ---
   async getSeo(): Promise<SeoConfig> {
     try {
-      const res = await fetch('/api/content/seo');
+      const res = await fetch(`${API_BASE}/content/seo`);
       if (!res.ok) return DEFAULT_SEO;
       const json = await res.json();
       return json.success && json.data ? json.data : DEFAULT_SEO;
@@ -509,13 +511,13 @@ export const contentApi = {
   },
 
   async getAdminSeo(): Promise<SeoConfig> {
-    const res = await fetch('/api/admin/seo', { headers: getAuthHeaders() });
+    const res = await fetch(`${API_BASE}/admin/seo`, { headers: getAuthHeaders() });
     const json = await res.json();
     return json.data || DEFAULT_SEO;
   },
 
   async updateSeo(data: Partial<SeoConfig>): Promise<SeoConfig> {
-    const res = await fetch('/api/admin/seo', {
+    const res = await fetch(`${API_BASE}/admin/seo`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -526,13 +528,13 @@ export const contentApi = {
 
   // --- Media Library ---
   async getAdminMedia(): Promise<MediaAsset[]> {
-    const res = await fetch('/api/admin/media', { headers: getAuthHeaders() });
+    const res = await fetch(`${API_BASE}/admin/media`, { headers: getAuthHeaders() });
     const json = await res.json();
     return json.data || [];
   },
 
   async createMediaAsset(data: Partial<MediaAsset>): Promise<MediaAsset> {
-    const res = await fetch('/api/admin/media', {
+    const res = await fetch(`${API_BASE}/admin/media`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -543,13 +545,13 @@ export const contentApi = {
 
   // --- Settings ---
   async getAdminSettings(): Promise<SettingsModel> {
-    const res = await fetch('/api/admin/settings', { headers: getAuthHeaders() });
+    const res = await fetch(`${API_BASE}/admin/settings`, { headers: getAuthHeaders() });
     const json = await res.json();
     return json.data || DEFAULT_SETTINGS;
   },
 
   async updateSettings(data: Partial<SettingsModel>): Promise<SettingsModel> {
-    const res = await fetch('/api/admin/settings', {
+    const res = await fetch(`${API_BASE}/admin/settings`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -560,7 +562,7 @@ export const contentApi = {
 
   // --- Dashboard Stats ---
   async getDashboardStats(): Promise<DashboardStats> {
-    const res = await fetch('/api/admin/dashboard-stats', { headers: getAuthHeaders() });
+    const res = await fetch(`${API_BASE}/admin/dashboard-stats`, { headers: getAuthHeaders() });
     if (res.status === 401) {
       authApi.clearSession();
       throw new Error('Session expired');

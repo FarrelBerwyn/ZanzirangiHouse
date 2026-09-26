@@ -8,9 +8,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "server": "tsx server/index.ts",
-    "start": "tsx server/index.ts",
-    "build": "vite build && node scripts/generate_routes.js",
+    "server": "node server.js",
+    "server:dev": "tsx server/index.ts",
+    "start": "node server.js",
+    "build:client": "vite build && node scripts/generate_routes.js",
+    "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=server.js",
+    "build": "vite build && node scripts/generate_routes.js && npm run build:server",
     "preview": "vite preview",
     "clean": "node -e \"const fs = require('fs'); fs.rmSync('dist', { recursive: true, force: true });\"",
     "lint": "tsc --noEmit",
@@ -27,6 +30,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
+    "esbuild": "^0.25.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
     "jsonwebtoken": "^9.0.3",
@@ -34,7 +38,8 @@
     "motion": "^12.23.24",
     "mysql2": "^3.24.4",
     "react": "^19.0.1",
-    "react-dom": "^19.0.1"
+    "react-dom": "^19.0.1",
+    "tsx": "^4.21.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

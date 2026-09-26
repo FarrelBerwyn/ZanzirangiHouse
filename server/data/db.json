@@ -687,6 +687,13 @@
       "details": "Administrator logged into Zanzirangi CMS",
       "ipAddress": "127.0.0.1",
       "timestamp": "2026-09-26T15:43:37.009Z"
+    },
+    {
+      "action": "USER_LOGIN",
+      "userEmail": "info@zanzirangihouse.com",
+      "details": "Administrator logged into Zanzirangi CMS",
+      "ipAddress": "127.0.0.1",
+      "timestamp": "2026-09-26T15:56:56.260Z"
     }
   ],
   "villas": [

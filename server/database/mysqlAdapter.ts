@@ -42,6 +42,21 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
       const conn = await pool.getConnection();
       conn.release();
       console.log(`🐬 Connected to Hostinger MySQL Database [${env.MYSQL_DATABASE}@${env.MYSQL_HOST}]`);
+
+      // Auto-verify schema and seed initial baseline if fresh database
+      try {
+        const [tables]: any = await pool.query("SHOW TABLES LIKE 'homepage_config'");
+        if (!tables || tables.length === 0) {
+          console.log('⚡ Fresh Hostinger database detected. Initializing schema and baseline content...');
+          const { runMigration } = await import('./migrateFromJson.ts');
+          await runMigration(pool);
+          console.log('✅ Hostinger MySQL schema initialized and seeded successfully.');
+        } else {
+          console.log('✅ Hostinger MySQL schema verified and ready.');
+        }
+      } catch (schemaErr: any) {
+        console.warn('⚠️ Hostinger schema verification notice:', schemaErr.message);
+      }
     } catch (err: any) {
       console.error('❌ Failed to establish MySQL connection:', err.message);
       throw err;

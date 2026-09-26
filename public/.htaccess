@@ -5,12 +5,18 @@
   RewriteEngine On
   RewriteBase /
 
-  # 1. Preserve Physical Files and Folders (robots.txt, sitemap.xml, llms.txt, assets/)
+  # 1. Reverse Proxy API & Uploads to Node.js Backend Gateway (if mod_proxy is active)
+  <IfModule mod_proxy.c>
+    RewriteCond %{REQUEST_URI} ^/(api|uploads)
+    RewriteRule ^(.*) http://127.0.0.1:3000/$1 [P,L]
+  </IfModule>
+
+  # 2. Preserve Physical Files and Folders (robots.txt, sitemap.xml, llms.txt, assets/)
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # 2. Direct SPA Route Fallback to index.html
+  # 3. Direct SPA Route Fallback to index.html
   RewriteRule ^ index.html [L]
 </IfModule>
 

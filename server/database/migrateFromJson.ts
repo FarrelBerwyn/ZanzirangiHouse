@@ -3,24 +3,29 @@ import path from 'path';
 import mysql from 'mysql2/promise';
 import { env } from '../config/env.ts';
 
-async function migrate() {
+export async function runMigration(existingPool?: mysql.Pool): Promise<void> {
   console.log('🚀 Starting Zanzirangi House: JSON -> MySQL Migration Pipeline');
   console.log(`Connecting to MySQL host: ${env.MYSQL_HOST || 'localhost'}:${env.MYSQL_PORT || 3306} [DB: ${env.MYSQL_DATABASE || 'zanzirangi_house'}]`);
 
   // Ensure DB connection config exists
-  if (!env.MYSQL_HOST && process.env.NODE_ENV === 'production') {
+  if (!env.MYSQL_HOST && process.env.NODE_ENV === 'production' && !existingPool) {
     console.error('❌ MYSQL_HOST environment variable is not defined.');
-    process.exit(1);
+    throw new Error('MYSQL_HOST environment variable is not defined.');
   }
 
-  const pool = mysql.createPool({
-    host: env.MYSQL_HOST || 'localhost',
-    port: env.MYSQL_PORT || 3306,
-    database: env.MYSQL_DATABASE || 'zanzirangi_house',
-    user: env.MYSQL_USER || 'root',
-    password: env.MYSQL_PASSWORD || '',
-    multipleStatements: true,
-  });
+  let shouldEndPool = false;
+  let pool = existingPool;
+  if (!pool) {
+    shouldEndPool = true;
+    pool = mysql.createPool({
+      host: env.MYSQL_HOST || 'localhost',
+      port: env.MYSQL_PORT || 3306,
+      database: env.MYSQL_DATABASE || 'zanzirangi_house',
+      user: env.MYSQL_USER || 'root',
+      password: env.MYSQL_PASSWORD || '',
+      multipleStatements: true,
+    });
+  }
 
   try {
     const conn = await pool.getConnection();
@@ -406,10 +411,17 @@ async function migrate() {
     console.log('======================================================\n');
   } catch (err: any) {
     console.error('❌ Migration failed:', err.message);
-    process.exit(1);
+    throw err;
   } finally {
-    await pool.end();
+    if (shouldEndPool && pool) {
+      await pool.end();
+    }
   }
 }
 
-migrate();
+if (process.argv[1] && process.argv[1].includes('migrateFromJson')) {
+  runMigration().catch((err) => {
+    console.error('❌ Direct migration failed:', err.message);
+    process.exit(1);
+  });
+}
