@@ -185,9 +185,9 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
       cmsPitch: 'Client CMS Preview',
     },
     hero: {
-      eyebrow: 'ZANZIBAR, TANZANIA',
-      title: 'Zanzirangi House — Private Luxury Villas in Zanzibar',
-      subtitle: 'Experience private plunge pool villas in Kizimkazi, ocean-to-table dining and bespoke Tanzania safaris.',
+      eyebrow: 'KIZIMKAZI DIMBANI • SOUTH COAST ZANZIBAR',
+      title: 'Zanzibar Luxury Villa — Private Pool Retreat',
+      subtitle: 'Experience boutique luxury villas with private plunge pools at Zanzirangi House in Kizimkazi. Enjoy ocean-to-table dining and bespoke Tanzania safari journeys.',
       exploreProperty: 'EXPLORE THE RETREAT',
       bookYourStay: 'PLAN YOUR JOURNEY',
       scrollIndicator: 'SCROLL TO DISCOVER',
