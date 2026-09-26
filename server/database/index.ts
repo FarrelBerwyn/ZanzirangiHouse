@@ -20,4 +20,13 @@ export function getDatabaseAdapter(): DatabaseAdapter {
   return adapterInstance;
 }
 
+/**
+ * Gracefully switches the active adapter to JsonDatabaseAdapter if MySQL is unavailable
+ */
+export function fallbackToJsonAdapter(): DatabaseAdapter {
+  console.warn('⚠️ Switching active database provider to JSON fallback adapter.');
+  adapterInstance = new JsonDatabaseAdapter();
+  return adapterInstance;
+}
+
 export * from './adapter.ts';

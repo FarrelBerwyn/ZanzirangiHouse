@@ -1,8 +1,9 @@
 import express from 'express';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { apiApp } from './api.ts';
-import { getDatabaseAdapter } from './database/index.ts';
+import { getDatabaseAdapter, fallbackToJsonAdapter } from './database/index.ts';
 import { mediaStorage } from './storage/mediaStorage.ts';
 import { env, validateEnvironment } from './config/env.ts';
 
@@ -22,8 +23,16 @@ getDatabaseAdapter()
   })
   .catch((err) => {
     console.error('❌ Failed to initialize database on startup:', err.message);
-    if (env.NODE_ENV === 'production' && env.DATABASE_PROVIDER === 'mysql') {
-      process.exit(1);
+    if (env.DATABASE_PROVIDER === 'mysql') {
+      console.warn('⚠️ Hostinger MySQL connection unreachable. Falling back to JSON database engine to maintain zero downtime...');
+      fallbackToJsonAdapter()
+        .connect()
+        .then(() => {
+          console.log('✅ Fallback JSON database engine active and operational.');
+        })
+        .catch((jsonErr) => {
+          console.error('❌ Fallback JSON database failed:', jsonErr.message);
+        });
     }
   });
 
@@ -33,8 +42,11 @@ app.use('/uploads', express.static(mediaStorage.getStorageDirectory()));
 // 4. Mount API router
 app.use('/api', apiApp);
 
-// 5. Serve compiled frontend distribution
-const distPath = path.resolve(__dirname, '../dist');
+// 5. Serve compiled frontend distribution (supports both server/index.ts and root server.js execution)
+const distPath = fs.existsSync(path.resolve(__dirname, '../dist'))
+  ? path.resolve(__dirname, '../dist')
+  : path.resolve(__dirname, './dist');
+
 app.use(express.static(distPath));
 
 // 6. SPA fallback for direct deep-link route navigation and browser refresh
@@ -51,15 +63,17 @@ app.get('*', (req, res, next) => {
 });
 
 const PORT = env.PORT || 3000;
+const HOST = '0.0.0.0';
 
 let server: any;
 if (
   (process.argv[1] && process.argv[1].endsWith('index.ts')) ||
   process.argv[1]?.endsWith('index.js') ||
+  process.argv[1]?.endsWith('server.js') ||
   process.env.NODE_ENV === 'production'
 ) {
-  server = app.listen(PORT, () => {
-    console.log(`🏰 Zanzirangi House Production Engine running on ${env.APP_URL} (Port: ${PORT})`);
+  server = app.listen(PORT, HOST, () => {
+    console.log(`🏰 Zanzirangi House Production Engine running on ${env.APP_URL} (Host: ${HOST}, Port: ${PORT})`);
   });
 
   // Graceful shutdown handling
