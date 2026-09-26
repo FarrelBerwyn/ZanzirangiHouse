@@ -4,12 +4,23 @@ import { Language } from '../types';
 import { PROPERTY_INTRO_TRANSLATIONS } from '../data/introTranslations';
 import { ScrollReveal, StaggerContainer, StaggerItem } from './ScrollReveal';
 
-interface PropertyIntroProps {
-  currentLang: Language;
+export interface DynamicIntroProps {
+  eyebrow?: string;
+  title?: string;
+  description?: string;
 }
 
-export const PropertyIntro: React.FC<PropertyIntroProps> = ({ currentLang }) => {
+interface PropertyIntroProps {
+  currentLang: Language;
+  dynamicIntro?: DynamicIntroProps;
+}
+
+export const PropertyIntro: React.FC<PropertyIntroProps> = ({ currentLang, dynamicIntro }) => {
   const introContent = PROPERTY_INTRO_TRANSLATIONS[currentLang] || PROPERTY_INTRO_TRANSLATIONS.en;
+
+  const eyebrowText = dynamicIntro?.eyebrow || introContent.philosophyTag;
+  const headingText = dynamicIntro?.title || introContent.heading;
+  const bodyText = dynamicIntro?.description || introContent.body;
 
   return (
     <section id="about" className="pt-8 sm:pt-12 md:pt-16 pb-24 md:pb-36 bg-[#FAF8F5] text-[#1C1B1A]">
@@ -18,14 +29,14 @@ export const PropertyIntro: React.FC<PropertyIntroProps> = ({ currentLang }) => 
         <ScrollReveal className="max-w-4xl mb-16 md:mb-24">
           <div className="inline-flex items-center space-x-2 text-[11px] tracking-[0.32em] uppercase text-[#A07E54] font-semibold mb-4">
             <span className="w-8 h-[1px] bg-[#A07E54]" />
-            <span>{introContent.philosophyTag}</span>
+            <span>{eyebrowText}</span>
           </div>
 
           <h2
             id="intro-heading"
             className="font-serif text-3xl sm:text-5xl md:text-6xl font-light tracking-[0.04em] leading-[1.14] text-[#141413] uppercase mb-8"
           >
-            {introContent.heading}
+            {headingText}
           </h2>
 
           <p className="font-serif italic text-2xl sm:text-3xl md:text-4xl text-[#8E6B40] font-light leading-snug mb-8">
@@ -36,7 +47,7 @@ export const PropertyIntro: React.FC<PropertyIntroProps> = ({ currentLang }) => 
             id="intro-body-copy"
             className="text-[#3E3C38] font-normal leading-[1.85] text-base md:text-lg max-w-3xl"
           >
-            {introContent.body}
+            {bodyText}
           </p>
         </ScrollReveal>
 

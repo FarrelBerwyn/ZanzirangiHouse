@@ -5,10 +5,22 @@ import { TRANSLATIONS } from '../data/translations';
 
 interface PromotionalVideoSectionProps {
   currentLang: Language;
+  dynamicVideo?: {
+    videoUrl?: string;
+    posterImage?: string;
+    scenes?: Array<{
+      id: string;
+      title: string;
+      description: string;
+      image: string;
+      time: string;
+    }>;
+  };
 }
 
 export const PromotionalVideoSection: React.FC<PromotionalVideoSectionProps> = ({
   currentLang,
+  dynamicVideo,
 }) => {
   const t = TRANSLATIONS[currentLang];
   const [isPlaying, setIsPlaying] = useState(false);
@@ -194,7 +206,7 @@ export const PromotionalVideoSection: React.FC<PromotionalVideoSectionProps> = (
 
   const ui = videoUi[currentLang] || videoUi.en;
 
-  const storylineScenes = [
+  const defaultScenes = [
     {
       title: t.video.sceneArrival,
       description: ui.descriptions[0],
@@ -239,7 +251,11 @@ export const PromotionalVideoSection: React.FC<PromotionalVideoSectionProps> = (
     },
   ];
 
-  const currentScene = storylineScenes[activeSceneIndex];
+  const storylineScenes = (dynamicVideo?.scenes && dynamicVideo.scenes.length > 0)
+    ? dynamicVideo.scenes
+    : defaultScenes;
+
+  const currentScene = storylineScenes[activeSceneIndex] || storylineScenes[0];
 
   return (
     <section id="film" className="relative w-full pt-14 sm:pt-20 md:pt-28 pb-8 sm:pb-12 bg-[#141413] text-[#FAF8F5] overflow-hidden">

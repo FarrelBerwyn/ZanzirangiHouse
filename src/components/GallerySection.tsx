@@ -8,9 +8,10 @@ import { ScrollFadeContainer } from './ScrollFadeContainer';
 
 interface GallerySectionProps {
   currentLang: Language;
+  items?: GalleryItem[];
 }
 
-export const GallerySection: React.FC<GallerySectionProps> = ({ currentLang }) => {
+export const GallerySection: React.FC<GallerySectionProps> = ({ currentLang, items: customItems }) => {
   const t = TRANSLATIONS[currentLang];
   const tGallery = GALLERY_TRANSLATIONS[currentLang] || GALLERY_TRANSLATIONS.en;
   const [activeCategory, setActiveCategory] = useState<GalleryCategory | 'all'>('all');
@@ -27,7 +28,7 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ currentLang }) =
     { id: 'experiences', label: tGallery.categories.experiences },
   ];
 
-  const localizedItems = getLocalizedGallery(currentLang);
+  const localizedItems = getLocalizedGallery(currentLang, customItems || undefined);
 
   const filteredItems =
     activeCategory === 'all'

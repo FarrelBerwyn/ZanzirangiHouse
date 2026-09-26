@@ -1,22 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, Globe, Calendar } from 'lucide-react';
+import { Menu, X, Globe, Calendar, Sun, Moon } from 'lucide-react';
 import { Language } from '../types';
 import { TRANSLATIONS } from '../data/translations';
+import { useTheme } from '../context/ThemeContext';
 import logoImg from '../assets/zanzirangi-logo-new.jpeg';
 
 interface NavbarProps {
   currentLang: Language;
   onSelectLang: (lang: Language) => void;
   onOpenBooking: (villaId?: string) => void;
-  onOpenCmsPitch?: () => void;
+  onNavigate?: (url: string) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentLang,
   onSelectLang,
   onOpenBooking,
-  onOpenCmsPitch,
+  onNavigate,
 }) => {
+  const { theme, toggleTheme } = useTheme();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
@@ -48,13 +50,29 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, [mobileMenuOpen]);
 
   const navLinks = [
-    { label: t.nav.stay || 'STAY', href: '#stay' },
-    { label: t.nav.experiences || 'EXPERIENCES', href: '#experiences' },
-    { label: t.nav.dining || 'DINING', href: '#dining' },
-    { label: t.nav.explore || 'EXPLORE', href: '#explore' },
-    { label: t.nav.concierge || 'CONCIERGE', href: '#concierge' },
-    { label: t.nav.about || 'ABOUT', href: '#about' },
+    { label: t.nav.stay || 'VILLAS', href: '/villas' },
+    { label: t.nav.dining || 'DINING', href: '/dining' },
+    { label: t.nav.experiences || 'EXPERIENCES', href: '/experiences' },
+    { label: 'SAFARI', href: '/safari' },
+    { label: t.nav.about || 'ABOUT', href: '/about' },
+    { label: 'CONTACT', href: '/contact' },
   ];
+
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (onNavigate && href.startsWith('/')) {
+      e.preventDefault();
+      onNavigate(href);
+      setMobileMenuOpen(false);
+    }
+  };
+
+  const handleLogoClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (onNavigate) {
+      e.preventDefault();
+      onNavigate('/');
+      setMobileMenuOpen(false);
+    }
+  };
 
   const languages: { code: Language; label: string; flag: string }[] = [
     { code: 'en', label: 'English', flag: '🇬🇧' },
@@ -92,8 +110,9 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="max-w-7xl mx-auto px-3.5 sm:px-6 md:px-8 xl:px-10 flex items-center justify-between gap-x-3 sm:gap-x-4 md:gap-x-6 xl:gap-x-8">
           {/* Brand Logo & Name */}
           <a
-            href="#"
+            href="/"
             id="nav-brand-logo"
+            onClick={handleLogoClick}
             className="flex items-center space-x-2.5 sm:space-x-3 tracking-wider group focus:outline-none flex-shrink-0"
           >
             <img
@@ -130,6 +149,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <a
                 key={link.href}
                 href={link.href}
+                onClick={(e) => handleNavClick(e, link.href)}
                 className="transition-colors duration-200 hover:text-[#C4A27A] relative py-1 whitespace-nowrap after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-0 after:h-[1px] after:bg-[#C4A27A] hover:after:w-full after:transition-all after:duration-300"
               >
                 {link.label}
@@ -139,6 +159,22 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Right Action Items (Desktop XL) */}
           <div className="hidden xl:flex items-center space-x-3 2xl:space-x-4 flex-shrink-0">
+            {/* Theme Toggle Button */}
+            <button
+              id="theme-toggle-button"
+              type="button"
+              onClick={toggleTheme}
+              className="flex items-center justify-center p-2 rounded border border-[#FAF8F5]/20 text-[#FAF8F5] hover:border-[#C4A27A] hover:text-[#C4A27A] transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#C4A27A]"
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-3.5 h-3.5 text-[#C4A27A] transition-transform duration-300 hover:rotate-45" />
+              ) : (
+                <Moon className="w-3.5 h-3.5 opacity-90 transition-transform duration-300 hover:-rotate-12" />
+              )}
+            </button>
+
             {/* Language Selector */}
             <div className="relative">
               <button
@@ -263,8 +299,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Top Bar of Expanded Navbar: Logo on Left, Close (X) on Right */}
           <div className="w-full flex items-center justify-between px-5 sm:px-6 py-4 border-b border-[#2C2B28]/80 bg-[#141413] flex-shrink-0">
             <a
-              href="#"
-              onClick={() => setMobileMenuOpen(false)}
+              href="/"
+              onClick={handleLogoClick}
               className="flex items-center space-x-2.5 tracking-wider focus:outline-none"
             >
               <img
@@ -298,7 +334,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <a
                 key={link.href}
                 href={link.href}
-                onClick={() => setMobileMenuOpen(false)}
+                onClick={(e) => handleNavClick(e, link.href)}
                 className="font-serif text-2xl tracking-[0.18em] text-[#FAF8F5] hover:text-[#C4A27A] transition-colors py-1"
               >
                 {link.label}
@@ -306,8 +342,29 @@ export const Navbar: React.FC<NavbarProps> = ({
             ))}
           </div>
 
-          {/* Bottom Section: Languages & Plan Stay Button */}
-          <div className="flex flex-col items-center space-y-5 px-6 pb-8 pt-3 flex-shrink-0 border-t border-[#2C2B28]/50">
+          {/* Bottom Section: Languages, Theme & Plan Stay Button */}
+          <div className="flex flex-col items-center space-y-4 px-6 pb-8 pt-3 flex-shrink-0 border-t border-[#2C2B28]/50">
+            {/* Mobile Menu Theme Toggle */}
+            <button
+              id="mobile-overlay-theme-toggle"
+              type="button"
+              onClick={toggleTheme}
+              className="flex items-center space-x-2 px-4 py-2 rounded-full border border-white/15 text-xs tracking-wider uppercase text-[#FAF8F5] hover:border-[#C4A27A] hover:text-[#C4A27A] transition-colors cursor-pointer"
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? (
+                <>
+                  <Sun className="w-4 h-4 text-[#C4A27A]" />
+                  <span>Switch to Light Mode</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-4 h-4 text-[#FAF8F5]" />
+                  <span>Switch to Dark Mode</span>
+                </>
+              )}
+            </button>
+
             {/* Language Selector in Mobile */}
             <div className="flex flex-wrap items-center justify-center gap-2 text-xs tracking-widest max-w-xs">
               {languages.map((l) => (

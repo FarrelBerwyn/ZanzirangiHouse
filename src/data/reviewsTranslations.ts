@@ -388,9 +388,9 @@ export const REVIEWS_UI_TRANSLATIONS: Record<
   },
 };
 
-export function getLocalizedReviews(lang: Language): Review[] {
+export function getLocalizedReviews(lang: Language, baseReviews: Review[] = REVIEWS_DATA): Review[] {
   const dict = REVIEWS_LOCALIZED_DATA[lang] || REVIEWS_LOCALIZED_DATA.en;
-  return REVIEWS_DATA.map((rev) => {
+  return baseReviews.map((rev) => {
     const loc = dict[rev.id];
     if (!loc) return rev;
     return {

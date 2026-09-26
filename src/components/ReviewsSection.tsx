@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { Star, Quote, ChevronLeft, ChevronRight, CheckCircle, AlertCircle } from 'lucide-react';
-import { Language } from '../types';
+import { Review, Language } from '../types';
 import { REVIEWS_UI_TRANSLATIONS, getLocalizedReviews } from '../data/reviewsTranslations';
 
 interface ReviewsSectionProps {
   currentLang: Language;
+  reviews?: Review[];
 }
 
-export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ currentLang }) => {
+export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ currentLang, reviews: customReviews }) => {
   const ui = REVIEWS_UI_TRANSLATIONS[currentLang] || REVIEWS_UI_TRANSLATIONS.en;
-  const reviews = getLocalizedReviews(currentLang);
+  const reviews = getLocalizedReviews(currentLang, customReviews || undefined);
   const [activeIdx, setActiveIdx] = useState(0);
 
   const handlePrev = () => {

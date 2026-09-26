@@ -11,12 +11,14 @@ interface VillasSectionProps {
   currentLang: Language;
   onSelectVilla: (villa: Villa) => void;
   onRequestBooking: (villaId: string) => void;
+  villas?: Villa[];
 }
 
 export const VillasSection: React.FC<VillasSectionProps> = ({
   currentLang,
   onSelectVilla,
   onRequestBooking,
+  villas: customVillas,
 }) => {
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
   const categoryI18n = VILLA_CATEGORY_TRANSLATIONS[currentLang] || VILLA_CATEGORY_TRANSLATIONS.en;
@@ -34,7 +36,7 @@ export const VillasSection: React.FC<VillasSectionProps> = ({
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const allLocalizedVillas = getLocalizedVillas(currentLang);
+  const allLocalizedVillas = getLocalizedVillas(currentLang, customVillas || undefined);
 
   const filteredVillas = allLocalizedVillas.filter((v) => {
     if (activeFilter === 'villas') {

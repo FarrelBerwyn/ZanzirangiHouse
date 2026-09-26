@@ -797,9 +797,9 @@ export const GALLERY_TRANSLATIONS: Record<
   },
 };
 
-export function getLocalizedGallery(lang: Language): LocalizedGalleryItem[] {
+export function getLocalizedGallery(lang: Language, baseGallery: GalleryItem[] = GALLERY_DATA): LocalizedGalleryItem[] {
   const dict = GALLERY_TRANSLATIONS[lang] || GALLERY_TRANSLATIONS.en;
-  return GALLERY_DATA.map((item) => {
+  return baseGallery.map((item) => {
     const itemTrans = dict.items[item.id];
     const catLabel = dict.categories[item.category] || item.category;
     return {
@@ -811,3 +811,4 @@ export function getLocalizedGallery(lang: Language): LocalizedGalleryItem[] {
     };
   });
 }
+

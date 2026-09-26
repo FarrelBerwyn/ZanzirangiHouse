@@ -1,12 +1,28 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import { defineConfig, Plugin } from 'vite';
+import { apiApp } from './server/api.ts';
+import { getDatabaseAdapter } from './server/database/index.ts';
+
+import express from 'express';
+import { getMediaStorage } from './server/storage/mediaStorage.ts';
+
+function zanzirangiApiPlugin(): Plugin {
+  return {
+    name: 'zanzirangi-api-middleware',
+    configureServer(server) {
+      getDatabaseAdapter().connect();
+      server.middlewares.use('/api', apiApp);
+      server.middlewares.use('/uploads', express.static(getMediaStorage().getStoragePath()));
+    },
+  };
+}
 
 export default defineConfig(() => {
   return {
     base: './',
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), zanzirangiApiPlugin()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
@@ -17,11 +33,9 @@ export default defineConfig(() => {
       port: 3000,
       allowedHosts: true as const,
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modify - file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {
-        ignored: ['**/videos/**', '**/*.mp4', '**/*.jpg', '**/*.png', '**/*.jpeg'],
+        ignored: ['**/videos/**', '**/*.mp4', '**/*.jpg', '**/*.png', '**/*.jpeg', '**/server/data/**'],
       },
     },
   };

@@ -186,7 +186,7 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
     },
     hero: {
       eyebrow: 'ZANZIBAR, TANZANIA',
-      title: 'ZANZIBAR LUXURY VILLA SANCTUARY',
+      title: 'Zanzirangi House — Private Luxury Villas in Zanzibar',
       subtitle: 'Experience private plunge pool villas in Kizimkazi, ocean-to-table dining and bespoke Tanzania safaris.',
       exploreProperty: 'EXPLORE THE RETREAT',
       bookYourStay: 'PLAN YOUR JOURNEY',

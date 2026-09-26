@@ -1,35 +1,80 @@
-import React from 'react';
-import { ChevronDown, Sparkles, MapPin, Compass } from 'lucide-react';
-import { motion } from 'motion/react';
+import React, { useState, useEffect } from 'react';
+import { ChevronDown, ChevronLeft, ChevronRight, MapPin, Compass } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Language } from '../types';
 import { TRANSLATIONS } from '../data/translations';
+import { HeroSlide, HomepageContent } from '../services/contentApi';
 import heroVideo from '../data/Zanzirangi-home.mp4';
 
 interface HeroSectionProps {
   currentLang: Language;
   onOpenBooking: () => void;
+  dynamicHero?: HomepageContent['hero'];
 }
 
 export const HeroSection: React.FC<HeroSectionProps> = ({
   currentLang,
   onOpenBooking,
+  dynamicHero,
 }) => {
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
 
+  // Active Slides from CMS
+  const rawSlides: HeroSlide[] = dynamicHero?.slides && dynamicHero.slides.length > 0
+    ? dynamicHero.slides
+    : [];
+  const visibleSlides = rawSlides.filter((s) => s.visible !== false);
+
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+
+  // Auto-play slideshow if multiple slides exist
+  useEffect(() => {
+    if (visibleSlides.length <= 1) return;
+    const intervalSeconds = dynamicHero?.autoPlayIntervalSeconds || 7;
+    const timer = setInterval(() => {
+      setActiveSlideIndex((prev) => (prev + 1) % visibleSlides.length);
+    }, intervalSeconds * 1000);
+    return () => clearInterval(timer);
+  }, [visibleSlides.length, dynamicHero?.autoPlayIntervalSeconds]);
+
+  // Safe current slide
+  const currentSlide = visibleSlides[activeSlideIndex] || null;
+
+  const handlePrevSlide = () => {
+    setActiveSlideIndex((prev) => (prev === 0 ? visibleSlides.length - 1 : prev - 1));
+  };
+
+  const handleNextSlide = () => {
+    setActiveSlideIndex((prev) => (prev + 1) % visibleSlides.length);
+  };
+
+  const handleCtaClick = (link?: string, fallbackAction?: () => void) => {
+    if (!link) {
+      if (fallbackAction) fallbackAction();
+      return;
+    }
+    if (link.startsWith('#')) {
+      const el = document.getElementById(link.substring(1));
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+        return;
+      }
+    } else if (link.startsWith('http')) {
+      window.open(link, '_blank');
+      return;
+    }
+    if (fallbackAction) fallbackAction();
+  };
+
   const handleScrollToStay = () => {
     const el = document.getElementById('stay');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleScrollToItinerary = () => {
     const el = document.getElementById('itinerary');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    } else {
-      onOpenBooking();
-    }
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+    else onOpenBooking();
   };
 
   const scrollAriaLabels: Record<Language, string> = {
@@ -43,26 +88,66 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
     zh: '向下滚动探索庄园',
   };
 
+  const GOOGLE_MAPS_URL =
+    'https://www.google.com/maps/place/Zanzirangi+House/@-6.2345748,39.528593,17z/data=!3m1!4b1!4m6!3m5!1s0x185d3d007c81b231:0xd21c4f44e083553a!8m2!3d-6.2345748!4d39.5311679!16s%2Fg%2F11yyhxw2xf?entry=ttu&g_ep=EgoyMDI2MDkyMi4wIKXMDSoASAFQAw%3D%3D';
+
+  // Derived content either from current slide or legacy dynamicHero fallback
+  const rawTitle = currentSlide?.title || dynamicHero?.title || t.hero.title || 'Zanzirangi House — Private Luxury Villas in Zanzibar';
+  const dashMatch = rawTitle.match(/^(.*?)\s*([—–-])\s*(.*)$/);
+  const brandName = dashMatch ? dashMatch[1].trim() : rawTitle;
+  const luxurySubtitle = currentSlide?.subtitle
+    ? currentSlide.subtitle
+    : dashMatch
+    ? `${dashMatch[2]} ${dashMatch[3].trim()}`
+    : null;
+
+  const subtitleNarrative = currentSlide?.description || dynamicHero?.description || dynamicHero?.subtitle || t.hero.subtitle || 'Stay, explore and experience the island — with Tanzania beyond.';
+  const posterImage = currentSlide?.heroImage || dynamicHero?.heroImage || 'https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=2400&q=90';
+  const currentVideoUrl = currentSlide?.videoUrl || heroVideo;
+  const exploreCta = currentSlide?.secondaryCtaText || dynamicHero?.secondaryCtaText || t.hero.exploreProperty || 'EXPLORE THE RETREAT';
+  const bookCta = currentSlide?.primaryCtaText || dynamicHero?.primaryCtaText || t.hero.bookYourStay || 'PLAN YOUR JOURNEY';
+  const badgeLocation = currentSlide?.badgeText || dynamicHero?.badgeText || 'ZANZIBAR, TANZANIA';
+
   return (
     <section
       id="hero"
-      className="relative w-full min-h-screen flex flex-col justify-between overflow-hidden bg-[#141413] text-[#FAF8F5]"
+      className="relative w-full h-screen h-[100dvh] max-h-[100dvh] flex flex-col justify-between overflow-hidden bg-[#141413] text-[#FAF8F5]"
     >
-      {/* Background Video: Zanzirangi House Authentic Footage */}
+      {/* Background Media Container */}
       <div className="absolute inset-0 z-0 overflow-hidden">
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          poster="https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=2400&q=90"
-          className="w-full h-full object-cover scale-105 animate-subtleZoom"
-          style={{ filter: 'brightness(0.68) contrast(1.08)' }}
-        >
-          <source src={heroVideo} type="video/mp4" />
-          <source src="./Zanzirangi-home.mp4" type="video/mp4" />
-          <source src="./videos/Zanzirangi-home.mp4" type="video/mp4" />
-        </video>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentSlide?.id || 'static-bg'}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1 }}
+            className="absolute inset-0 w-full h-full"
+          >
+            {currentVideoUrl ? (
+              <video
+                key={currentVideoUrl}
+                autoPlay
+                loop
+                muted
+                playsInline
+                poster={posterImage}
+                className="w-full h-full object-cover scale-105 animate-subtleZoom"
+                style={{ filter: 'brightness(0.68) contrast(1.08)' }}
+              >
+                <source src={currentVideoUrl} type="video/mp4" />
+                <source src="./Zanzirangi-home.mp4" type="video/mp4" />
+              </video>
+            ) : (
+              <img
+                src={posterImage}
+                alt={brandName}
+                className="w-full h-full object-cover scale-105 animate-subtleZoom"
+                style={{ filter: 'brightness(0.68) contrast(1.08)' }}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
 
         {/* Sophisticated Luxury Gradient Overlays */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#141413] via-[#141413]/40 to-black/60" />
@@ -70,99 +155,159 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
       </div>
 
       {/* Top Spacer for fixed navbar */}
-      <div className="h-20 sm:h-24 md:h-32" />
+      <div className="h-16 sm:h-20 md:h-24 shrink-0" />
 
-      {/* Main Editorial Hero Content */}
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 md:px-12 text-center my-auto py-8 sm:py-10 md:py-16"
-      >
-        {/* Subtle Location Indicator Eyebrow */}
+      {/* Main Editorial Hero Content with Motion */}
+      <AnimatePresence mode="wait">
         <motion.div
-          initial={{ opacity: 0, scale: 0.92 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6, delay: 0.15 }}
-          className="inline-flex items-center space-x-1.5 sm:space-x-2.5 px-3 py-1 sm:px-5 sm:py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-[#FAF8F5] text-[8.5px] xs:text-[9.5px] sm:text-xs tracking-[0.12em] sm:tracking-[0.32em] uppercase mb-6 sm:mb-8 shadow-lg whitespace-nowrap max-w-full"
-        >
-          <MapPin className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#C4A27A] flex-shrink-0" />
-          <span className="font-medium text-[#FAF8F5] whitespace-nowrap">ZANZIBAR, TANZANIA</span>
-          <span className="text-[#C4A27A] flex-shrink-0">•</span>
-          <span className="text-[#D8CCB8] tracking-[0.12em] sm:tracking-[0.25em] whitespace-nowrap">ZANZIRANGI HOUSE</span>
-        </motion.div>
-
-        {/* Major Headline */}
-        <motion.h1
-          id="hero-main-title"
-          initial={{ opacity: 0, y: 20 }}
+          key={currentSlide?.id || 'main-content'}
+          initial={{ opacity: 0, y: 25 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          className="font-serif text-2xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-[80px] font-light tracking-[0.06em] sm:tracking-[0.08em] leading-[1.15] sm:leading-[1.12] text-[#FAF8F5] uppercase mb-4 sm:mb-6 drop-shadow-xl"
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 md:px-12 text-center my-auto py-1.5 sm:py-4"
         >
-          {t.hero.title || 'ZANZIBAR LUXURY VILLA SANCTUARY'}
-        </motion.h1>
-
-        {/* Supporting Narrative */}
-        <motion.p
-          id="hero-subtitle"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className="max-w-2xl mx-auto font-sans text-sm sm:text-lg md:text-xl font-light text-[#E7DFD2] leading-relaxed tracking-wide mb-8 sm:mb-10 md:mb-12 drop-shadow-md"
-        >
-          {t.hero.subtitle || 'Stay, explore and experience the island — with Tanzania beyond.'}
-        </motion.p>
-
-        {/* Primary and Secondary Luxury CTAs */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6 max-w-md sm:max-w-none mx-auto"
-        >
-          <button
-            id="hero-explore-button"
-            onClick={handleScrollToStay}
-            className="w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 border border-[#FAF8F5]/80 hover:border-[#FAF8F5] text-[#FAF8F5] hover:bg-white/15 text-xs sm:text-sm tracking-[0.18em] sm:tracking-[0.22em] uppercase font-semibold rounded transition-all duration-300 backdrop-blur-sm shadow-md active:scale-95 cursor-pointer"
+          {/* Interactive Location Indicator Card */}
+          <motion.a
+            href={GOOGLE_MAPS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Open Zanzirangi House in Google Maps"
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6, delay: 0.15 }}
+            className="group inline-flex items-center space-x-1.5 sm:space-x-2.5 px-3 py-1 sm:px-4 sm:py-1.5 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 hover:border-[#C4A27A]/80 text-[#FAF8F5] text-[8px] xs:text-[9px] sm:text-xs tracking-[0.12em] sm:tracking-[0.25em] uppercase mb-2.5 sm:mb-5 shadow-lg hover:shadow-2xl whitespace-nowrap max-w-full transition-all duration-300 ease-out transform scale-90 hover:scale-105 active:scale-95 cursor-pointer origin-center"
           >
-            {t.hero.exploreProperty || 'EXPLORE THE RETREAT'}
-          </button>
+            <MapPin className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-[#C4A27A] group-hover:text-[#E2C399] transition-transform duration-300 group-hover:scale-110 flex-shrink-0" />
+            <span className="font-medium text-[#FAF8F5] whitespace-nowrap">{badgeLocation}</span>
+            <span className="text-[#C4A27A] flex-shrink-0">•</span>
+            <span className="text-[#D8CCB8] group-hover:text-white tracking-[0.12em] sm:tracking-[0.22em] whitespace-nowrap transition-colors">
+              ZANZIRANGI HOUSE
+            </span>
+          </motion.a>
 
-          <button
-            id="hero-book-button"
-            onClick={handleScrollToItinerary}
-            className="w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-xs sm:text-sm tracking-[0.18em] sm:tracking-[0.22em] uppercase font-bold rounded transition-all duration-300 shadow-xl hover:shadow-2xl active:scale-95 cursor-pointer"
+          {/* Major Headline with Distinct Visual Hierarchy */}
+          <motion.h1
+            id="hero-main-title"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className="mb-2.5 sm:mb-4 drop-shadow-xl"
           >
-            {t.hero.bookYourStay || 'PLAN YOUR JOURNEY'}
-          </button>
-        </motion.div>
-      </motion.div>
+            <span className="block font-serif text-[32px] xs:text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-[76px] font-light tracking-[0.05em] sm:tracking-[0.08em] leading-[1.08] text-[#FAF8F5] uppercase">
+              {brandName}
+            </span>
+            {luxurySubtitle && (
+              <span className="block font-serif text-[13px] xs:text-sm sm:text-lg md:text-xl lg:text-2xl font-light tracking-[0.14em] sm:tracking-[0.18em] leading-relaxed text-[#D8CCB8] uppercase mt-1 sm:mt-2.5 drop-shadow-md">
+                {luxurySubtitle}
+              </span>
+            )}
+          </motion.h1>
 
-      {/* Bottom Bar: Coordinates & Scroll Cue */}
+          {/* Supporting Narrative */}
+          <motion.p
+            id="hero-subtitle"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="max-w-2xl mx-auto font-sans text-[13px] xs:text-[14.5px] sm:text-base md:text-lg font-light text-[#E7DFD2] leading-relaxed tracking-wide mb-4 sm:mb-7 md:mb-8 drop-shadow-md px-1 sm:px-0"
+          >
+            {subtitleNarrative}
+          </motion.p>
+
+          {/* Primary and Secondary Luxury CTAs */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-5 w-full mx-auto"
+          >
+            <button
+              id="hero-explore-button"
+              onClick={() => handleCtaClick(currentSlide?.secondaryCtaLink, handleScrollToStay)}
+              className="w-[210px] xs:w-[225px] sm:w-auto px-4 sm:px-8 py-2.5 sm:py-3.5 border border-[#FAF8F5]/80 hover:border-[#FAF8F5] text-[#FAF8F5] hover:bg-white/15 text-[10.5px] xs:text-[11px] sm:text-sm tracking-[0.16em] sm:tracking-[0.22em] uppercase font-semibold rounded transition-all duration-300 backdrop-blur-sm shadow-md active:scale-95 cursor-pointer text-center"
+            >
+              {exploreCta}
+            </button>
+
+            <button
+              id="hero-book-button"
+              onClick={() => handleCtaClick(currentSlide?.primaryCtaLink, handleScrollToItinerary)}
+              className="w-[210px] xs:w-[225px] sm:w-auto px-4 sm:px-8 py-2.5 sm:py-3.5 bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-[10.5px] xs:text-[11px] sm:text-sm tracking-[0.16em] sm:tracking-[0.22em] uppercase font-bold rounded transition-all duration-300 shadow-xl hover:shadow-2xl active:scale-95 cursor-pointer text-center"
+            >
+              {bookCta}
+            </button>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
+
+      {/* Multi-Slide Carousel Controls & Dots (Rendered if > 1 slide) */}
+      {visibleSlides.length > 1 && (
+        <div className="absolute inset-y-0 left-0 right-0 z-20 flex items-center justify-between px-3 sm:px-8 pointer-events-none">
+          <button
+            onClick={handlePrevSlide}
+            aria-label="Previous slide"
+            className="pointer-events-auto p-2 sm:p-3 rounded-full bg-black/30 hover:bg-black/60 border border-white/10 hover:border-[#C4A27A] text-white/70 hover:text-white transition-all backdrop-blur-sm cursor-pointer"
+          >
+            <ChevronLeft className="w-4 h-4 sm:w-6 sm:h-6" />
+          </button>
+          <button
+            onClick={handleNextSlide}
+            aria-label="Next slide"
+            className="pointer-events-auto p-2 sm:p-3 rounded-full bg-black/30 hover:bg-black/60 border border-white/10 hover:border-[#C4A27A] text-white/70 hover:text-white transition-all backdrop-blur-sm cursor-pointer"
+          >
+            <ChevronRight className="w-4 h-4 sm:w-6 sm:h-6" />
+          </button>
+        </div>
+      )}
+
+      {/* Bottom Bar: Coordinates, Slide Dots & Scroll Cue */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, delay: 0.75, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 w-full pb-6 sm:pb-8 px-4 sm:px-6 md:px-12 flex items-center justify-between min-h-[48px]"
+        transition={{ duration: 0.7, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        className="relative z-10 w-full pb-3 sm:pb-5 px-4 sm:px-6 md:px-12 flex items-center justify-between min-h-[40px] shrink-0"
       >
-        {/* Left: Shortened location text */}
-        <div className="hidden sm:flex items-center space-x-2 text-[11px] font-mono tracking-widest text-[#D8CCB8]/70 uppercase z-10">
+        {/* Left: Shortened location text with Google Maps link */}
+        <a
+          href={GOOGLE_MAPS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open Zanzirangi House in Google Maps"
+          className="hidden sm:flex items-center space-x-2 text-[11px] font-mono tracking-widest text-[#D8CCB8]/70 hover:text-[#FAF8F5] transition-colors uppercase z-10 cursor-pointer"
+        >
           <Compass className="w-3.5 h-3.5 text-[#C4A27A] flex-shrink-0" />
           <span>Kizimkazi • Zanzibar</span>
-        </div>
+        </a>
 
-        {/* Center: Scroll to Discover indicator (strictly centered on entire hero width) */}
-        <div className="absolute left-1/2 -translate-x-1/2 bottom-6 sm:bottom-8 z-20 pointer-events-auto">
+        {/* Center: Slide Indicators or Scroll to Discover */}
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-3 sm:bottom-5 z-20 pointer-events-auto flex flex-col items-center space-y-2">
+          {visibleSlides.length > 1 && (
+            <div className="flex items-center space-x-2 mb-1">
+              {visibleSlides.map((slide, idx) => (
+                <button
+                  key={slide.id}
+                  onClick={() => setActiveSlideIndex(idx)}
+                  aria-label={`Go to slide ${idx + 1}`}
+                  className={`transition-all rounded-full cursor-pointer ${
+                    activeSlideIndex === idx
+                      ? 'w-6 h-1.5 bg-[#C4A27A]'
+                      : 'w-1.5 h-1.5 bg-white/40 hover:bg-white/80'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+
           <button
             onClick={handleScrollToStay}
-            className="group flex flex-col items-center space-y-1.5 text-[#D8CCB8]/80 hover:text-[#FAF8F5] transition-colors focus:outline-none cursor-pointer"
+            className="group flex flex-col items-center space-y-1 text-[#D8CCB8]/80 hover:text-[#FAF8F5] transition-colors focus:outline-none cursor-pointer"
             aria-label={scrollAriaLabels[currentLang] || scrollAriaLabels.en}
           >
-            <span className="text-[10px] tracking-[0.3em] uppercase font-light whitespace-nowrap">
+            <span className="text-[9px] sm:text-[10px] tracking-[0.25em] sm:tracking-[0.3em] uppercase font-light whitespace-nowrap">
               {t.hero.scrollIndicator || 'SCROLL TO DISCOVER'}
             </span>
-            <ChevronDown className="w-4 h-4 animate-bounce text-[#C4A27A]" />
+            <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-bounce text-[#C4A27A]" />
           </button>
         </div>
 

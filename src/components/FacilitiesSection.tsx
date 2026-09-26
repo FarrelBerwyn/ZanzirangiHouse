@@ -6,12 +6,13 @@ import { TRANSLATIONS } from '../data/translations';
 
 interface FacilitiesSectionProps {
   currentLang: Language;
+  facilities?: Facility[];
 }
 
-export const FacilitiesSection: React.FC<FacilitiesSectionProps> = ({ currentLang }) => {
+export const FacilitiesSection: React.FC<FacilitiesSectionProps> = ({ currentLang, facilities: customFacilities }) => {
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
-  const facilities = getLocalizedFacilities(currentLang);
-  const [activeFacilityId, setActiveFacilityId] = useState(facilities[0].id);
+  const facilities = getLocalizedFacilities(currentLang, customFacilities || undefined);
+  const [activeFacilityId, setActiveFacilityId] = useState(facilities[0]?.id || 'pool');
 
   const activeFacility =
     facilities.find((f) => f.id === activeFacilityId) || facilities[0];

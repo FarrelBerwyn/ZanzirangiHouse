@@ -145,33 +145,68 @@ interface FooterProps {
   currentLang: Language;
   onSelectLang: (lang: Language) => void;
   onOpenBooking: () => void;
-  onOpenCmsPitch: () => void;
   onOpenSupportChat?: (query?: string) => void;
+  onNavigate?: (url: string) => void;
+  dynamicContact?: {
+    phone?: string;
+    email?: string;
+    address?: string;
+    whatsappNumber?: string;
+  };
+  dynamicSocials?: {
+    instagram?: string;
+    facebook?: string;
+    tiktok?: string;
+    youtube?: string;
+    whatsapp?: string;
+  };
+  dynamicCopyright?: string;
 }
 
 export const Footer: React.FC<FooterProps> = ({
   currentLang,
   onSelectLang,
   onOpenBooking,
-  onOpenCmsPitch,
   onOpenSupportChat,
+  onNavigate,
+  dynamicContact,
+  dynamicSocials,
+  dynamicCopyright,
 }) => {
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
   const extra = FOOTER_EXTRA_TRANSLATIONS[currentLang] || FOOTER_EXTRA_TRANSLATIONS.en;
+
+  const contactPhone = dynamicContact?.phone || PROPERTY_CONFIG.contact.phone;
+  const contactEmail = dynamicContact?.email || PROPERTY_CONFIG.email;
+  const contactAddress = dynamicContact?.address || extra.locationAddress;
+  const socials = {
+    instagram: dynamicSocials?.instagram || PROPERTY_CONFIG.socials.instagram,
+    facebook: dynamicSocials?.facebook || PROPERTY_CONFIG.socials.facebook,
+    tiktok: dynamicSocials?.tiktok || PROPERTY_CONFIG.socials.tiktok,
+    youtube: dynamicSocials?.youtube || PROPERTY_CONFIG.socials.youtube,
+  };
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const navLinks = [
-    { label: t.nav.stay, href: '#stay' },
-    { label: t.nav.experiences, href: '#experiences' },
-    { label: t.nav.dining, href: '#dining' },
-    { label: t.nav.explore, href: '#explore' },
-    { label: t.nav.concierge, href: '#concierge' },
-    { label: t.nav.about, href: '#about' },
-    { label: t.nav.contact, href: '#location' },
+    { label: t.nav.stay || 'Private Villas', href: '/villas' },
+    { label: t.nav.dining || 'Oceanfront Dining', href: '/dining' },
+    { label: t.nav.experiences || 'Zanzibar Experiences', href: '/experiences' },
+    { label: 'Tanzania Safari', href: '/safari' },
+    { label: t.nav.about || 'About Sanctuary', href: '/about' },
+    { label: 'Contact & Reservations', href: '/contact' },
+    { label: 'Privacy Policy', href: '/privacy' },
+    { label: 'Terms & Conditions', href: '/terms' },
   ];
+
+  const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (onNavigate && href.startsWith('/')) {
+      e.preventDefault();
+      onNavigate(href);
+    }
+  };
 
   const languages: { code: Language; label: string }[] = [
     { code: 'en', label: 'English' },
@@ -202,6 +237,7 @@ export const Footer: React.FC<FooterProps> = ({
             </p>
 
             {/* Plan Your Stay CTA Button */}
+            {/* Plan Stay CTA */}
             <div className="pt-2">
               <button
                 onClick={onOpenBooking}
@@ -209,17 +245,6 @@ export const Footer: React.FC<FooterProps> = ({
               >
                 <Calendar className="w-3.5 h-3.5" />
                 <span>{extra.planStay}</span>
-              </button>
-            </div>
-
-            {/* Pitching Note Pill */}
-            <div className="pt-2">
-              <button
-                onClick={onOpenCmsPitch}
-                className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-[#1C1B1A] border border-[#C4A27A]/30 rounded text-[10px] uppercase font-mono tracking-wider text-[#D8CCB8] hover:border-[#C4A27A] transition-colors cursor-pointer"
-              >
-                <Settings className="w-3 h-3 text-[#C4A27A]" />
-                <span>{extra.cmsDemo}</span>
               </button>
             </div>
           </div>
@@ -232,7 +257,11 @@ export const Footer: React.FC<FooterProps> = ({
             <ul className="space-y-2.5 text-xs tracking-wider uppercase text-[#D8CCB8]/90">
               {navLinks.map((link) => (
                 <li key={link.href}>
-                  <a href={link.href} className="hover:text-[#C4A27A] transition-colors">
+                  <a
+                    href={link.href}
+                    onClick={(e) => handleLinkClick(e, link.href)}
+                    className="hover:text-[#C4A27A] transition-colors"
+                  >
                     {link.label}
                   </a>
                 </li>
@@ -248,8 +277,8 @@ export const Footer: React.FC<FooterProps> = ({
             <div className="space-y-2.5 text-xs text-[#D8CCB8]/90 font-mono">
               <p>
                 <span className="text-[10px] text-[#6B6862] block">{extra.reservations}</span>
-                <a href={`tel:${PROPERTY_CONFIG.phone}`} className="hover:text-[#C4A27A]">
-                  {PROPERTY_CONFIG.phone}
+                <a href={`tel:${contactPhone}`} className="hover:text-[#C4A27A]">
+                  {contactPhone}
                 </a>
               </p>
               <p>
@@ -272,15 +301,20 @@ export const Footer: React.FC<FooterProps> = ({
               </p>
               <p>
                 <span className="text-[10px] text-[#6B6862] block">{extra.email}</span>
-                <a href={`mailto:${PROPERTY_CONFIG.email}`} className="hover:text-[#C4A27A]">
-                  {PROPERTY_CONFIG.email}
+                <a href={`mailto:${contactEmail}`} className="hover:text-[#C4A27A]">
+                  {contactEmail}
                 </a>
               </p>
               <p>
                 <span className="text-[10px] text-[#6B6862] block">{extra.location}</span>
-                <span className="text-[#D8CCB8]/80 text-[11px]">
-                  {extra.locationAddress}
-                </span>
+                <a
+                  href="https://www.google.com/maps/place/Zanzirangi+House/@-6.2345748,39.528593,17z/data=!3m1!4b1!4m6!3m5!1s0x185d3d007c81b231:0xd21c4f44e083553a!8m2!3d-6.2345748!4d39.5311679!16s%2Fg%2F11yyhxw2xf?entry=ttu&g_ep=EgoyMDI2MDkyMi4wIKXMDSoASAFQAw%3D%3D"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#D8CCB8]/80 hover:text-[#C4A27A] transition-colors text-[11px] block"
+                >
+                  {contactAddress}
+                </a>
               </p>
             </div>
           </div>
@@ -311,7 +345,7 @@ export const Footer: React.FC<FooterProps> = ({
             </span>
             <div className="pt-1 flex items-center space-x-2.5">
               <a
-                href={PROPERTY_CONFIG.socials.instagram}
+                href={socials.instagram}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#FAF8F5] hover:border-[#C4A27A] hover:text-[#C4A27A] transition-colors"
@@ -321,7 +355,7 @@ export const Footer: React.FC<FooterProps> = ({
                 <Instagram className="w-3.5 h-3.5" />
               </a>
               <a
-                href={PROPERTY_CONFIG.socials.facebook}
+                href={socials.facebook}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#FAF8F5] hover:border-[#C4A27A] hover:text-[#C4A27A] transition-colors"
@@ -331,7 +365,7 @@ export const Footer: React.FC<FooterProps> = ({
                 <Facebook className="w-3.5 h-3.5" />
               </a>
               <a
-                href={PROPERTY_CONFIG.socials.tiktok}
+                href={socials.tiktok}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#FAF8F5] hover:border-[#C4A27A] hover:text-[#C4A27A] transition-colors"
@@ -341,7 +375,7 @@ export const Footer: React.FC<FooterProps> = ({
                 <TikTokIcon className="w-3.5 h-3.5" />
               </a>
               <a
-                href={PROPERTY_CONFIG.socials.youtube}
+                href={socials.youtube}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#FAF8F5] hover:border-[#C4A27A] hover:text-[#C4A27A] transition-colors"
@@ -357,12 +391,26 @@ export const Footer: React.FC<FooterProps> = ({
         {/* Bottom Sub-Bar */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-[#6B6862] gap-4">
           <p className="text-center sm:text-left">
-            © {new Date().getFullYear()} {PROPERTY_CONFIG.name}. {t.footer.allRightsReserved}
+            {dynamicCopyright || `© ${new Date().getFullYear()} ${PROPERTY_CONFIG.name}. ${t.footer.allRightsReserved}`}
           </p>
 
-          <p className="text-[11px] font-mono text-[#A07E54] text-center">
-            {t.footer.clientDemoNotice}
-          </p>
+          <div className="flex items-center space-x-4 text-[11px] text-[#A07E54]">
+            <a
+              href="/privacy"
+              onClick={(e) => handleLinkClick(e, '/privacy')}
+              className="hover:underline transition-colors"
+            >
+              Privacy Policy
+            </a>
+            <span>•</span>
+            <a
+              href="/terms"
+              onClick={(e) => handleLinkClick(e, '/terms')}
+              className="hover:underline transition-colors"
+            >
+              Terms & Conditions
+            </a>
+          </div>
 
           <button
             onClick={scrollToTop}

@@ -539,10 +539,10 @@ export const FACILITIES_TRANSLATIONS: Record<Language, Record<string, FacilityLo
   },
 };
 
-export function getLocalizedFacilities(lang: Language): Facility[] {
+export function getLocalizedFacilities(lang: Language, baseFacilities: Facility[] = FACILITIES_DATA): Facility[] {
   const translations = FACILITIES_TRANSLATIONS[lang] || FACILITIES_TRANSLATIONS.en;
 
-  return FACILITIES_DATA.map((fac) => {
+  return baseFacilities.map((fac) => {
     const loc = translations[fac.id];
     if (!loc) return fac;
 

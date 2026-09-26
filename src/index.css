@@ -16,11 +16,49 @@
   --color-clay: #A86B4F;
 }
 
+/* Centralized Theme Tokens */
+:root {
+  --theme-bg-main: #FAF8F5;
+  --theme-bg-surface: #FFFFFF;
+  --theme-bg-secondary: #F4EFE6;
+  --theme-text-primary: #141413;
+  --theme-text-secondary: #3E3C38;
+  --theme-text-muted: #6B6862;
+  --theme-border-subtle: #E7DFD2;
+  --theme-border-medium: #D8CCB8;
+  --theme-gold: #B8966C;
+  --theme-gold-light: #C4A27A;
+}
+
+html.dark {
+  --theme-bg-main: #141413;
+  --theme-bg-surface: #1C1B1A;
+  --theme-bg-secondary: #22211F;
+  --theme-text-primary: #FAF8F5;
+  --theme-text-secondary: #D8CCB8;
+  --theme-text-muted: #A39F98;
+  --theme-border-subtle: #2C2B28;
+  --theme-border-medium: #383632;
+  --theme-gold: #C4A27A;
+  --theme-gold-light: #D4B690;
+  color-scheme: dark;
+}
+
 body {
   font-family: var(--font-sans);
   background-color: #FAF8F5;
   color: #1C1B1A;
   overflow-x: hidden;
+}
+
+/* Subtle, smooth theme transitions without layout shift */
+body,
+header,
+main,
+footer,
+section,
+[role="dialog"] {
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
 }
 
 .font-serif {
@@ -31,25 +69,52 @@ body {
   font-family: var(--font-sans);
 }
 
-/* Custom subtle dark luxury scrollbar */
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #2C2B28;
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #3F3D38;
+/* ==========================================================================
+   Luxury Scrollbar System (Tailored for Light & Dark Mode)
+   ========================================================================== */
+
+/* Standard CSS scrollbar for Firefox & modern Chromium */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: #B8966C #F3EFEA;
 }
 
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #2C2B28 transparent;
+html.dark {
+  scrollbar-color: #8C6E4A #141413;
+}
+
+/* WebKit scrollbar styling (Chrome, Edge, Safari, Opera) */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F3EFEA;
+}
+
+html.dark ::-webkit-scrollbar-track {
+  background: #141413;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #B8966C;
+  border-radius: 9999px;
+  border: 2px solid #F3EFEA;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #685742;
+  border-radius: 9999px;
+  border: 2px solid #141413;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9E7B51;
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #B8966C;
 }
 
 /* Hide scrollbar utility for touch/swipe chip carousels */
@@ -60,5 +125,194 @@ body {
 }
 .no-scrollbar {
   -ms-overflow-style: none;
-  scrollbar-width: none;
+  scrollbar-width: none !important;
+}
+
+/* ==========================================================================
+   DARK MODE OVERRIDES: INTELLECTUAL LUXURY SANCTUARY PALETTE
+   ========================================================================== */
+
+/* 1. Background Mapping */
+html.dark body {
+  background-color: #141413;
+  color: #FAF8F5;
+}
+
+html.dark .bg-\[\#FAF8F5\] {
+  background-color: #141413 !important;
+}
+
+html.dark .bg-\[\#FAF8F5\]\/95 {
+  background-color: rgba(20, 20, 19, 0.95) !important;
+}
+
+html.dark .bg-\[\#FAF8F5\]\/90 {
+  background-color: rgba(20, 20, 19, 0.9) !important;
+}
+
+html.dark .bg-\[\#F4EFE6\] {
+  background-color: #1C1B1A !important;
+}
+
+html.dark .bg-white {
+  background-color: #1C1B1A !important;
+}
+
+html.dark .bg-white\/90,
+html.dark .bg-white\/95 {
+  background-color: rgba(28, 27, 26, 0.95) !important;
+}
+
+/* 2. Text Color Adjustments for High Visual Clarity & Contrast */
+/* High contrast primary text (headings, card titles, key copy) */
+html.dark .text-\[\#141413\],
+html.dark .text-\[\#1C1B1A\],
+html.dark .text-\[\#1E1E1E\],
+html.dark .text-\[\#2C2B28\] {
+  color: #FAF8F5 !important;
+}
+
+/* Body copy, descriptions & article paragraphs */
+html.dark .text-\[\#3E3C38\],
+html.dark .text-\[\#4A4742\],
+html.dark .text-\[\#55524B\] {
+  color: #E5E0D8 !important;
+}
+
+/* Secondary subtitles, labels, metadata & specs */
+html.dark .text-\[\#6B6862\],
+html.dark .text-\[\#66645E\],
+html.dark .text-\[\#7A7771\],
+html.dark .text-\[\#8A8680\],
+html.dark .text-\[\#8E8B85\] {
+  color: #BBB6AE !important;
+}
+
+/* Brand italics, quotes & warm accents */
+html.dark .text-\[\#8E6B40\],
+html.dark .text-\[\#73522E\] {
+  color: #C4A27A !important;
+}
+
+/* Headings within sections */
+html.dark h1:not([class*="text-[#C4A27A]"]):not([class*="text-[#B8966C]"]):not([class*="text-[#A07E54]"]),
+html.dark h2:not([class*="text-[#C4A27A]"]):not([class*="text-[#B8966C]"]):not([class*="text-[#A07E54]"]),
+html.dark h3:not([class*="text-[#C4A27A]"]):not([class*="text-[#B8966C]"]):not([class*="text-[#A07E54]"]),
+html.dark h4:not([class*="text-[#C4A27A]"]):not([class*="text-[#B8966C]"]):not([class*="text-[#A07E54]"]) {
+  color: #FAF8F5 !important;
+}
+
+/* 3. Border Adjustments */
+html.dark .border-\[\#E7DFD2\] {
+  border-color: #2C2B28 !important;
+}
+
+html.dark .border-\[\#D8CCB8\] {
+  border-color: #383632 !important;
+}
+
+html.dark .border-black\/5,
+html.dark .border-black\/10 {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* 4. Tab Bars, Pills & Filter Controls */
+/* Inactive category tabs */
+html.dark .bg-\[\#E7DFD2\]\/70,
+html.dark .bg-\[\#E7DFD2\]\/60 {
+  background-color: #242321 !important;
+  color: #D8CCB8 !important;
+  border: 1px solid #383632 !important;
+}
+
+html.dark .bg-\[\#E7DFD2\]\/70:hover,
+html.dark .bg-\[\#E7DFD2\]\/60:hover,
+html.dark .hover\:bg-\[\#E7DFD2\]:hover {
+  background-color: #2E2D2A !important;
+  color: #FAF8F5 !important;
+}
+
+/* Active tab button highlight */
+html.dark button.bg-\[\#1C1B1A\] {
+  background-color: #282725 !important;
+  color: #FAF8F5 !important;
+  border: 1px solid #C4A27A !important;
+}
+
+/* Tab count badge in dark mode */
+html.dark .bg-black\/10 {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+  color: #FAF8F5 !important;
+}
+
+/* Highlights pill badges inside banner cards */
+html.dark .bg-\[\#F4EFE6\] {
+  background-color: #22211F !important;
+}
+
+html.dark .bg-\[\#F4EFE6\] .text-\[\#2C2B28\] {
+  color: #FAF8F5 !important;
+}
+
+/* Scroll track gradient fade overlays in dark mode */
+html.dark .from-\[\#F4EFE6\],
+html.dark .from-\[\#FAF8F5\] {
+  --tw-gradient-from: #141413 var(--tw-gradient-from-position) !important;
+}
+
+html.dark .via-\[\#F4EFE6\]\/90,
+html.dark .via-\[\#FAF8F5\]\/90 {
+  --tw-gradient-via: rgba(20, 20, 19, 0.9) var(--tw-gradient-via-position) !important;
+}
+
+/* 5. Protected Brand CTA Buttons (Keep dark text on gold background) */
+html.dark .bg-\[\#B8966C\] .text-\[\#141413\],
+html.dark .bg-\[\#C4A27A\] .text-\[\#141413\],
+html.dark button.bg-\[\#B8966C\],
+html.dark button.bg-\[\#C4A27A\],
+html.dark a.bg-\[\#B8966C\],
+html.dark a.bg-\[\#C4A27A\],
+html.dark .bg-\[\#B8966C\],
+html.dark .bg-\[\#C4A27A\] {
+  color: #141413 !important;
+}
+
+/* 6. Card Hover & Subtle Shadows */
+html.dark .shadow-xl,
+html.dark .shadow-2xl {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7), 0 8px 10px -6px rgba(0, 0, 0, 0.7) !important;
+}
+
+/* 7. Dark Mode Form Inputs and Controls */
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+html.dark select,
+html.dark textarea {
+  background-color: #141413 !important;
+  color: #FAF8F5 !important;
+  border-color: #2C2B28 !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #78756F !important;
+}
+
+/* 8. Modals Dark Mode Refinement */
+html.dark #booking-inquiry-modal > div,
+html.dark #villa-detail-modal > div {
+  background-color: #1C1B1A !important;
+  color: #FAF8F5 !important;
+  border-color: #2C2B28 !important;
+}
+
+html.dark #booking-inquiry-modal .bg-\[\#FAF8F5\],
+html.dark #villa-detail-modal .bg-\[\#FAF8F5\],
+html.dark #villa-detail-modal .bg-\[\#FAF8F5\]\/95 {
+  background-color: #141413 !important;
+  border-color: #2C2B28 !important;
+}
+
+html.dark #booking-inquiry-modal .bg-\[\#F4EFE6\] {
+  background-color: #242321 !important;
+  border-color: #2C2B28 !important;
 }

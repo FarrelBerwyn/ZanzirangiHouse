@@ -4,6 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
+    <!-- Early Theme Initialization to Prevent Flash of Wrong Theme (Default: Light Mode) -->
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('zanzirangi_theme');
+          if (saved === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
+    
     <!-- Primary SEO Meta Tags (Step 4 Traditional SEO Optimized) -->
     <title>Zanzibar Luxury Villa - Zanzirangi House | Private Pool Retreat</title>
     <meta
@@ -52,9 +66,14 @@
     <meta name="twitter:image" content="https://zanzirangihouse.com/zanzirangi-logo-new.jpeg" />
     <meta name="twitter:image:alt" content="Zanzibar Luxury Villa - Zanzirangi House Sanctuary" />
 
-    <!-- Favicon & Icons -->
-    <link rel="icon" type="image/jpeg" href="/zanzirangi-logo-new.jpeg" />
-    <link rel="apple-touch-icon" href="/zanzirangi-logo-new.jpeg" />
+    <!-- Favicon & Icons (Circular Luxury Brand System) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/zanzirangi-logo-circle.png" />
 
     <!-- Typography & Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -111,6 +130,7 @@
             "streetAddress": "Kizimkazi Dimbani, South Coast",
             "addressLocality": "Zanzibar",
             "addressRegion": "Unguja South Region",
+            "postalCode": "72115",
             "addressCountry": "TZ"
           },
           "contactPoint": {
@@ -143,10 +163,11 @@
           },
           "offers": {
             "@type": "AggregateOffer",
-            "url": "https://zanzirangihouse.com/#stay",
+            "url": "https://zanzirangihouse.com/villas",
             "priceCurrency": "USD",
             "lowPrice": "390",
             "highPrice": "480",
+            "offerCount": "8",
             "priceValidUntil": "2027-12-31",
             "availability": "https://schema.org/InStock",
             "seller": {
@@ -186,6 +207,7 @@
             "streetAddress": "Kizimkazi Dimbani, South Coast",
             "addressLocality": "Zanzibar",
             "addressRegion": "Unguja South Region",
+            "postalCode": "72115",
             "addressCountry": "TZ"
           },
           "geo": {
@@ -254,6 +276,55 @@
           "inLanguage": ["en", "fr", "sw", "es", "it", "pl", "ar", "zh"]
         },
         {
+          "@type": "ItemList",
+          "@id": "https://zanzirangihouse.com/#navigation",
+          "name": "Zanzirangi House Primary Navigation",
+          "itemListElement": [
+            {
+              "@type": "SiteNavigationElement",
+              "position": 1,
+              "name": "Private Villas",
+              "description": "8 exclusive plunge-pool villas in Kizimkazi Zanzibar",
+              "url": "https://zanzirangihouse.com/villas"
+            },
+            {
+              "@type": "SiteNavigationElement",
+              "position": 2,
+              "name": "Oceanfront Dining",
+              "description": "Ocean-to-table Swahili gastronomy and private beach dining",
+              "url": "https://zanzirangihouse.com/dining"
+            },
+            {
+              "@type": "SiteNavigationElement",
+              "position": 3,
+              "name": "Zanzibar Experiences",
+              "description": "Menai Bay dolphin tours, dhow cruises, and island heritage walks",
+              "url": "https://zanzirangihouse.com/experiences"
+            },
+            {
+              "@type": "SiteNavigationElement",
+              "position": 4,
+              "name": "Tanzania Safari",
+              "description": "Bespoke Serengeti & Ngorongoro fly-in safari journeys",
+              "url": "https://zanzirangihouse.com/safari"
+            },
+            {
+              "@type": "SiteNavigationElement",
+              "position": 5,
+              "name": "About Sanctuary",
+              "description": "Barefoot luxury heritage, sustainable architecture, and location",
+              "url": "https://zanzirangihouse.com/about"
+            },
+            {
+              "@type": "SiteNavigationElement",
+              "position": 6,
+              "name": "Contact & Booking",
+              "description": "Direct reservations, WhatsApp concierge, and arrival logistics",
+              "url": "https://zanzirangihouse.com/contact"
+            }
+          ]
+        },
+        {
           "@type": "BreadcrumbList",
           "@id": "https://zanzirangihouse.com/#breadcrumbs",
           "itemListElement": [
@@ -266,26 +337,38 @@
             {
               "@type": "ListItem",
               "position": 2,
-              "name": "Villas & Suites",
-              "item": "https://zanzirangihouse.com/#stay"
+              "name": "Private Villas",
+              "item": "https://zanzirangihouse.com/villas"
             },
             {
               "@type": "ListItem",
               "position": 3,
-              "name": "Dining",
-              "item": "https://zanzirangihouse.com/#dining"
+              "name": "Oceanfront Dining",
+              "item": "https://zanzirangihouse.com/dining"
             },
             {
               "@type": "ListItem",
               "position": 4,
-              "name": "Experiences & Dolphins",
-              "item": "https://zanzirangihouse.com/#experiences"
+              "name": "Zanzibar Experiences",
+              "item": "https://zanzirangihouse.com/experiences"
             },
             {
               "@type": "ListItem",
               "position": 5,
-              "name": "Mainland Safari",
-              "item": "https://zanzirangihouse.com/#safari"
+              "name": "Tanzania Safari",
+              "item": "https://zanzirangihouse.com/safari"
+            },
+            {
+              "@type": "ListItem",
+              "position": 6,
+              "name": "About Sanctuary",
+              "item": "https://zanzirangihouse.com/about"
+            },
+            {
+              "@type": "ListItem",
+              "position": 7,
+              "name": "Contact & Reservations",
+              "item": "https://zanzirangihouse.com/contact"
             }
           ]
         },

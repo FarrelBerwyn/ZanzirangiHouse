@@ -17,6 +17,17 @@
 - **Guest Satisfaction**: 9.8 / 10 score based on 142 verified guest reviews
 - **Reservation Desk**: concierge@zanzirangihouse.com | WhatsApp: +255 777 890 123
 
+## Primary Canonical Destinations & Sitelinks
+- **Homepage (Sanctuary Overview)**: https://zanzirangihouse.com/
+- **Private Villas (Accommodation Inventory)**: https://zanzirangihouse.com/villas
+- **Oceanfront Dining (Culinary & Menus)**: https://zanzirangihouse.com/dining
+- **Zanzibar Experiences (Tours & Marine Safari)**: https://zanzirangihouse.com/experiences
+- **Tanzania Safari (Mainland Bush Connections)**: https://zanzirangihouse.com/safari
+- **About Sanctuary (Heritage & Architecture)**: https://zanzirangihouse.com/about
+- **Contact & Reservations (Direct Concierge)**: https://zanzirangihouse.com/contact
+- **Privacy Policy**: https://zanzirangihouse.com/privacy
+- **Terms & Conditions**: https://zanzirangihouse.com/terms
+
 ## Authoritative Citations & Regional Context
 - **Marine Sanctuary**: Located directly adjacent to the 470 km² (47,000 hectares) Menai Bay Conservation Area (established 1997, IUCN Category VI).
 - **Ethical Wildlife Protocols**: In compliance with the Zanzibar Department of Fisheries Development, dolphin watching excursions on traditional lateen-rigged dhows observe a strict 50-meter non-intrusive buffer protecting resident Indo-Pacific bottlenose dolphins (*Tursiops aduncus*).
