@@ -181,17 +181,17 @@ export const AdminRoomsManager: React.FC = () => {
         <div>
           <div className="flex items-center space-x-2">
             <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-[#C4A27A]">
-              INVENTORY MANAGEMENT
+              VILLA
             </span>
             <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase bg-emerald-950/60 border border-emerald-700/60 text-emerald-300">
               LIVE
             </span>
           </div>
           <h1 className="font-serif text-2xl sm:text-3xl text-[#FAF8F5] tracking-wide mt-1">
-            Rooms & Villas Management
+            Villas
           </h1>
           <p className="text-xs text-[#8E8B85] mt-0.5">
-            Manage all 8 private plunge-pool villas, pricing, descriptions, amenities, and photo galleries.
+            Kelola data kamar dan villa, harga, fasilitas, dan foto.
           </p>
         </div>
 

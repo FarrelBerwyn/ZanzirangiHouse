@@ -19,6 +19,7 @@ import {
   Radio,
 } from 'lucide-react';
 import { AdminUser, authApi } from '../services/authApi';
+import zanzirangiLogo from '../assets/zanzirangi-logo-new.jpeg';
 
 interface AdminLayoutProps {
   currentTab: string;
@@ -53,13 +54,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, ready: true },
     { key: 'homepage', label: 'Homepage', icon: Home, ready: true },
-    { key: 'rooms', label: 'Rooms & Villas', icon: BedDouble, ready: true },
+    { key: 'rooms', label: 'Villas', icon: BedDouble, ready: true },
     { key: 'gallery', label: 'Gallery', icon: ImageIcon, ready: true },
     { key: 'videos', label: 'Videos', icon: Video, ready: true },
     { key: 'facilities', label: 'Facilities', icon: Sparkles, ready: true },
     { key: 'testimonials', label: 'Testimonials', icon: MessageSquareQuote, ready: true },
-    { key: 'contact', label: 'Contact & Concierge', icon: Phone, ready: true },
-    { key: 'seo', label: 'SEO & Metadata', icon: Search, ready: true },
+    { key: 'contact', label: 'Contact', icon: Phone, ready: true },
+    { key: 'seo', label: 'SEO', icon: Search, ready: true },
     { key: 'media', label: 'Media Library', icon: FolderOpen, ready: true },
     { key: 'settings', label: 'Settings', icon: Settings, ready: true },
   ];
@@ -80,15 +81,17 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
           {/* Logo / Sanctuary Brand */}
           <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded bg-[#B8966C]/20 border border-[#C4A27A]/30 flex items-center justify-center text-[#C4A27A] font-serif text-sm font-bold">
-              Z
-            </div>
+            <img
+              src={zanzirangiLogo}
+              alt="Zanzirangi House"
+              className="w-8 h-8 rounded-full object-cover border border-[#C4A27A]/40 shadow-sm"
+            />
             <div>
               <span className="font-serif text-base tracking-wider uppercase text-[#FAF8F5] block font-light leading-none">
                 ZANZIRANGI HOUSE
               </span>
               <span className="text-[10px] font-mono tracking-[0.2em] text-[#C4A27A] uppercase block">
-                CMS CONTROL CENTER
+                ADMIN PANEL
               </span>
             </div>
           </div>

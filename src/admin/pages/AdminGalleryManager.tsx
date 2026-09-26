@@ -144,17 +144,17 @@ export const AdminGalleryManager: React.FC = () => {
         <div>
           <div className="flex items-center space-x-2">
             <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-[#C4A27A]">
-              VISUAL ARCHIVE
+              GALERI
             </span>
             <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase bg-emerald-950/60 border border-emerald-700/60 text-emerald-300">
               LIVE
             </span>
           </div>
           <h1 className="font-serif text-2xl sm:text-3xl text-[#FAF8F5] tracking-wide mt-1">
-            Curated Gallery Manager
+            Gallery
           </h1>
           <p className="text-xs text-[#8E8B85] mt-0.5">
-            Organize photography across the 7 sanctuary categories with lightbox captions and order controls.
+            Kelola foto galeri website, kategori foto, dan urutan tampilan.
           </p>
         </div>
 

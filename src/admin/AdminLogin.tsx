@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Mail, Eye, EyeOff, ShieldAlert, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ShieldAlert, ArrowRight } from 'lucide-react';
 import { authApi } from '../services/authApi';
+import zanzirangiLogo from '../assets/zanzirangi-logo-new.jpeg';
 
 interface AdminLoginProps {
   onLoginSuccess: () => void;
@@ -14,7 +15,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = 'Admin Access | Zanzirangi House Sanctuary';
+    document.title = 'Admin Login | Zanzirangi House';
     // Ensure noindex, nofollow is active
     let metaRobots = document.querySelector('meta[name="robots"]');
     if (metaRobots) {
@@ -25,7 +26,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      setErrorMessage('Please enter both your authorized email and password.');
+      setErrorMessage('Silakan masukkan email dan password admin.');
       return;
     }
 
@@ -38,7 +39,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
     if (result.success) {
       onLoginSuccess();
     } else {
-      setErrorMessage(result.error || 'Authentication failed. Please verify credentials.');
+      setErrorMessage(result.error || 'Login gagal. Periksa kembali email dan password.');
     }
   };
 
@@ -55,19 +56,21 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
 
       {/* Main Login Card */}
       <div className="relative z-10 w-full max-w-md bg-[#1C1B1A] border border-[#2C2B28] rounded-2xl shadow-2xl p-6 sm:p-8 backdrop-blur-md">
-        {/* Brand Header */}
+        {/* Brand Header with Logo */}
         <div className="text-center mb-8">
-          <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-[#141413] border border-[#C4A27A]/30 flex items-center justify-center text-[#C4A27A] shadow-inner">
-            <Lock className="w-6 h-6" />
-          </div>
-          <span className="text-[11px] font-mono tracking-[0.3em] uppercase text-[#C4A27A] block mb-1">
-            ZANZIRANGI HOUSE SANCTUARY
+          <img
+            src={zanzirangiLogo}
+            alt="Zanzirangi House Logo"
+            className="w-16 h-16 mx-auto mb-4 rounded-full object-cover border border-[#C4A27A]/40 shadow-lg"
+          />
+          <span className="text-[11px] font-mono tracking-[0.25em] uppercase text-[#C4A27A] block mb-1">
+            ZANZIRANGI HOUSE
           </span>
           <h1 className="font-serif text-2xl sm:text-3xl font-light text-[#FAF8F5] tracking-wide">
-            Administrative Portal
+            Admin Login
           </h1>
           <p className="text-xs text-[#A39F98] mt-2 max-w-xs mx-auto leading-relaxed">
-            Authorized management console for live website content and property operations.
+            Masuk ke Dashboard CMS untuk mengelola konten website
           </p>
         </div>
 
@@ -83,8 +86,8 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Email field */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] block">
-              Authorized Business Email
+            <label className="text-xs font-medium text-[#D8CCB8] block">
+              Email
             </label>
             <div className="relative">
               <Mail className="w-4 h-4 text-[#8E8B85] absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -118,8 +121,8 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
 
           {/* Password field */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] block">
-              Security Password
+            <label className="text-xs font-medium text-[#D8CCB8] block">
+              Password
             </label>
             <div className="relative">
               <Lock className="w-4 h-4 text-[#8E8B85] absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -128,7 +131,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
                 id="admin-password-input"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
+                placeholder="Masukkan password"
                 required
                 autoComplete="current-password"
                 className="w-full bg-[#141413] border border-[#2C2B28] focus:border-[#C4A27A] focus:ring-1 focus:ring-[#C4A27A] rounded-lg pl-10 pr-10 py-2.5 text-sm text-[#FAF8F5] placeholder-[#66645E] transition-all outline-none"
@@ -136,7 +139,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8E8B85] hover:text-[#FAF8F5] transition-colors p-1"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8E8B85] hover:text-[#FAF8F5] transition-colors p-1 cursor-pointer"
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -149,16 +152,16 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
             type="submit"
             id="admin-login-submit"
             disabled={isLoading}
-            className="w-full mt-2 py-3 px-4 bg-[#B8966C] hover:bg-[#C4A27A] disabled:opacity-50 text-[#141413] font-semibold text-xs tracking-[0.2em] uppercase rounded-lg transition-all shadow-lg active:scale-[0.98] flex items-center justify-center space-x-2 cursor-pointer"
+            className="w-full mt-2 py-3 px-4 bg-[#B8966C] hover:bg-[#C4A27A] disabled:opacity-50 text-[#141413] font-semibold text-xs tracking-wider uppercase rounded-lg transition-all shadow-lg active:scale-[0.98] flex items-center justify-center space-x-2 cursor-pointer"
           >
             {isLoading ? (
               <span className="inline-flex items-center space-x-2">
                 <span className="w-3.5 h-3.5 border-2 border-[#141413] border-t-transparent rounded-full animate-spin" />
-                <span>Authenticating...</span>
+                <span>Memproses Login...</span>
               </span>
             ) : (
               <>
-                <span>Access CMS Console</span>
+                <span>Login</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
@@ -167,9 +170,10 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
 
         {/* Security watermark footer */}
         <div className="mt-8 pt-4 border-t border-[#2C2B28] text-center text-[10px] text-[#6B6862] font-mono">
-          <span>Protected Area • Hostinger Encrypted Session • 256-Bit TLS</span>
+          <span>Zanzirangi House Admin Panel • Secure Area</span>
         </div>
       </div>
     </div>
   );
 };
+
