@@ -170,19 +170,19 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             </span>
           </motion.a>
 
-          {/* Major Headline with Distinct Visual Hierarchy */}
+          {/* Major Headline with Distinct 2-Line Hierarchy */}
           <motion.h1
             id="hero-main-title"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            className="mb-2.5 sm:mb-4 drop-shadow-xl"
+            className="mb-2 sm:mb-3.5 drop-shadow-xl max-w-4xl mx-auto"
           >
-            <span className="block font-serif text-[32px] xs:text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-[76px] font-light tracking-[0.05em] sm:tracking-[0.08em] leading-[1.08] text-[#FAF8F5] uppercase">
+            <span className="block font-serif text-[26px] xs:text-3xl sm:text-4xl md:text-5xl lg:text-[54px] font-light tracking-[0.05em] sm:tracking-[0.08em] leading-[1.12] text-[#FAF8F5] uppercase">
               {brandName}
             </span>
             {luxurySubtitle && (
-              <span className="block font-serif text-[13px] xs:text-sm sm:text-lg md:text-xl lg:text-2xl font-light tracking-[0.14em] sm:tracking-[0.18em] leading-relaxed text-[#D8CCB8] uppercase mt-1 sm:mt-2.5 drop-shadow-md">
+              <span className="block font-serif text-[12px] xs:text-sm sm:text-base md:text-lg lg:text-xl font-light tracking-[0.14em] sm:tracking-[0.18em] leading-relaxed text-[#D8CCB8] uppercase mt-1 sm:mt-2 drop-shadow-md">
                 {luxurySubtitle}
               </span>
             )}

@@ -493,8 +493,8 @@ var DEFAULT_HERO_SLIDES = [
   {
     id: "slide-01",
     badgeText: "KIZIMKAZI DIMBANI \u2022 SOUTH COAST ZANZIBAR",
-    title: "Zanzibar Luxury Villa \u2014 Private Pool Retreat",
-    subtitle: "Boutique Villas with Private Plunge Pool in Kizimkazi",
+    title: "Zanzibar Luxury Villa",
+    subtitle: "Private Pool Retreat \u2022 Kizimkazi",
     description: "Experience Zanzibar luxury villas with private plunge pools at Zanzirangi House in Kizimkazi. An intimate 8-villa sanctuary offering ocean-to-table dining and bespoke island journeys.",
     heroImage: "https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=2400&q=90",
     videoUrl: "./Zanzirangi-home.mp4",
@@ -508,8 +508,8 @@ var DEFAULT_HERO_SLIDES = [
   {
     id: "slide-02",
     badgeText: "SECLUDED BOTANICAL HIDEAWAY \u2022 MENAI BAY",
-    title: "Boutique Luxury Villa in Kizimkazi Zanzibar",
-    subtitle: "Makuti Garden Sanctuary with Private Plunge Pool",
+    title: "Makuti Garden Sanctuary",
+    subtitle: "Boutique Private Pool Villa",
     description: "Tucked within fragrant frangipani and coconut palms in southern Zanzibar, offering total seclusion, an open-air stone shower, and serene garden verandah.",
     heroImage: "./zanzirangi-villas.jpg",
     videoUrl: "./Zanzirangi-home.mp4",
@@ -523,8 +523,8 @@ var DEFAULT_HERO_SLIDES = [
   {
     id: "slide-03",
     badgeText: "TANZANIA SAFARI & ZANZIBAR BEACH PACKAGE",
-    title: "Beachfront Luxury Villa & Tanzania Safari Retreat",
-    subtitle: "Signature Oceanfront Residence \u2022 Menai Bay Dolphin Sanctuary",
+    title: "Oceanfront Safari Villa",
+    subtitle: "Private Presidential Residence",
     description: "The premier oceanfront residence at Zanzirangi House featuring a suspended infinity pool, expansive living pavilion, private chef dining, and direct Serengeti fly-in safari packages.",
     heroImage: "https://images.unsplash.com/photo-1540541338287-41700207dee6?auto=format&fit=crop&w=2400&q=90",
     videoUrl: "./Zanzirangi-home.mp4",
