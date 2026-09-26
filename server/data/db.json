@@ -77,7 +77,7 @@
           "subtitle": "Secluded Botanical Garden Villa",
           "description": "Tucked within fragrant frangipani and coconut palms, offering total seclusion, an open-air stone shower, and serene garden verandah.",
           "heroImage": "./zanzirangi-villas.jpg",
-          "videoUrl": "",
+          "videoUrl": "./Zanzirangi-home.mp4",
           "primaryCtaText": "Discover Garden Villa",
           "primaryCtaLink": "#stay",
           "secondaryCtaText": "View Amenities",
@@ -92,7 +92,7 @@
           "subtitle": "Signature Two-Bedroom Oceanfront Residence",
           "description": "The grandest residence at Zanzirangi House featuring a suspended oceanfront infinity pool, expansive living pavilion, and private chef quarters.",
           "heroImage": "https://images.unsplash.com/photo-1540541338287-41700207dee6?auto=format&fit=crop&w=2400&q=90",
-          "videoUrl": "",
+          "videoUrl": "./Zanzirangi-home.mp4",
           "primaryCtaText": "Reserve Presidential",
           "primaryCtaLink": "#stay",
           "secondaryCtaText": "Inquire Concierge",
@@ -652,6 +652,34 @@
       "details": "Administrator logged into Zanzirangi CMS",
       "ipAddress": "127.0.0.1",
       "timestamp": "2026-09-26T14:58:18.922Z"
+    },
+    {
+      "action": "USER_LOGIN",
+      "userEmail": "info@zanzirangihouse.com",
+      "details": "Administrator logged into Zanzirangi CMS",
+      "ipAddress": "127.0.0.1",
+      "timestamp": "2026-09-26T15:09:32.491Z"
+    },
+    {
+      "action": "USER_LOGIN",
+      "userEmail": "info@zanzirangihouse.com",
+      "details": "Administrator logged into Zanzirangi CMS",
+      "ipAddress": "127.0.0.1",
+      "timestamp": "2026-09-26T15:13:06.150Z"
+    },
+    {
+      "action": "USER_LOGIN",
+      "userEmail": "info@zanzirangihouse.com",
+      "details": "Administrator logged into Zanzirangi CMS",
+      "ipAddress": "127.0.0.1",
+      "timestamp": "2026-09-26T15:14:46.498Z"
+    },
+    {
+      "action": "USER_LOGIN",
+      "userEmail": "info@zanzirangihouse.com",
+      "details": "Administrator logged into Zanzirangi CMS",
+      "ipAddress": "127.0.0.1",
+      "timestamp": "2026-09-26T15:21:30.846Z"
     }
   ],
   "villas": [

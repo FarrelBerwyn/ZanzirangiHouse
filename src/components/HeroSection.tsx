@@ -1,5 +1,5 @@
-import React from 'react';
-import { ChevronDown, MapPin, Compass } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ChevronDown, ChevronLeft, ChevronRight, MapPin, Compass } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Language } from '../types';
 import { TRANSLATIONS } from '../data/translations';
@@ -19,10 +19,34 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 }) => {
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
 
-  // Use the primary/first slide content directly without carousel rotation
-  const currentSlide = (dynamicHero?.slides && dynamicHero.slides.length > 0)
-    ? dynamicHero.slides[0]
-    : null;
+  // Active Slides from CMS
+  const rawSlides: HeroSlide[] = dynamicHero?.slides && dynamicHero.slides.length > 0
+    ? dynamicHero.slides
+    : [];
+  const visibleSlides = rawSlides.filter((s) => s.visible !== false);
+
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+
+  // Auto-play slideshow if multiple slides exist
+  useEffect(() => {
+    if (visibleSlides.length <= 1) return;
+    const intervalSeconds = dynamicHero?.autoPlayIntervalSeconds || 7;
+    const timer = setInterval(() => {
+      setActiveSlideIndex((prev) => (prev + 1) % visibleSlides.length);
+    }, intervalSeconds * 1000);
+    return () => clearInterval(timer);
+  }, [visibleSlides.length, dynamicHero?.autoPlayIntervalSeconds]);
+
+  // Safe current slide
+  const currentSlide = visibleSlides[activeSlideIndex] || visibleSlides[0] || null;
+
+  const handlePrevSlide = () => {
+    setActiveSlideIndex((prev) => (prev === 0 ? visibleSlides.length - 1 : prev - 1));
+  };
+
+  const handleNextSlide = () => {
+    setActiveSlideIndex((prev) => (prev + 1) % visibleSlides.length);
+  };
 
   const handleCtaClick = (link?: string, fallbackAction?: () => void) => {
     if (!link) {
@@ -79,6 +103,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
   const subtitleNarrative = currentSlide?.description || dynamicHero?.description || dynamicHero?.subtitle || t.hero.subtitle || 'Stay, explore and experience the island — with Tanzania beyond.';
   const posterImage = currentSlide?.heroImage || dynamicHero?.heroImage || 'https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=2400&q=90';
+  
+  // Authentic video footage used for all hero slides
   const currentVideoUrl = currentSlide?.videoUrl || heroVideo;
   const exploreCta = currentSlide?.secondaryCtaText || dynamicHero?.secondaryCtaText || t.hero.exploreProperty || 'EXPLORE THE RETREAT';
   const bookCta = currentSlide?.primaryCtaText || dynamicHero?.primaryCtaText || t.hero.bookYourStay || 'PLAN YOUR JOURNEY';
@@ -89,45 +115,27 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
       id="hero"
       className="relative w-full h-screen h-[100dvh] max-h-[100dvh] flex flex-col justify-between overflow-hidden bg-[#141413] text-[#FAF8F5]"
     >
-      {/* Background Media Container */}
-      <div className="absolute inset-0 z-0 overflow-hidden">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentSlide?.id || 'static-bg'}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1 }}
-            className="absolute inset-0 w-full h-full"
-          >
-            {currentVideoUrl ? (
-              <video
-                key={currentVideoUrl}
-                autoPlay
-                loop
-                muted
-                playsInline
-                poster={posterImage}
-                className="w-full h-full object-cover scale-105 animate-subtleZoom"
-                style={{ filter: 'brightness(0.68) contrast(1.08)' }}
-              >
-                <source src={currentVideoUrl} type="video/mp4" />
-                <source src="./Zanzirangi-home.mp4" type="video/mp4" />
-              </video>
-            ) : (
-              <img
-                src={posterImage}
-                alt={brandName}
-                className="w-full h-full object-cover scale-105 animate-subtleZoom"
-                style={{ filter: 'brightness(0.68) contrast(1.08)' }}
-              />
-            )}
-          </motion.div>
-        </AnimatePresence>
+      {/* Background Media: Authentic Video Background for every Carousel Slide */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        <video
+          key={currentVideoUrl || 'hero-video-bg'}
+          autoPlay
+          loop
+          muted
+          playsInline
+          poster={posterImage}
+          className="w-full h-full object-cover scale-105 animate-subtleZoom"
+          style={{ filter: 'brightness(0.68) contrast(1.08)' }}
+        >
+          <source src={currentVideoUrl} type="video/mp4" />
+          <source src={heroVideo} type="video/mp4" />
+          <source src="./Zanzirangi-home.mp4" type="video/mp4" />
+          <source src="./videos/Zanzirangi-home.mp4" type="video/mp4" />
+        </video>
 
         {/* Sophisticated Luxury Gradient Overlays */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#141413] via-[#141413]/40 to-black/60" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-black/40" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#141413] via-[#141413]/40 to-black/60 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-black/40 pointer-events-none" />
       </div>
 
       {/* Top Spacer for fixed navbar */}
@@ -217,6 +225,26 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
         </motion.div>
       </AnimatePresence>
 
+      {/* Multi-Slide Carousel Controls & Navigation (Rendered if > 1 slide) */}
+      {visibleSlides.length > 1 && (
+        <div className="absolute inset-y-0 left-0 right-0 z-20 flex items-center justify-between px-3 sm:px-8 pointer-events-none">
+          <button
+            onClick={handlePrevSlide}
+            aria-label="Previous slide"
+            className="pointer-events-auto p-2 sm:p-3 rounded-full bg-black/30 hover:bg-black/60 border border-white/10 hover:border-[#C4A27A] text-white/70 hover:text-white transition-all backdrop-blur-sm cursor-pointer shadow-lg active:scale-95"
+          >
+            <ChevronLeft className="w-4 h-4 sm:w-6 sm:h-6" />
+          </button>
+          <button
+            onClick={handleNextSlide}
+            aria-label="Next slide"
+            className="pointer-events-auto p-2 sm:p-3 rounded-full bg-black/30 hover:bg-black/60 border border-white/10 hover:border-[#C4A27A] text-white/70 hover:text-white transition-all backdrop-blur-sm cursor-pointer shadow-lg active:scale-95"
+          >
+            <ChevronRight className="w-4 h-4 sm:w-6 sm:h-6" />
+          </button>
+        </div>
+      )}
+
       {/* Bottom Bar: Coordinates & Scroll Cue */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
@@ -236,8 +264,25 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           <span>Kizimkazi • Zanzibar</span>
         </a>
 
-        {/* Center: Scroll to Discover */}
+        {/* Center: Slide Indicators & Scroll to Discover */}
         <div className="absolute left-1/2 -translate-x-1/2 bottom-3 sm:bottom-5 z-20 pointer-events-auto flex flex-col items-center space-y-2">
+          {visibleSlides.length > 1 && (
+            <div className="flex items-center space-x-2 mb-1">
+              {visibleSlides.map((slide, idx) => (
+                <button
+                  key={slide.id}
+                  onClick={() => setActiveSlideIndex(idx)}
+                  aria-label={`Go to slide ${idx + 1}`}
+                  className={`transition-all rounded-full cursor-pointer ${
+                    activeSlideIndex === idx
+                      ? 'w-6 h-1.5 bg-[#C4A27A]'
+                      : 'w-1.5 h-1.5 bg-white/40 hover:bg-white/80'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+
           <button
             onClick={handleScrollToStay}
             className="group flex flex-col items-center space-y-1 text-[#D8CCB8]/80 hover:text-[#FAF8F5] transition-colors focus:outline-none cursor-pointer"

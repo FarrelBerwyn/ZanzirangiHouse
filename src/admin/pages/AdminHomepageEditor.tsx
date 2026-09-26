@@ -368,24 +368,154 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
 
       {/* ============================================================== */}
       {/* ============================================================== */}
-      {/* TAB 1: HERO HEADER (SINGLE SLIDE - NO CAROUSEL)                */}
+      {/* TAB 1: HERO CAROUSEL SLIDES                                    */}
       {/* ============================================================== */}
       {activeTab === 'hero' && (
         <div className="space-y-6">
+          {/* Hero Slides Header & Autoplay Settings */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-[#181716] border border-[#2C2B28]">
+            <div>
+              <h2 className="font-serif text-lg text-[#FAF8F5]">Hero Carousel Slides</h2>
+              <p className="text-xs text-[#8E8B85] mt-0.5">
+                Setiap slide menggunakan background video autentik Zanzirangi House (./Zanzirangi-home.mp4).
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <label className="text-[11px] font-mono text-[#D8CCB8] uppercase tracking-wider">
+                  Interval (detik):
+                </label>
+                <input
+                  type="number"
+                  min={3}
+                  max={30}
+                  value={formData.hero.autoPlayIntervalSeconds || 6}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value) || 6;
+                    setFormData((prev) => ({
+                      ...prev,
+                      hero: { ...prev.hero, autoPlayIntervalSeconds: val },
+                    }));
+                    markUnsaved();
+                  }}
+                  className="w-16 px-2 py-1 bg-[#141413] border border-[#2C2B28] rounded text-xs font-mono text-center text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                />
+              </div>
+
+              <button
+                onClick={handleAddSlide}
+                className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-lg bg-[#22211F] hover:bg-[#2C2B28] border border-[#2C2B28] hover:border-[#C4A27A] text-xs font-mono text-[#FAF8F5] transition-all cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 text-[#C4A27A]" />
+                <span>Add Slide</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Slide Cards Horizontal List */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {slides.map((slide, index) => {
+              const isSelected = index === selectedSlideIndex;
+              return (
+                <div
+                  key={slide.id}
+                  onClick={() => setSelectedSlideIndex(index)}
+                  className={`relative p-3 rounded-xl border transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-[#22211F] border-[#C4A27A] shadow-lg'
+                      : 'bg-[#181716] border-[#2C2B28] hover:border-[#3D3B37]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-mono font-bold text-[#C4A27A]">
+                      #{index + 1}
+                    </span>
+                    <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => handleToggleSlideVisibility(index)}
+                        title={slide.visible ? 'Hide slide' : 'Show slide'}
+                        className="p-1 text-[#8E8B85] hover:text-[#FAF8F5] cursor-pointer"
+                      >
+                        {slide.visible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5 text-amber-400" />}
+                      </button>
+                      <button
+                        disabled={index === 0}
+                        onClick={() => handleMoveSlide(index, 'up')}
+                        className="p-1 text-[#8E8B85] hover:text-[#FAF8F5] disabled:opacity-30 cursor-pointer"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        disabled={index === slides.length - 1}
+                        onClick={() => handleMoveSlide(index, 'down')}
+                        className="p-1 text-[#8E8B85] hover:text-[#FAF8F5] disabled:opacity-30 cursor-pointer"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="h-20 rounded-lg overflow-hidden bg-black/40 mb-2 relative">
+                    <img
+                      src={slide.heroImage}
+                      alt={slide.title}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute top-1 right-1 bg-black/70 px-1.5 py-0.5 rounded text-[8px] font-mono uppercase text-[#C4A27A]">
+                      VIDEO
+                    </div>
+                    {!slide.visible && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <span className="text-[9px] font-mono uppercase tracking-widest text-amber-300">
+                          Hidden
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="font-serif text-xs text-[#FAF8F5] truncate font-medium">
+                    {slide.title}
+                  </p>
+                  <p className="text-[10px] text-[#8E8B85] truncate mt-0.5">
+                    {slide.subtitle || slide.badgeText}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
           {/* Detailed Hero Editor Form */}
           {currentSlide && (
             <div className="bg-[#181716] p-6 rounded-xl border border-[#2C2B28] space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-[#2C2B28]">
                 <div>
                   <span className="text-[10px] font-mono tracking-widest text-[#C4A27A] uppercase">
-                    HERO BANNER
+                    EDITING SLIDE {selectedSlideIndex + 1} OF {slides.length}
                   </span>
                   <h3 className="font-serif text-lg text-[#FAF8F5]">
-                    {currentSlide.title || 'Hero Banner Beranda'}
+                    {currentSlide.title || 'Untitled Slide'}
                   </h3>
                   <p className="text-xs text-[#8E8B85] mt-0.5">
-                    Konten utama hero beranda (gambar/video latar, judul, subjudul, dan tombol reservasi).
+                    Latar belakang video autentik dan konten editorial untuk slide ini.
                   </p>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => handleDuplicateSlide(selectedSlideIndex)}
+                    className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded bg-[#22211F] hover:bg-[#2C2B28] text-xs font-mono text-[#D8CCB8] cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Duplicate</span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteSlide(selectedSlideIndex)}
+                    className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded bg-red-950/40 hover:bg-red-900/60 border border-red-800/40 text-xs font-mono text-red-200 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete</span>
+                  </button>
                 </div>
               </div>
 
