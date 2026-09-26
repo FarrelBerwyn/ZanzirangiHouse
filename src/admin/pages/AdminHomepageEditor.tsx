@@ -314,7 +314,7 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
           }`}
         >
           <Sliders className="w-3.5 h-3.5" />
-          <span>Hero Slides ({slides.length})</span>
+          <span>Hero Header</span>
         </button>
 
         <button
@@ -367,161 +367,25 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
       </div>
 
       {/* ============================================================== */}
-      {/* TAB 1: HERO MULTI-SLIDE CAROUSEL REPEATER                     */}
+      {/* ============================================================== */}
+      {/* TAB 1: HERO HEADER (SINGLE SLIDE - NO CAROUSEL)                */}
       {/* ============================================================== */}
       {activeTab === 'hero' && (
         <div className="space-y-6">
-          {/* Slides Carousel Overview Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-[#181716] p-4 rounded-xl border border-[#2C2B28] gap-3">
-            <div>
-              <h3 className="font-serif text-lg text-[#FAF8F5]">Hero Carousel Slides</h3>
-              <p className="text-xs text-[#8E8B85]">
-                {slides.length} slides configured. Admin can add, duplicate, reorder, or toggle visibility.
-              </p>
-            </div>
-            <div className="flex items-center space-x-3">
-              <label className="text-xs font-mono text-[#D8CCB8] flex items-center space-x-2">
-                <span>Rotation (sec):</span>
-                <input
-                  type="number"
-                  min="3"
-                  max="30"
-                  value={formData.hero.autoPlayIntervalSeconds || 7}
-                  onChange={(e) => {
-                    setFormData((prev) => ({
-                      ...prev,
-                      hero: { ...prev.hero, autoPlayIntervalSeconds: parseInt(e.target.value) || 7 },
-                    }));
-                    markUnsaved();
-                  }}
-                  className="w-16 px-2 py-1 bg-[#141413] border border-[#2C2B28] rounded text-center text-xs font-mono text-[#FAF8F5]"
-                />
-              </label>
-
-              <button
-                onClick={handleAddSlide}
-                id="add-slide-btn"
-                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-[#2C2B28] hover:bg-[#B8966C] text-[#FAF8F5] hover:text-[#141413] text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Slide</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Slide Selector Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {slides.map((slide, idx) => {
-              const isSelected = selectedSlideIndex === idx;
-              return (
-                <div
-                  key={slide.id}
-                  onClick={() => setSelectedSlideIndex(idx)}
-                  className={`relative p-3 rounded-xl border transition-all cursor-pointer ${
-                    isSelected
-                      ? 'bg-[#22211F] border-[#B8966C] ring-1 ring-[#B8966C]'
-                      : 'bg-[#181716] border-[#2C2B28] hover:border-[#3E3C38]'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <span className="text-[10px] font-mono tracking-widest text-[#C4A27A] uppercase">
-                      SLIDE {idx + 1}
-                    </span>
-                    <div className="flex items-center space-x-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleSlideVisibility(idx);
-                        }}
-                        title={slide.visible ? 'Visible on site' : 'Hidden from site'}
-                        className="p-1 text-[#8E8B85] hover:text-[#FAF8F5]"
-                      >
-                        {slide.visible ? (
-                          <Eye className="w-3.5 h-3.5 text-emerald-400" />
-                        ) : (
-                          <EyeOff className="w-3.5 h-3.5 text-amber-500" />
-                        )}
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMoveSlide(idx, 'up');
-                        }}
-                        disabled={idx === 0}
-                        title="Move Up"
-                        className="p-1 text-[#8E8B85] hover:text-[#FAF8F5] disabled:opacity-20"
-                      >
-                        <ArrowUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMoveSlide(idx, 'down');
-                        }}
-                        disabled={idx === slides.length - 1}
-                        title="Move Down"
-                        className="p-1 text-[#8E8B85] hover:text-[#FAF8F5] disabled:opacity-20"
-                      >
-                        <ArrowDown className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Thumbnail */}
-                  <div className="h-20 rounded-lg overflow-hidden bg-black/40 mb-2 relative">
-                    <img
-                      src={slide.heroImage}
-                      alt={slide.title}
-                      className="w-full h-full object-cover"
-                    />
-                    {!slide.visible && (
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                        <span className="text-[9px] font-mono uppercase tracking-widest text-amber-300">
-                          Hidden
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <p className="font-serif text-xs text-[#FAF8F5] truncate font-medium">
-                    {slide.title}
-                  </p>
-                  <p className="text-[10px] text-[#8E8B85] truncate mt-0.5">
-                    {slide.subtitle || slide.badgeText}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Detailed Slide Editor Form */}
+          {/* Detailed Hero Editor Form */}
           {currentSlide && (
             <div className="bg-[#181716] p-6 rounded-xl border border-[#2C2B28] space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-[#2C2B28]">
                 <div>
                   <span className="text-[10px] font-mono tracking-widest text-[#C4A27A] uppercase">
-                    EDITING SLIDE {selectedSlideIndex + 1} OF {slides.length}
+                    HERO BANNER
                   </span>
                   <h3 className="font-serif text-lg text-[#FAF8F5]">
-                    {currentSlide.title || 'Untitled Slide'}
+                    {currentSlide.title || 'Hero Banner Beranda'}
                   </h3>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => handleDuplicateSlide(selectedSlideIndex)}
-                    className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded bg-[#22211F] hover:bg-[#2C2B28] text-xs font-mono text-[#D8CCB8] cursor-pointer"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>Duplicate</span>
-                  </button>
-                  <button
-                    onClick={() => handleDeleteSlide(selectedSlideIndex)}
-                    className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded bg-red-950/40 hover:bg-red-900/60 border border-red-800/40 text-xs font-mono text-red-200 cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Delete</span>
-                  </button>
+                  <p className="text-xs text-[#8E8B85] mt-0.5">
+                    Konten utama hero beranda (gambar/video latar, judul, subjudul, dan tombol reservasi).
+                  </p>
                 </div>
               </div>
 

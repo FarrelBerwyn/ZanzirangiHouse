@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, MapPin, Compass } from 'lucide-react';
+import React from 'react';
+import { ChevronDown, MapPin, Compass } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Language } from '../types';
 import { TRANSLATIONS } from '../data/translations';
@@ -19,34 +19,10 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 }) => {
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
 
-  // Active Slides from CMS
-  const rawSlides: HeroSlide[] = dynamicHero?.slides && dynamicHero.slides.length > 0
-    ? dynamicHero.slides
-    : [];
-  const visibleSlides = rawSlides.filter((s) => s.visible !== false);
-
-  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
-
-  // Auto-play slideshow if multiple slides exist
-  useEffect(() => {
-    if (visibleSlides.length <= 1) return;
-    const intervalSeconds = dynamicHero?.autoPlayIntervalSeconds || 7;
-    const timer = setInterval(() => {
-      setActiveSlideIndex((prev) => (prev + 1) % visibleSlides.length);
-    }, intervalSeconds * 1000);
-    return () => clearInterval(timer);
-  }, [visibleSlides.length, dynamicHero?.autoPlayIntervalSeconds]);
-
-  // Safe current slide
-  const currentSlide = visibleSlides[activeSlideIndex] || null;
-
-  const handlePrevSlide = () => {
-    setActiveSlideIndex((prev) => (prev === 0 ? visibleSlides.length - 1 : prev - 1));
-  };
-
-  const handleNextSlide = () => {
-    setActiveSlideIndex((prev) => (prev + 1) % visibleSlides.length);
-  };
+  // Use the primary/first slide content directly without carousel rotation
+  const currentSlide = (dynamicHero?.slides && dynamicHero.slides.length > 0)
+    ? dynamicHero.slides[0]
+    : null;
 
   const handleCtaClick = (link?: string, fallbackAction?: () => void) => {
     if (!link) {
@@ -241,27 +217,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
         </motion.div>
       </AnimatePresence>
 
-      {/* Multi-Slide Carousel Controls & Dots (Rendered if > 1 slide) */}
-      {visibleSlides.length > 1 && (
-        <div className="absolute inset-y-0 left-0 right-0 z-20 flex items-center justify-between px-3 sm:px-8 pointer-events-none">
-          <button
-            onClick={handlePrevSlide}
-            aria-label="Previous slide"
-            className="pointer-events-auto p-2 sm:p-3 rounded-full bg-black/30 hover:bg-black/60 border border-white/10 hover:border-[#C4A27A] text-white/70 hover:text-white transition-all backdrop-blur-sm cursor-pointer"
-          >
-            <ChevronLeft className="w-4 h-4 sm:w-6 sm:h-6" />
-          </button>
-          <button
-            onClick={handleNextSlide}
-            aria-label="Next slide"
-            className="pointer-events-auto p-2 sm:p-3 rounded-full bg-black/30 hover:bg-black/60 border border-white/10 hover:border-[#C4A27A] text-white/70 hover:text-white transition-all backdrop-blur-sm cursor-pointer"
-          >
-            <ChevronRight className="w-4 h-4 sm:w-6 sm:h-6" />
-          </button>
-        </div>
-      )}
-
-      {/* Bottom Bar: Coordinates, Slide Dots & Scroll Cue */}
+      {/* Bottom Bar: Coordinates & Scroll Cue */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
@@ -280,25 +236,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           <span>Kizimkazi • Zanzibar</span>
         </a>
 
-        {/* Center: Slide Indicators or Scroll to Discover */}
+        {/* Center: Scroll to Discover */}
         <div className="absolute left-1/2 -translate-x-1/2 bottom-3 sm:bottom-5 z-20 pointer-events-auto flex flex-col items-center space-y-2">
-          {visibleSlides.length > 1 && (
-            <div className="flex items-center space-x-2 mb-1">
-              {visibleSlides.map((slide, idx) => (
-                <button
-                  key={slide.id}
-                  onClick={() => setActiveSlideIndex(idx)}
-                  aria-label={`Go to slide ${idx + 1}`}
-                  className={`transition-all rounded-full cursor-pointer ${
-                    activeSlideIndex === idx
-                      ? 'w-6 h-1.5 bg-[#C4A27A]'
-                      : 'w-1.5 h-1.5 bg-white/40 hover:bg-white/80'
-                  }`}
-                />
-              ))}
-            </div>
-          )}
-
           <button
             onClick={handleScrollToStay}
             className="group flex flex-col items-center space-y-1 text-[#D8CCB8]/80 hover:text-[#FAF8F5] transition-colors focus:outline-none cursor-pointer"
