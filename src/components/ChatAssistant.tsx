@@ -617,6 +617,16 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
       const res = await supportApi.sendVisitorMessage(convId, session.visitorId, query, customBookingContext);
       setConversationStatus(res.conversationStatus);
 
+      // Adopt the server id so polling recognises this message instead of re-appending it.
+      if (res.userMessage?.id) {
+        const serverId = res.userMessage.id;
+        setMessages((prev) =>
+          prev.some((m) => m.id === serverId)
+            ? prev.filter((m) => m.id !== userMsg.id)
+            : prev.map((m) => (m.id === userMsg.id ? { ...m, id: serverId } : m))
+        );
+      }
+
       if (res.botMessage) {
         const timeStr = new Date(res.botMessage.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const botMsg: Message = {
@@ -626,7 +636,8 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
           timestamp: timeStr,
           action: resolveAction(res.botMessage.metadata?.action),
         };
-        setMessages((prev) => [...prev, botMsg]);
+        // Polling may already have delivered this reply.
+        setMessages((prev) => (prev.some((m) => m.id === botMsg.id) ? prev : [...prev, botMsg]));
       }
       setIsTyping(false);
     } catch (err) {
@@ -660,8 +671,19 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
         if (pollRes.messages && pollRes.messages.length > 0) {
           setMessages((prev) => {
             const existingIds = new Set(prev.map((m) => m.id));
+            let next = prev;
             const newOnes: Message[] = [];
             for (const pm of pollRes.messages) {
+              if (!existingIds.has(pm.id) && pm.sender_type === 'VISITOR') {
+                // A poll can land before the send request resolves: match the optimistic
+                // copy (temporary `user-` id, same text) and give it the server id.
+                const pending = next.find((m) => m.id.startsWith('user-') && m.sender === 'user' && m.text === pm.message);
+                if (pending) {
+                  next = next.map((m) => (m.id === pending.id ? { ...m, id: pm.id } : m));
+                  existingIds.add(pm.id);
+                  continue;
+                }
+              }
               if (!existingIds.has(pm.id)) {
                 let sender: 'bot' | 'user' | 'admin' | 'system' = 'bot';
                 if (pm.sender_type === 'VISITOR') sender = 'user';
@@ -679,9 +701,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
               }
             }
             if (newOnes.length > 0) {
-              return [...prev, ...newOnes];
+              return [...next, ...newOnes];
             }
-            return prev;
+            return next;
           });
         }
       } catch {
