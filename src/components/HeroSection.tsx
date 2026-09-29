@@ -26,6 +26,40 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   const visibleSlides = rawSlides.filter((s) => s.visible !== false);
 
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const [lockedHeight, setLockedHeight] = useState<number | null>(null);
+
+  // Lock hero height on initial load on mobile so address bar collapse/expand during scroll does NOT alter the height
+  useEffect(() => {
+    let lastWidth = typeof window !== 'undefined' ? window.innerWidth : 0;
+    if (typeof window !== 'undefined') {
+      setLockedHeight(window.innerHeight);
+    }
+
+    const handleResize = () => {
+      // Only recalculate height if window width changed significantly (e.g. orientation flip or desktop window resize).
+      // When scrolling on mobile, address bar collapse only changes innerHeight, keeping innerWidth intact.
+      if (typeof window !== 'undefined' && Math.abs(window.innerWidth - lastWidth) > 30) {
+        lastWidth = window.innerWidth;
+        setLockedHeight(window.innerHeight);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    const handleOrientation = () => {
+      setTimeout(() => {
+        if (typeof window !== 'undefined') {
+          lastWidth = window.innerWidth;
+          setLockedHeight(window.innerHeight);
+        }
+      }, 250);
+    };
+    window.addEventListener('orientationchange', handleOrientation);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleOrientation);
+    };
+  }, []);
 
   // Auto-play slideshow if multiple slides exist
   useEffect(() => {
@@ -113,7 +147,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   return (
     <section
       id="hero"
-      className="relative w-full h-screen h-[100dvh] max-h-[100dvh] flex flex-col justify-between overflow-hidden bg-[#141413] text-[#FAF8F5]"
+      style={lockedHeight ? { height: `${lockedHeight}px`, minHeight: `${lockedHeight}px` } : undefined}
+      className="relative w-full h-[100svh] min-h-[100svh] flex flex-col justify-between overflow-hidden bg-[#141413] text-[#FAF8F5]"
     >
       {/* Background Media: Authentic Video Background for every Carousel Slide */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
@@ -139,7 +174,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
       </div>
 
       {/* Top Spacer for fixed navbar */}
-      <div className="h-16 sm:h-20 md:h-24 shrink-0" />
+      <div className="h-14 sm:h-20 md:h-24 shrink-0" />
 
       {/* Main Editorial Hero Content with Motion */}
       <AnimatePresence mode="wait">
@@ -149,7 +184,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
           transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-          className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 md:px-12 text-center my-auto py-1.5 sm:py-4"
+          className="relative z-10 w-full max-w-5xl mx-auto px-12 xs:px-14 sm:px-16 md:px-12 text-center my-auto py-1 sm:py-3 flex flex-col items-center justify-center"
         >
           {/* Interactive Location Indicator Card */}
           <motion.a
@@ -160,12 +195,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.6, delay: 0.15 }}
-            className="group inline-flex items-center space-x-1.5 sm:space-x-2.5 px-3 py-1 sm:px-4 sm:py-1.5 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 hover:border-[#C4A27A]/80 text-[#FAF8F5] text-[8px] xs:text-[9px] sm:text-xs tracking-[0.12em] sm:tracking-[0.25em] uppercase mb-2.5 sm:mb-5 shadow-lg hover:shadow-2xl whitespace-nowrap max-w-full transition-all duration-300 ease-out transform scale-90 hover:scale-105 active:scale-95 cursor-pointer origin-center"
+            className="group inline-flex items-center justify-center space-x-1 sm:space-x-2 px-2.5 py-1 sm:px-4 sm:py-1.5 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 hover:border-[#C4A27A]/80 text-[#FAF8F5] text-[7.5px] xs:text-[8.5px] sm:text-xs tracking-[0.08em] sm:tracking-[0.25em] uppercase mb-2 sm:mb-4 shadow-lg hover:shadow-2xl max-w-full transition-all duration-300 ease-out transform scale-95 sm:scale-100 hover:scale-105 active:scale-95 cursor-pointer origin-center"
           >
             <MapPin className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-[#C4A27A] group-hover:text-[#E2C399] transition-transform duration-300 group-hover:scale-110 flex-shrink-0" />
-            <span className="font-medium text-[#FAF8F5] whitespace-nowrap">{badgeLocation}</span>
+            <span className="font-medium text-[#FAF8F5] truncate">{badgeLocation}</span>
             <span className="text-[#C4A27A] flex-shrink-0">•</span>
-            <span className="text-[#D8CCB8] group-hover:text-white tracking-[0.12em] sm:tracking-[0.22em] whitespace-nowrap transition-colors">
+            <span className="text-[#D8CCB8] group-hover:text-white tracking-[0.08em] sm:tracking-[0.22em] whitespace-nowrap transition-colors flex-shrink-0">
               ZANZIRANGI HOUSE
             </span>
           </motion.a>
@@ -176,13 +211,13 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            className="mb-2 sm:mb-3.5 drop-shadow-xl max-w-4xl mx-auto"
+            className="mb-1.5 sm:mb-3.5 drop-shadow-xl max-w-3xl mx-auto w-full text-center"
           >
-            <span className="block font-serif text-[26px] xs:text-3xl sm:text-4xl md:text-5xl lg:text-[54px] font-light tracking-[0.05em] sm:tracking-[0.08em] leading-[1.12] text-[#FAF8F5] uppercase">
+            <span className="block font-serif text-[22px] xs:text-[25px] sm:text-4xl md:text-5xl lg:text-[54px] font-light tracking-[0.05em] sm:tracking-[0.08em] leading-[1.14] text-[#FAF8F5] uppercase text-center">
               {brandName}
             </span>
             {luxurySubtitle && (
-              <span className="block font-serif text-[12px] xs:text-sm sm:text-base md:text-lg lg:text-xl font-light tracking-[0.14em] sm:tracking-[0.18em] leading-relaxed text-[#D8CCB8] uppercase mt-1 sm:mt-2 drop-shadow-md">
+              <span className="block font-serif text-[10.5px] xs:text-xs sm:text-sm md:text-lg lg:text-xl font-light tracking-[0.12em] sm:tracking-[0.18em] leading-relaxed text-[#D8CCB8] uppercase mt-1 sm:mt-2 drop-shadow-md text-center">
                 {luxurySubtitle}
               </span>
             )}
@@ -194,7 +229,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            className="max-w-2xl mx-auto font-sans text-[13px] xs:text-[14.5px] sm:text-base md:text-lg font-light text-[#E7DFD2] leading-relaxed tracking-wide mb-4 sm:mb-7 md:mb-8 drop-shadow-md px-1 sm:px-0"
+            className="w-full max-w-xs sm:max-w-xl md:max-w-2xl mx-auto font-sans text-[11px] xs:text-[12.5px] sm:text-base md:text-lg font-light text-[#E7DFD2] leading-relaxed tracking-wide mb-3 sm:mb-6 md:mb-8 drop-shadow-md text-center"
           >
             {subtitleNarrative}
           </motion.p>
@@ -204,12 +239,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-5 w-full mx-auto"
+            className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 w-full mx-auto"
           >
             <button
               id="hero-explore-button"
               onClick={() => handleCtaClick(currentSlide?.secondaryCtaLink, handleScrollToStay)}
-              className="w-[210px] xs:w-[225px] sm:w-auto px-4 sm:px-8 py-2.5 sm:py-3.5 border border-[#FAF8F5]/80 hover:border-[#FAF8F5] text-[#FAF8F5] hover:bg-white/15 text-[10.5px] xs:text-[11px] sm:text-sm tracking-[0.16em] sm:tracking-[0.22em] uppercase font-semibold rounded transition-all duration-300 backdrop-blur-sm shadow-md active:scale-95 cursor-pointer text-center"
+              className="w-[190px] xs:w-[210px] sm:w-auto px-4 sm:px-8 py-2.5 sm:py-3.5 border border-[#FAF8F5]/80 hover:border-[#FAF8F5] text-[#FAF8F5] hover:bg-white/15 text-[10px] xs:text-[11px] sm:text-sm tracking-[0.16em] sm:tracking-[0.22em] uppercase font-semibold rounded transition-all duration-300 backdrop-blur-sm shadow-md active:scale-95 cursor-pointer text-center"
             >
               {exploreCta}
             </button>
@@ -217,7 +252,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             <button
               id="hero-book-button"
               onClick={() => handleCtaClick(currentSlide?.primaryCtaLink, handleScrollToItinerary)}
-              className="w-[210px] xs:w-[225px] sm:w-auto px-4 sm:px-8 py-2.5 sm:py-3.5 bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-[10.5px] xs:text-[11px] sm:text-sm tracking-[0.16em] sm:tracking-[0.22em] uppercase font-bold rounded transition-all duration-300 shadow-xl hover:shadow-2xl active:scale-95 cursor-pointer text-center"
+              className="w-[190px] xs:w-[210px] sm:w-auto px-4 sm:px-8 py-2.5 sm:py-3.5 bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-[10px] xs:text-[11px] sm:text-sm tracking-[0.16em] sm:tracking-[0.22em] uppercase font-bold rounded transition-all duration-300 shadow-xl hover:shadow-2xl active:scale-95 cursor-pointer text-center"
             >
               {bookCta}
             </button>
@@ -227,7 +262,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
       {/* Multi-Slide Carousel Controls & Navigation (Rendered if > 1 slide) */}
       {visibleSlides.length > 1 && (
-        <div className="absolute inset-y-0 left-0 right-0 z-20 flex items-center justify-between px-3 sm:px-8 pointer-events-none">
+        <div className="absolute inset-y-0 left-0 right-0 z-20 flex items-center justify-between px-2 sm:px-8 pointer-events-none">
           <button
             onClick={handlePrevSlide}
             aria-label="Previous slide"

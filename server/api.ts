@@ -19,6 +19,7 @@ import {
 import { authenticateAdmin, loginUser, AuthenticatedRequest } from './auth.ts';
 import { mediaStorage } from './storage/index.ts';
 import { env } from './config/env.ts';
+import { supportRouter } from './supportApiRoutes.ts';
 
 export const apiApp = express();
 
@@ -30,6 +31,9 @@ apiApp.use((_req: Request, res: Response, next: NextFunction) => {
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   if (env.NODE_ENV === 'production') {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }
@@ -60,19 +64,37 @@ const loginRateLimiter = rateLimit({
 });
 
 // -------------------------------------------------------------
-// Health Check (Safe Public Endpoint - Section 13)
+// Health Check (Safe Public Endpoint)
 // -------------------------------------------------------------
 apiApp.get('/health', async (_req: Request, res: Response) => {
   const dbHealth = await getDatabaseAdapter().healthCheck();
   res.json({
     status: 'ok',
+    database: {
+      provider: dbHealth.provider,
+      connected: dbHealth.connected,
+    },
     service: 'Zanzirangi House CMS Engine',
-    environment: env.NODE_ENV,
-    database: dbHealth.connected ? 'connected' : 'error',
-    provider: dbHealth.provider,
     version: env.APP_VERSION,
     timestamp: new Date().toISOString(),
   });
+});
+
+// Protected diagnostic endpoint: tests DNS, TCP, auth, DB selection, and SELECT 1
+apiApp.get('/health/database', authenticateAdmin, async (_req: Request, res: Response) => {
+  try {
+    const { testDatabaseConnection } = await import('./database/connection.ts');
+    const diagnostic = await testDatabaseConnection();
+    res.json({
+      status: diagnostic.success ? 'ok' : 'degraded',
+      diagnostic,
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      status: 'error',
+      error: err.message,
+    });
+  }
 });
 
 // -------------------------------------------------------------
@@ -307,7 +329,7 @@ apiApp.post('/admin/villas', authenticateAdmin, async (req: AuthenticatedRequest
 
 apiApp.put('/admin/villas/:id', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const existing = await villasRepository.getById(id);
     if (!existing) {
       res.status(404).json({ success: false, error: 'Villa not found.' });
@@ -323,7 +345,7 @@ apiApp.put('/admin/villas/:id', authenticateAdmin, async (req: AuthenticatedRequ
 
 apiApp.delete('/admin/villas/:id', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const deleted = await villasRepository.delete(id, req.user?.email || 'admin');
     if (!deleted) {
       res.status(404).json({ success: false, error: 'Villa not found.' });
@@ -379,7 +401,7 @@ apiApp.put('/admin/gallery/:id', authenticateAdmin, async (req: AuthenticatedReq
 
 apiApp.delete('/admin/gallery/:id', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const deleted = await galleryRepository.delete(id, req.user?.email || 'admin');
     if (!deleted) {
       res.status(404).json({ success: false, error: 'Gallery item not found.' });
@@ -463,7 +485,7 @@ apiApp.put('/admin/testimonials/:id', authenticateAdmin, async (req: Authenticat
 
 apiApp.delete('/admin/testimonials/:id', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const deleted = await testimonialsRepository.delete(id, req.user?.email || 'admin');
     if (!deleted) {
       res.status(404).json({ success: false, error: 'Testimonial not found.' });
@@ -529,6 +551,7 @@ apiApp.post('/admin/media', authenticateAdmin, async (req: AuthenticatedRequest,
       ...req.body,
       id: req.body.id || `med-${Date.now()}`,
       createdAt: new Date().toISOString(),
+      uploadedAt: new Date().toISOString(),
       usageCount: 0,
     };
     const saved = await mediaRepository.save(newMedia, req.user?.email || 'admin');
@@ -540,7 +563,7 @@ apiApp.post('/admin/media', authenticateAdmin, async (req: AuthenticatedRequest,
 
 apiApp.delete('/admin/media/:id', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const deleted = await mediaRepository.delete(id, req.user?.email || 'admin');
     if (!deleted) {
       res.status(404).json({ success: false, error: 'Media asset not found.' });
@@ -576,6 +599,7 @@ apiApp.post('/admin/media/upload', authenticateAdmin, async (req: AuthenticatedR
       caption: '',
       usageCount: 0,
       createdAt: new Date().toISOString(),
+      uploadedAt: new Date().toISOString(),
     };
 
     const saved = await mediaRepository.save(assetRecord, req.user?.email || 'admin');
@@ -619,7 +643,7 @@ apiApp.get('/admin/dashboard-stats', authenticateAdmin, async (_req: Authenticat
 });
 
 // --- Audit Logs ---
-apiApp.get('/admin/audit-logs', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
+apiApp.get(['/admin/audit-logs', '/admin/audit'], authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const limit = parseInt(String(req.query.limit || '50'), 10);
     const logs = await auditRepository.getLogs(limit);
@@ -628,4 +652,8 @@ apiApp.get('/admin/audit-logs', authenticateAdmin, async (req: AuthenticatedRequ
     res.status(500).json({ success: false, error: 'Failed to fetch audit logs.' });
   }
 });
+
+// --- Support Platform ---
+apiApp.use('/support', supportRouter);
+
 

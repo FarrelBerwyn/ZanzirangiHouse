@@ -47,6 +47,7 @@ import { AdminContactManager } from './admin/pages/AdminContactManager';
 import { AdminSeoManager } from './admin/pages/AdminSeoManager';
 import { AdminMediaLibrary } from './admin/pages/AdminMediaLibrary';
 import { AdminSettingsManager } from './admin/pages/AdminSettingsManager';
+import { AdminSupportInbox } from './admin/pages/AdminSupportInbox';
 
 // Dedicated Subpages for Organic Google Sitelinks & Deep-Link Exploration
 import { VillasPage } from './pages/VillasPage';
@@ -60,7 +61,7 @@ import { TermsPage } from './pages/TermsPage';
 
 const SEO_TRANSLATIONS: Record<Language, { title: string; description: string }> = {
   en: {
-    title: 'Zanzibar Luxury Villa - Zanzirangi House | Private Pool Retreat',
+    title: 'Zanzirangi House',
     description: 'Experience Zanzibar luxury villas with private plunge pools at Zanzirangi House in Kizimkazi. Enjoy ocean-to-table dining and bespoke Tanzania safari journeys.',
   },
   pl: {
@@ -95,7 +96,7 @@ const SEO_TRANSLATIONS: Record<Language, { title: string; description: string }>
 
 const ROUTE_SEO: Record<string, { title: string; description: string; canonical: string }> = {
   '/': {
-    title: 'Zanzibar Luxury Villa - Zanzirangi House | Private Pool Retreat',
+    title: 'Zanzirangi House',
     description: 'Experience Zanzibar luxury villas with private plunge pools at Zanzirangi House in Kizimkazi. Enjoy ocean-to-table dining and bespoke Tanzania safari journeys.',
     canonical: 'https://zanzirangihouse.com/',
   },
@@ -288,9 +289,8 @@ export default function App() {
 
     const routeSeo = ROUTE_SEO[currentPath] || ROUTE_SEO['/'];
     if (currentPath === '/') {
-      const dynamicTitle = homepageContent?.hero?.title;
       const langSeo = SEO_TRANSLATIONS[currentLang] || SEO_TRANSLATIONS.en;
-      document.title = dynamicTitle || langSeo.title;
+      document.title = langSeo.title || 'Zanzirangi House';
     } else {
       document.title = routeSeo.title;
     }
@@ -389,6 +389,7 @@ export default function App() {
         user={adminUser}
         hasUnsavedChanges={hasUnsavedChanges}
       >
+        {adminTab === 'support' && <AdminSupportInbox />}
         {adminTab === 'homepage' && (
           <AdminHomepageEditor onUnsavedChangesChange={setHasUnsavedChanges} />
         )}

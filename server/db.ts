@@ -14,6 +14,7 @@ import {
   DEFAULT_MEDIA,
   DEFAULT_SETTINGS,
 } from './seedData.ts';
+import { DEFAULT_KNOWLEDGE_BASE } from './seedKnowledgeBase.ts';
 
 export {
   DEFAULT_HERO_SLIDES,
@@ -30,7 +31,11 @@ export {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DATA_DIR = path.resolve(__dirname, 'data');
+const DATA_DIR = fs.existsSync(path.resolve(process.cwd(), 'server/data'))
+  ? path.resolve(process.cwd(), 'server/data')
+  : fs.existsSync(path.resolve(process.cwd(), 'data'))
+  ? path.resolve(process.cwd(), 'data')
+  : path.resolve(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 
 // Default Homepage Content seeded from actual Zanzirangi House content
@@ -115,22 +120,27 @@ export interface DatabaseSchema {
     role: string;
     passwordHash: string;
     createdAt: string;
+    lastLogin?: string | null;
   }>;
-  homepage: typeof DEFAULT_HOMEPAGE_CONTENT;
-  villas: typeof DEFAULT_VILLAS;
-  gallery: typeof DEFAULT_GALLERY;
-  facilities: typeof DEFAULT_FACILITIES;
-  testimonials: typeof DEFAULT_TESTIMONIALS;
-  videos: typeof DEFAULT_VIDEOS;
-  seo: typeof DEFAULT_SEO;
-  media: typeof DEFAULT_MEDIA;
-  settings: typeof DEFAULT_SETTINGS;
+  homepage: any;
+  villas: any;
+  gallery: any;
+  facilities: any;
+  testimonials: any;
+  videos: any;
+  seo: any;
+  media: any;
+  settings: any;
   auditLog: Array<{
     action: string;
     userEmail: string;
     timestamp: string;
     details?: string;
   }>;
+  support_conversations?: any[];
+  support_messages?: any[];
+  support_knowledge_base?: any[];
+  support_ai_events?: any[];
 }
 
 let dbCache: DatabaseSchema | null = null;
@@ -141,7 +151,7 @@ export function initDatabase(): DatabaseSchema {
   }
 
   // Bootstrap initial password securely if database is newly initialized
-  const initialBootstrapPassword = process.env.ADMIN_INITIAL_PASSWORD || 'ChangeMeImmediately2026!';
+  const initialBootstrapPassword = process.env.ADMIN_INITIAL_PASSWORD || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'ZanzirangiAuth' + Date.now());
   const salt = bcrypt.genSaltSync(12);
   const defaultHash = bcrypt.hashSync(initialBootstrapPassword, salt);
 
@@ -202,6 +212,22 @@ export function initDatabase(): DatabaseSchema {
           parsed.settings = DEFAULT_SETTINGS;
           mutated = true;
         }
+        if (!parsed.support_conversations) {
+          parsed.support_conversations = [];
+          mutated = true;
+        }
+        if (!parsed.support_messages) {
+          parsed.support_messages = [];
+          mutated = true;
+        }
+        if (!parsed.support_knowledge_base || parsed.support_knowledge_base.length === 0) {
+          parsed.support_knowledge_base = DEFAULT_KNOWLEDGE_BASE;
+          mutated = true;
+        }
+        if (!parsed.support_ai_events) {
+          parsed.support_ai_events = [];
+          mutated = true;
+        }
 
         if (mutated) {
           saveDatabase(parsed);
@@ -233,6 +259,10 @@ export function initDatabase(): DatabaseSchema {
     seo: DEFAULT_SEO,
     media: DEFAULT_MEDIA,
     settings: DEFAULT_SETTINGS,
+    support_conversations: [],
+    support_messages: [],
+    support_knowledge_base: DEFAULT_KNOWLEDGE_BASE,
+    support_ai_events: [],
     auditLog: [
       {
         action: 'DB_INITIALIZED',

@@ -14,20 +14,15 @@ export function getDatabaseAdapter(): DatabaseAdapter {
     if (env.DATABASE_PROVIDER === 'mysql') {
       adapterInstance = new MysqlDatabaseAdapter();
     } else {
+      if (env.NODE_ENV === 'production') {
+        throw new Error('💥 CRITICAL: JsonDatabaseAdapter cannot be instantiated in production mode. Set DATABASE_PROVIDER=mysql.');
+      }
       adapterInstance = new JsonDatabaseAdapter();
     }
   }
   return adapterInstance;
 }
 
-/**
- * Gracefully switches the active adapter to JsonDatabaseAdapter if MySQL is unavailable
- */
-export function fallbackToJsonAdapter(): DatabaseAdapter {
-  console.warn('⚠️ Switching active database provider to JSON fallback adapter.');
-  adapterInstance = new JsonDatabaseAdapter();
-  return adapterInstance;
-}
-
 export * from './adapter.ts';
+export * from './connection.ts';
 export * from './repositories/index.ts';

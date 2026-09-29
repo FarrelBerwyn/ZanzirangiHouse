@@ -284,11 +284,29 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   onClick={() => {
                     onClose();
                     const prompt = customUi.supportPrompt(chosenVilla.name, checkIn, checkOut, guests);
+                    const bookingCtx = {
+                      bookingId: `bk_${Date.now()}`,
+                      villaId: chosenVilla.id,
+                      villaName: chosenVilla.name,
+                      roomNumber: chosenVilla.roomNumber,
+                      checkIn,
+                      checkOut,
+                      guests,
+                      fullName,
+                      email,
+                      phone,
+                      country,
+                      specialRequests,
+                      airportTransfer,
+                    };
                     if (onOpenSupportChat) {
                       onOpenSupportChat(prompt);
-                    } else {
-                      window.dispatchEvent(new CustomEvent('open-customer-support', { detail: { query: prompt } }));
                     }
+                    window.dispatchEvent(
+                      new CustomEvent('open-customer-support', {
+                        detail: { query: prompt, bookingContext: bookingCtx },
+                      })
+                    );
                   }}
                   className="w-full sm:w-auto px-6 py-3 bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-xs font-bold tracking-wider uppercase rounded flex items-center justify-center space-x-2 transition-all shadow cursor-pointer"
                 >

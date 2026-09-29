@@ -22,7 +22,10 @@
     "db:migrate:mysql": "tsx scripts/migrate-json-to-mysql.ts",
     "admin:create": "node scripts/create_admin.js",
     "smoke-test": "node scripts/production-smoke-test.mjs",
-    "test:suites": "node scripts/test-cms-suites.mjs"
+    "test:suites": "node scripts/test-cms-suites.mjs",
+    "test:support": "tsx scripts/test-support-platform.mjs",
+    "test:deployment": "tsx scripts/test-hostinger-deployment-readiness.ts",
+    "package:hostinger": "node scripts/package-hostinger-zip.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

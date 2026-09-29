@@ -177,7 +177,7 @@ export const VillaDetailModal: React.FC<VillaDetailModalProps> = ({
               <Users className="w-4 h-4 text-[#A07E54]" />
               <div>
                 <p className="text-[10px] uppercase text-[#6B6862] tracking-wider">{t.villas.maxGuests || 'Capacity'}</p>
-                <p className="font-semibold text-[#141413]">{villa.capacity} {guestLabel}</p>
+                <p className="font-semibold text-[#141413]">{villa.capacity || (villa as any).maxGuests || 2} {guestLabel}</p>
               </div>
             </div>
 
@@ -185,7 +185,7 @@ export const VillaDetailModal: React.FC<VillaDetailModalProps> = ({
               <Bed className="w-4 h-4 text-[#A07E54]" />
               <div>
                 <p className="text-[10px] uppercase text-[#6B6862] tracking-wider">{t.villas.bed || 'Bed'}</p>
-                <p className="font-semibold text-[#141413] truncate">{villa.bed}</p>
+                <p className="font-semibold text-[#141413] truncate">{villa.bed || 'King Bed'}</p>
               </div>
             </div>
 
@@ -193,7 +193,7 @@ export const VillaDetailModal: React.FC<VillaDetailModalProps> = ({
               <Bath className="w-4 h-4 text-[#A07E54]" />
               <div>
                 <p className="text-[10px] uppercase text-[#6B6862] tracking-wider">{t.villas.bath || 'Bathroom'}</p>
-                <p className="font-semibold text-[#141413]">{villa.bathroom}</p>
+                <p className="font-semibold text-[#141413]">{villa.bathroom || 'En-suite'}</p>
               </div>
             </div>
 
@@ -201,7 +201,7 @@ export const VillaDetailModal: React.FC<VillaDetailModalProps> = ({
               <Maximize2 className="w-4 h-4 text-[#A07E54]" />
               <div>
                 <p className="text-[10px] uppercase text-[#6B6862] tracking-wider">{t.villas.size || 'Size'}</p>
-                <p className="font-semibold text-[#141413]">{villa.size}</p>
+                <p className="font-semibold text-[#141413]">{villa.size || ((villa as any).sizeSqm ? `${(villa as any).sizeSqm} m²` : '85 m²')}</p>
               </div>
             </div>
 
@@ -209,7 +209,7 @@ export const VillaDetailModal: React.FC<VillaDetailModalProps> = ({
               <Eye className="w-4 h-4 text-[#A07E54]" />
               <div>
                 <p className="text-[10px] uppercase text-[#6B6862] tracking-wider">{t.villas.view || 'View'}</p>
-                <p className="font-semibold text-[#141413] truncate">{villa.view}</p>
+                <p className="font-semibold text-[#141413] truncate">{villa.view || 'Ocean View'}</p>
               </div>
             </div>
           </div>

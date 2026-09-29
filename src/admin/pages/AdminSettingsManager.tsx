@@ -277,8 +277,8 @@ export const AdminSettingsManager: React.FC = () => {
               <span className="text-[10px] font-mono uppercase tracking-wider text-[#8E8B85] block">
                 Database Store
               </span>
-              <p className="font-mono text-xs text-[#FAF8F5]">Atomic JSON Engine</p>
-              <p className="text-[10px] font-mono text-[#C4A27A]">server/data/db.json</p>
+              <p className="font-mono text-xs text-[#FAF8F5]">Hostinger MySQL Engine</p>
+              <p className="text-[10px] font-mono text-[#C4A27A]">u170555096_Zanzirangi</p>
             </div>
 
             <div className="p-4 rounded-lg bg-[#141413] border border-[#2C2B28] space-y-1">

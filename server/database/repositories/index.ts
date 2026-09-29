@@ -10,3 +10,4 @@ export * from './mediaRepository.ts';
 export * from './settingsRepository.ts';
 export * from './usersRepository.ts';
 export * from './auditRepository.ts';
+export * from './supportRepository.ts';

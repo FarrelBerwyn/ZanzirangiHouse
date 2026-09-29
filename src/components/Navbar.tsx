@@ -22,6 +22,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+  const [mobileLangDropdownOpen, setMobileLangDropdownOpen] = useState(false);
 
   const t = TRANSLATIONS[currentLang];
 
@@ -188,31 +189,37 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
 
               {langDropdownOpen && (
-                <div
-                  id="language-dropdown-menu"
-                  className="absolute right-0 mt-2 w-44 bg-[#1C1B1A] border border-[#2C2B28] rounded shadow-xl py-2 z-50 text-xs tracking-wider max-h-80 overflow-y-auto"
-                >
-                  {languages.map((l) => (
-                    <button
-                      key={l.code}
-                      onClick={() => {
-                        onSelectLang(l.code);
-                        setLangDropdownOpen(false);
-                      }}
-                      className={`w-full text-left px-4 py-2 flex items-center justify-between transition-colors cursor-pointer ${
-                        currentLang === l.code
-                          ? 'bg-[#B8966C]/20 text-[#C4A27A]'
-                          : 'text-[#FAF8F5]/80 hover:bg-white/5 hover:text-[#FAF8F5]'
-                      }`}
-                    >
-                      <span className="flex items-center space-x-2">
-                        <span>{l.flag}</span>
-                        <span>{l.label}</span>
-                      </span>
-                      {currentLang === l.code && <span className="text-[10px]">✓</span>}
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setLangDropdownOpen(false)}
+                  />
+                  <div
+                    id="language-dropdown-menu"
+                    className="absolute right-0 mt-2 w-44 bg-[#1C1B1A] border border-[#2C2B28] rounded shadow-xl py-2 z-50 text-xs tracking-wider max-h-80 overflow-y-auto"
+                  >
+                    {languages.map((l) => (
+                      <button
+                        key={l.code}
+                        onClick={() => {
+                          onSelectLang(l.code);
+                          setLangDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 flex items-center justify-between transition-colors cursor-pointer ${
+                          currentLang === l.code
+                            ? 'bg-[#B8966C]/20 text-[#C4A27A]'
+                            : 'text-[#FAF8F5]/80 hover:bg-white/5 hover:text-[#FAF8F5]'
+                        }`}
+                      >
+                        <span className="flex items-center space-x-2">
+                          <span>{l.flag}</span>
+                          <span>{l.label}</span>
+                        </span>
+                        {currentLang === l.code && <span className="text-[10px]">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
 
@@ -228,56 +235,64 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Mobile & Tablet Navigation Actions (Below XL) */}
-          <div className="flex items-center space-x-2 sm:space-x-3 xl:hidden flex-shrink-0">
-            {/* Quick Language Dropdown on Tablet (Hidden on mobile/HP because it is already available when expanded) */}
-            <div className="relative hidden md:block">
-              <button
-                id="tablet-language-button"
-                onClick={() => setLangDropdownOpen(!langDropdownOpen)}
-                className="flex items-center space-x-1 px-2 py-1 text-[11px] tracking-wider uppercase rounded border border-[#FAF8F5]/20 text-[#FAF8F5] hover:border-[#C4A27A] hover:text-[#C4A27A] transition-colors cursor-pointer"
-                aria-label={currentAria.selectLanguage}
-              >
-                <Globe className="w-3 h-3 opacity-80" />
-                <span>{currentLang.toUpperCase()}</span>
-              </button>
-
-              {langDropdownOpen && (
-                <div
-                  id="tablet-language-dropdown"
-                  className="absolute right-0 mt-2 w-40 bg-[#1C1B1A] border border-[#2C2B28] rounded shadow-2xl py-2 z-50 text-xs tracking-wider max-h-72 overflow-y-auto"
-                >
-                  {languages.map((l) => (
-                    <button
-                      key={l.code}
-                      onClick={() => {
-                        onSelectLang(l.code);
-                        setLangDropdownOpen(false);
-                      }}
-                      className={`w-full text-left px-3.5 py-2 flex items-center justify-between transition-colors cursor-pointer ${
-                        currentLang === l.code
-                          ? 'bg-[#B8966C]/20 text-[#C4A27A] font-semibold'
-                          : 'text-[#FAF8F5]/80 hover:bg-white/5 hover:text-[#FAF8F5]'
-                      }`}
-                    >
-                      <span className="flex items-center space-x-1.5">
-                        <span>{l.flag}</span>
-                        <span>{l.label}</span>
-                      </span>
-                      {currentLang === l.code && <span className="text-[10px]">✓</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
+          <div className="flex items-center space-x-1.5 sm:space-x-2.5 xl:hidden flex-shrink-0">
+            {/* Plan / Book Button */}
             <button
               id="mobile-book-icon-button"
               onClick={() => onOpenBooking()}
               className="px-2.5 sm:px-3 py-1.5 bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-[10px] sm:text-[11px] font-semibold tracking-wider uppercase rounded whitespace-nowrap shadow-sm transition-colors cursor-pointer"
             >
-              {t.nav.planStay || t.nav.bookStay || 'PLAN'}
+              {t.nav.planStay || t.nav.bookStay || 'PLAN YOUR STAY'}
             </button>
 
+            {/* Quick Language Dropdown on Mobile/Tablet placed to the left of the hamburger (garis 3) */}
+            <div className="relative">
+              <button
+                id="mobile-language-button"
+                onClick={() => setMobileLangDropdownOpen(!mobileLangDropdownOpen)}
+                className="flex items-center space-x-1 px-2 py-1.5 text-[10.5px] sm:text-[11px] tracking-wider uppercase rounded border border-[#FAF8F5]/25 text-[#FAF8F5] hover:border-[#C4A27A] hover:text-[#C4A27A] transition-colors cursor-pointer bg-black/20 backdrop-blur-sm"
+                aria-label={currentAria.selectLanguage}
+              >
+                <Globe className="w-3.5 h-3.5 opacity-80 text-[#C4A27A]" />
+                <span className="font-medium">{currentLang.toUpperCase()}</span>
+              </button>
+
+              {mobileLangDropdownOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setMobileLangDropdownOpen(false)}
+                  />
+                  <div
+                    id="mobile-language-dropdown"
+                    className="absolute right-0 mt-2 w-44 bg-[#1C1B1A] border border-[#2C2B28] rounded-md shadow-2xl py-2 z-50 text-xs tracking-wider max-h-72 overflow-y-auto"
+                  >
+                    {languages.map((l) => (
+                      <button
+                        key={l.code}
+                        onClick={() => {
+                          onSelectLang(l.code);
+                          setMobileLangDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3.5 py-2 flex items-center justify-between transition-colors cursor-pointer ${
+                          currentLang === l.code
+                            ? 'bg-[#B8966C]/20 text-[#C4A27A] font-semibold'
+                            : 'text-[#FAF8F5]/80 hover:bg-white/5 hover:text-[#FAF8F5]'
+                        }`}
+                      >
+                        <span className="flex items-center space-x-2">
+                          <span className="text-sm">{l.flag}</span>
+                          <span>{l.label}</span>
+                        </span>
+                        {currentLang === l.code && <span className="text-[10px] text-[#C4A27A]">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Mobile Hamburger Menu (Garis 3) */}
             <button
               id="mobile-menu-toggle-button"
               onClick={() => setMobileMenuOpen(true)}

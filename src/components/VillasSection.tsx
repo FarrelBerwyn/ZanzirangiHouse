@@ -168,18 +168,24 @@ export const VillasSection: React.FC<VillasSectionProps> = ({
 
   // Reusable Villa Card Component with robust alignment and no multi-line wrapping glitches
   const renderVillaCard = (villa: Villa, isScroll: boolean) => {
+    const viewStr = villa.view || '';
     const hasSeaView =
-      villa.view.toLowerCase().includes('ocean') ||
-      villa.view.toLowerCase().includes('sea') ||
-      villa.view.toLowerCase().includes('lagoon') ||
-      villa.view.toLowerCase().includes('mer') ||
-      villa.view.toLowerCase().includes('bahari') ||
-      villa.view.toLowerCase().includes('mar') ||
-      villa.view.toLowerCase().includes('بحر') ||
-      villa.view.toLowerCase().includes('海');
+      viewStr.toLowerCase().includes('ocean') ||
+      viewStr.toLowerCase().includes('sea') ||
+      viewStr.toLowerCase().includes('lagoon') ||
+      viewStr.toLowerCase().includes('mer') ||
+      viewStr.toLowerCase().includes('bahari') ||
+      viewStr.toLowerCase().includes('mar') ||
+      viewStr.toLowerCase().includes('بحر') ||
+      viewStr.toLowerCase().includes('海');
 
     // Clean metric size to prevent awkward multi-line wrapping in narrow columns
-    const cleanSize = villa.size.split('(')[0].trim();
+    const rawSize = villa.size || ((villa as any).sizeSqm ? `${(villa as any).sizeSqm} m²` : '85 m²');
+    const cleanSize = rawSize.split('(')[0].trim();
+    const roomNumberBadge = villa.roomNumber || `VILLA ${villa.id?.replace('villa-', '').padStart(2, '0').toUpperCase() || '01'}`;
+    const displayPrice = typeof villa.pricePerNight === 'string' && villa.pricePerNight.startsWith('$')
+      ? villa.pricePerNight
+      : `$${villa.pricePerNight || 400}`;
 
     return (
       <div
@@ -201,7 +207,7 @@ export const VillasSection: React.FC<VillasSectionProps> = ({
 
           {/* Room Number Badge */}
           <div className="absolute top-3.5 left-3.5 px-2.5 py-1 bg-[#141413]/85 backdrop-blur text-[#FAF8F5] text-[10px] font-mono tracking-widest uppercase rounded shadow-sm z-10 flex-shrink-0">
-            {villa.roomNumber}
+            {roomNumberBadge}
           </div>
 
           {/* Ocean/Sea View Badge with max-width to avoid overlapping the room number */}
@@ -217,7 +223,7 @@ export const VillasSection: React.FC<VillasSectionProps> = ({
 
           {/* Price Badge */}
           <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-black/85 backdrop-blur text-[#FAF8F5] text-xs font-serif rounded shadow-sm">
-            {villa.pricePerNight}{' '}
+            {displayPrice}{' '}
             <span className="text-[10px] font-sans text-[#D8CCB8]">
               / {perNightLabel}
             </span>
@@ -262,7 +268,7 @@ export const VillasSection: React.FC<VillasSectionProps> = ({
               <span className="flex items-center space-x-1.5 whitespace-nowrap flex-shrink-0">
                 <Users className="w-3.5 h-3.5 text-[#A07E54] flex-shrink-0" />
                 <span className="font-medium whitespace-nowrap">
-                  {villa.capacity} {guestLabel}
+                  {villa.capacity || (villa as any).maxGuests || 2} {guestLabel}
                 </span>
               </span>
 
@@ -270,17 +276,17 @@ export const VillasSection: React.FC<VillasSectionProps> = ({
 
               <span
                 className="flex items-center space-x-1.5 min-w-0 flex-1 px-1 truncate"
-                title={villa.bed}
+                title={villa.bed || 'King Bed'}
               >
                 <Bed className="w-3.5 h-3.5 text-[#A07E54] flex-shrink-0" />
-                <span className="truncate font-medium">{villa.bed}</span>
+                <span className="truncate font-medium">{villa.bed || 'King Bed'}</span>
               </span>
 
               <span className="text-[#D8CCB8] select-none mx-1">•</span>
 
               <span
                 className="whitespace-nowrap font-mono font-medium flex-shrink-0 text-right"
-                title={villa.size}
+                title={rawSize}
               >
                 {cleanSize}
               </span>

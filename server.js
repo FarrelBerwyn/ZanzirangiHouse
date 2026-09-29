@@ -20,32 +20,33 @@ function parseCorsOrigin(val) {
 }
 function validateEnvironment() {
   if (env.NODE_ENV === "production") {
-    if (!env.JWT_SECRET || env.JWT_SECRET === "zanzirangi_dev_jwt_secret_2026") {
-      console.warn("\u26A0\uFE0F [Hostinger Notice] Using default JWT_SECRET. Consider setting a custom JWT_SECRET in Hostinger Environment Variables.");
-      if (!env.JWT_SECRET) {
-        env.JWT_SECRET = "zanzirangi_prod_secure_secret_fallback_2026";
-      }
+    if (env.DATABASE_PROVIDER !== "mysql") {
+      console.error("\u{1F4A5} [Hostinger DB Critical Error] Production environment strictly requires DATABASE_PROVIDER=mysql. Silent fallback to JSON is strictly prohibited.");
+      throw new Error("Production environment strictly requires DATABASE_PROVIDER=mysql. Silent fallback to JSON is strictly prohibited.");
     }
-    if (env.DATABASE_PROVIDER === "mysql") {
-      const missingDbVars = [];
-      if (!env.MYSQL_HOST) missingDbVars.push("MYSQL_HOST");
-      if (!env.MYSQL_DATABASE) missingDbVars.push("MYSQL_DATABASE");
-      if (!env.MYSQL_USER) missingDbVars.push("MYSQL_USER");
-      if (!env.MYSQL_PASSWORD) missingDbVars.push("MYSQL_PASSWORD");
-      if (missingDbVars.length > 0) {
-        console.warn(`\u26A0\uFE0F [Hostinger DB Notice] Missing MySQL variables: ${missingDbVars.join(", ")}. Gracefully falling back to JSON database to keep website live.`);
-        env.DATABASE_PROVIDER = "json";
-      }
+    if (!env.JWT_SECRET || env.JWT_SECRET === "zanzirangi_dev_jwt_secret_2026" || env.JWT_SECRET.length < 32) {
+      console.error("\u{1F4A5} [Hostinger Auth Critical Error] JWT_SECRET must be set to a random value of at least 32 characters in Hostinger Environment Variables.");
+      throw new Error("Missing or weak JWT_SECRET in production");
+    }
+    const missingDbVars = [];
+    if (!env.MYSQL_HOST) missingDbVars.push("DB_HOST / MYSQL_HOST");
+    if (!env.MYSQL_DATABASE) missingDbVars.push("DB_NAME / MYSQL_DATABASE");
+    if (!env.MYSQL_USER) missingDbVars.push("DB_USER / MYSQL_USER");
+    if (!env.MYSQL_PASSWORD) missingDbVars.push("DB_PASSWORD / MYSQL_PASSWORD");
+    if (missingDbVars.length > 0) {
+      console.error(`\u{1F4A5} [Hostinger DB Critical Error] Missing MySQL variables: ${missingDbVars.join(", ")}. Silent fallback to JSON is strictly prohibited.`);
+      throw new Error(`Missing required MySQL environment variables: ${missingDbVars.join(", ")}`);
     }
     console.log(`\u{1F6E1}\uFE0F Production environment validated successfully [Provider: ${env.DATABASE_PROVIDER}, URL: ${env.APP_URL}]`);
   } else {
-    console.log(`\u{1F527} Development environment loaded [Provider: ${env.DATABASE_PROVIDER}, Host: http://localhost:${env.PORT}]`);
+    console.log(`\u{1F527} Environment loaded [Provider: ${env.DATABASE_PROVIDER}, Host: http://localhost:${env.PORT}]`);
   }
 }
 var nodeEnv, env;
 var init_env = __esm({
   "server/config/env.ts"() {
     dotenv.config();
+    dotenv.config({ path: path2.resolve(process.cwd(), ".env.local"), override: true });
     nodeEnv = process.env.NODE_ENV || "development";
     env = {
       NODE_ENV: nodeEnv,
@@ -53,7 +54,7 @@ var init_env = __esm({
       APP_URL: process.env.APP_URL || (nodeEnv === "production" ? "https://zanzirangihouse.com" : "http://localhost:3000"),
       PUBLIC_URL: process.env.PUBLIC_URL || (nodeEnv === "production" ? "https://zanzirangihouse.com" : "http://localhost:3000"),
       API_URL: process.env.API_URL || (nodeEnv === "production" ? "https://zanzirangihouse.com/api" : "/api"),
-      DATABASE_PROVIDER: process.env.DATABASE_PROVIDER || "json",
+      DATABASE_PROVIDER: nodeEnv === "production" ? "mysql" : process.env.FORCE_JSON_DB === "true" ? "json" : process.env.DATABASE_PROVIDER || "mysql",
       MYSQL_HOST: process.env.DB_HOST || process.env.MYSQL_HOST,
       MYSQL_PORT: parseInt(process.env.DB_PORT || process.env.MYSQL_PORT || "3306", 10),
       MYSQL_DATABASE: process.env.DB_NAME || process.env.MYSQL_DATABASE,
@@ -72,405 +73,224 @@ var init_env = __esm({
   }
 });
 
-// server/database/migrateFromJson.ts
-var migrateFromJson_exports = {};
-__export(migrateFromJson_exports, {
-  runMigration: () => runMigration
+// server/database/connection.ts
+var connection_exports = {};
+__export(connection_exports, {
+  closeMysqlPool: () => closeMysqlPool,
+  getMysqlPool: () => getMysqlPool,
+  testDatabaseConnection: () => testDatabaseConnection
 });
-import fs2 from "fs";
-import path3 from "path";
 import mysql from "mysql2/promise";
-async function runMigration(existingPool) {
-  console.log("\u{1F680} Starting Zanzirangi House: JSON -> MySQL Migration Pipeline");
-  console.log(`Connecting to MySQL host: ${env.MYSQL_HOST || "localhost"}:${env.MYSQL_PORT || 3306} [DB: ${env.MYSQL_DATABASE || "zanzirangi_house"}]`);
-  if (!env.MYSQL_HOST && process.env.NODE_ENV === "production" && !existingPool) {
-    console.error("\u274C MYSQL_HOST environment variable is not defined.");
-    throw new Error("MYSQL_HOST environment variable is not defined.");
-  }
-  let shouldEndPool = false;
-  let pool = existingPool;
-  if (!pool) {
-    shouldEndPool = true;
-    pool = mysql.createPool({
-      host: env.MYSQL_HOST || "localhost",
-      port: env.MYSQL_PORT || 3306,
-      database: env.MYSQL_DATABASE || "zanzirangi_house",
-      user: env.MYSQL_USER || "root",
-      password: env.MYSQL_PASSWORD || "",
-      multipleStatements: true
+import dns from "dns";
+import net from "net";
+function getMysqlPool() {
+  if (!connectionPool) {
+    const host = process.env.DB_HOST || env.MYSQL_HOST || "localhost";
+    const port = Number(process.env.DB_PORT || env.MYSQL_PORT || 3306);
+    const user = process.env.DB_USER || env.MYSQL_USER || "u170555096_admindatabase";
+    const password = process.env.DB_PASSWORD || env.MYSQL_PASSWORD || "";
+    const database = process.env.DB_NAME || env.MYSQL_DATABASE || "u170555096_Zanzirangi";
+    const connectionLimit = Number(process.env.MYSQL_CONNECTION_LIMIT || env.MYSQL_CONNECTION_LIMIT || 10);
+    connectionPool = mysql.createPool({
+      host,
+      port,
+      user,
+      password,
+      database,
+      waitForConnections: true,
+      connectionLimit,
+      queueLimit: 0,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 1e4,
+      connectTimeout: 15e3
     });
   }
-  try {
-    const conn = await pool.getConnection();
-    console.log("\u2705 Connected to MySQL database successfully.");
-    const sqlPath = path3.resolve(process.cwd(), "server/database/migrations/001_initial_schema.sql");
-    if (!fs2.existsSync(sqlPath)) {
-      throw new Error(`Schema file not found at: ${sqlPath}`);
-    }
-    const ddl = fs2.readFileSync(sqlPath, "utf-8");
-    console.log("\u23F3 Executing 001_initial_schema.sql DDL...");
-    await conn.query(ddl);
-    console.log("\u2705 MySQL schema tables created/verified.");
-    const backupPath = path3.resolve(process.cwd(), "backups/local-db-before-mysql-migration.json");
-    const localDbPath = path3.resolve(process.cwd(), "server/data/db.json");
-    const sourcePath = fs2.existsSync(backupPath) ? backupPath : localDbPath;
-    console.log(`\u23F3 Reading source JSON data from: ${sourcePath}`);
-    const rawData = fs2.readFileSync(sourcePath, "utf-8");
-    const db = JSON.parse(rawData);
-    console.log(`Migrating ${db.users?.length || 0} user records...`);
-    for (const u of db.users || []) {
-      await conn.query(
-        `INSERT INTO users (id, email, name, role, password_hash, created_at, last_login)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE name = VALUES(name), role = VALUES(role), password_hash = VALUES(password_hash)`,
-        [u.id, u.email.toLowerCase(), u.name, u.role, u.passwordHash, u.createdAt || /* @__PURE__ */ new Date(), u.lastLogin || null]
-      );
-    }
-    const s = db.settings || {};
-    await conn.query(
-      `INSERT INTO site_settings (id, site_name, tagline, default_currency, reservation_notification_email, concierge_phone, maintenance_mode)
-       VALUES (1, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE 
-        site_name = VALUES(site_name), tagline = VALUES(tagline), default_currency = VALUES(default_currency), 
-        reservation_notification_email = VALUES(reservation_notification_email), concierge_phone = VALUES(concierge_phone), 
-        maintenance_mode = VALUES(maintenance_mode)`,
-      [
-        s.siteName || "Zanzirangi House",
-        s.tagline || "",
-        s.defaultCurrency || "USD ($)",
-        s.reservationNotificationEmail || "reservations@zanzirangihouse.com",
-        s.conciergePhone || "+255 777 890 123",
-        s.maintenanceMode ? 1 : 0
-      ]
-    );
-    const hp = db.homepage || {};
-    await conn.query(
-      `INSERT INTO homepage_config 
-        (id, hero_title, hero_subtitle, hero_description, hero_badge_text, hero_primary_cta_text, 
-         hero_primary_cta_link, hero_secondary_cta_text, hero_secondary_cta_link, hero_image, 
-         auto_play_interval, intro_eyebrow, intro_title, intro_description, contact_phone, 
-         contact_email, contact_whatsapp, contact_address, socials_json, footer_copyright, 
-         footer_tagline, meta_last_updated, meta_updated_by)
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE 
-        hero_title = VALUES(hero_title), hero_subtitle = VALUES(hero_subtitle), hero_description = VALUES(hero_description),
-        hero_badge_text = VALUES(hero_badge_text), hero_primary_cta_text = VALUES(hero_primary_cta_text),
-        hero_primary_cta_link = VALUES(hero_primary_cta_link), hero_secondary_cta_text = VALUES(hero_secondary_cta_text),
-        hero_secondary_cta_link = VALUES(hero_secondary_cta_link), hero_image = VALUES(hero_image),
-        auto_play_interval = VALUES(auto_play_interval), intro_eyebrow = VALUES(intro_eyebrow),
-        intro_title = VALUES(intro_title), intro_description = VALUES(intro_description),
-        contact_phone = VALUES(contact_phone), contact_email = VALUES(contact_email),
-        contact_whatsapp = VALUES(contact_whatsapp), contact_address = VALUES(contact_address),
-        socials_json = VALUES(socials_json), footer_copyright = VALUES(footer_copyright),
-        footer_tagline = VALUES(footer_tagline), meta_last_updated = VALUES(meta_last_updated),
-        meta_updated_by = VALUES(meta_updated_by)`,
-      [
-        hp.hero?.title || "Zanzirangi House",
-        hp.hero?.subtitle || "",
-        hp.hero?.description || "",
-        hp.hero?.badgeText || "",
-        hp.hero?.primaryCtaText || "",
-        hp.hero?.primaryCtaLink || "",
-        hp.hero?.secondaryCtaText || "",
-        hp.hero?.secondaryCtaLink || "",
-        hp.hero?.heroImage || "",
-        hp.hero?.autoPlayIntervalSeconds || 6,
-        hp.intro?.eyebrow || "",
-        hp.intro?.title || "",
-        hp.intro?.description || "",
-        hp.contact?.phone || "",
-        hp.contact?.email || "",
-        hp.contact?.whatsappNumber || "",
-        hp.contact?.address || "",
-        JSON.stringify(hp.socials || {}),
-        hp.footer?.copyrightText || "",
-        hp.footer?.tagline || "",
-        hp.meta?.lastUpdated ? new Date(hp.meta.lastUpdated) : null,
-        hp.meta?.updatedBy || "admin"
-      ]
-    );
-    console.log(`Migrating ${hp.hero?.slides?.length || 0} hero carousel slides...`);
-    for (let i = 0; i < (hp.hero?.slides || []).length; i++) {
-      const slide = hp.hero.slides[i];
-      await conn.query(
-        `INSERT INTO hero_slides 
-          (id, title, subtitle, description, badge_text, primary_cta_text, primary_cta_link, 
-           secondary_cta_text, secondary_cta_link, image_url, video_url, alignment, overlay_opacity, sort_order, visible)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE 
-          title = VALUES(title), subtitle = VALUES(subtitle), description = VALUES(description),
-          badge_text = VALUES(badge_text), primary_cta_text = VALUES(primary_cta_text),
-          primary_cta_link = VALUES(primary_cta_link), secondary_cta_text = VALUES(secondary_cta_text),
-          secondary_cta_link = VALUES(secondary_cta_link), image_url = VALUES(image_url),
-          video_url = VALUES(video_url), alignment = VALUES(alignment), overlay_opacity = VALUES(overlay_opacity),
-          sort_order = VALUES(sort_order), visible = VALUES(visible)`,
-        [
-          slide.id || `slide-${i + 1}`,
-          slide.title,
-          slide.subtitle || "",
-          slide.description || "",
-          slide.badgeText || "",
-          slide.primaryCtaText || "",
-          slide.primaryCtaLink || "",
-          slide.secondaryCtaText || "",
-          slide.secondaryCtaLink || "",
-          slide.imageUrl,
-          slide.videoUrl || null,
-          slide.alignment || "center",
-          slide.overlayOpacity || 0.4,
-          slide.order ?? i,
-          slide.visible !== false ? 1 : 0
-        ]
-      );
-    }
-    console.log(`Migrating ${hp.sections?.length || 0} homepage sections...`);
-    for (const sec of hp.sections || []) {
-      await conn.query(
-        `INSERT INTO homepage_sections (id, label, description, sort_order, visible)
-         VALUES (?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE 
-          label = VALUES(label), description = VALUES(description), sort_order = VALUES(sort_order), visible = VALUES(visible)`,
-        [sec.id, sec.label, sec.description || "", sec.order || 0, sec.visible !== false ? 1 : 0]
-      );
-    }
-    console.log(`Migrating ${db.villas?.length || 0} villas...`);
-    for (const v of db.villas || []) {
-      await conn.query(
-        `INSERT INTO villas 
-          (id, name, short_name, type, subtitle, short_description, description, price_per_night, 
-           price_unit, promotional_price, size_sqm, max_guests, bedrooms, bathrooms, beds_count, 
-           bed_type, bathroom_type, view_type, architectural_feature, hero_image, cover_image, 
-           status, featured, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE 
-          name = VALUES(name), short_name = VALUES(short_name), type = VALUES(type),
-          subtitle = VALUES(subtitle), short_description = VALUES(short_description),
-          description = VALUES(description), price_per_night = VALUES(price_per_night),
-          price_unit = VALUES(price_unit), promotional_price = VALUES(promotional_price),
-          size_sqm = VALUES(size_sqm), max_guests = VALUES(max_guests), bedrooms = VALUES(bedrooms),
-          bathrooms = VALUES(bathrooms), beds_count = VALUES(beds_count), bed_type = VALUES(bed_type),
-          bathroom_type = VALUES(bathroom_type), view_type = VALUES(view_type),
-          architectural_feature = VALUES(architectural_feature), hero_image = VALUES(hero_image),
-          cover_image = VALUES(cover_image), status = VALUES(status), featured = VALUES(featured),
-          sort_order = VALUES(sort_order)`,
-        [
-          v.id,
-          v.name,
-          v.shortName || v.name,
-          v.type,
-          v.subtitle || "",
-          v.shortDescription || "",
-          v.description,
-          v.pricePerNight,
-          v.priceUnit || "USD",
-          v.promotionalPrice || null,
-          v.sizeSqm || 85,
-          v.maxGuests || 2,
-          v.bedrooms || 1,
-          v.bathrooms || 1,
-          v.beds || 1,
-          v.bed || "King Bed",
-          v.bathroom || "En-suite",
-          v.view || "Ocean View",
-          v.architecturalFeature || "",
-          v.heroImage || v.coverImage || "",
-          v.coverImage || v.heroImage || "",
-          v.status || "published",
-          v.featured ? 1 : 0,
-          v.order || 0
-        ]
-      );
-      await conn.query("DELETE FROM villa_amenities WHERE villa_id = ?", [v.id]);
-      for (let i = 0; i < (v.amenities || []).length; i++) {
-        await conn.query(
-          "INSERT INTO villa_amenities (villa_id, amenity_name, sort_order) VALUES (?, ?, ?)",
-          [v.id, v.amenities[i], i]
-        );
-      }
-      await conn.query("DELETE FROM villa_images WHERE villa_id = ?", [v.id]);
-      for (let i = 0; i < (v.gallery || []).length; i++) {
-        await conn.query(
-          "INSERT INTO villa_images (villa_id, image_url, sort_order) VALUES (?, ?, ?)",
-          [v.id, v.gallery[i], i]
-        );
-      }
-    }
-    console.log(`Migrating ${db.gallery?.length || 0} gallery photographs...`);
-    for (const g of db.gallery || []) {
-      await conn.query(
-        `INSERT INTO gallery_items 
-          (id, category, title, caption, description, image_url, aspect_ratio, sort_order, published)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE 
-          category = VALUES(category), title = VALUES(title), caption = VALUES(caption),
-          description = VALUES(description), image_url = VALUES(image_url),
-          aspect_ratio = VALUES(aspect_ratio), sort_order = VALUES(sort_order), published = VALUES(published)`,
-        [
-          g.id,
-          g.category,
-          g.title,
-          g.caption || "",
-          g.description || g.caption || "",
-          g.image,
-          g.aspectRatio || "4/3",
-          g.order || 0,
-          g.published !== false ? 1 : 0
-        ]
-      );
-    }
-    console.log(`Migrating ${db.facilities?.length || 0} estate facilities...`);
-    for (const f of db.facilities || []) {
-      await conn.query(
-        `INSERT INTO facilities 
-          (id, title, category, description, hours, highlight, image_url, icon, sort_order, visible)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE 
-          title = VALUES(title), category = VALUES(category), description = VALUES(description),
-          hours = VALUES(hours), highlight = VALUES(highlight), image_url = VALUES(image_url),
-          icon = VALUES(icon), sort_order = VALUES(sort_order), visible = VALUES(visible)`,
-        [
-          f.id,
-          f.title,
-          f.category,
-          f.description,
-          f.hours,
-          f.highlight,
-          f.image,
-          f.icon || "Sparkles",
-          f.order || 0,
-          f.visible !== false ? 1 : 0
-        ]
-      );
-    }
-    console.log(`Migrating ${db.testimonials?.length || 0} testimonials...`);
-    for (const t of db.testimonials || []) {
-      await conn.query(
-        `INSERT INTO testimonials 
-          (id, guest_name, country, avatar_url, rating, stay_date, villa_stayed, title, review_text, verified_stay, featured, sort_order, visible)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE 
-          guest_name = VALUES(guest_name), country = VALUES(country), avatar_url = VALUES(avatar_url),
-          rating = VALUES(rating), stay_date = VALUES(stay_date), villa_stayed = VALUES(villa_stayed),
-          title = VALUES(title), review_text = VALUES(review_text), verified_stay = VALUES(verified_stay),
-          featured = VALUES(featured), sort_order = VALUES(sort_order), visible = VALUES(visible)`,
-        [
-          t.id,
-          t.guestName,
-          t.country,
-          t.avatar || "",
-          t.rating || 5,
-          t.stayDate,
-          t.villaStayed,
-          t.title,
-          t.reviewText,
-          t.verifiedStay !== false ? 1 : 0,
-          t.featured ? 1 : 0,
-          t.order || 0,
-          t.visible !== false ? 1 : 0
-        ]
-      );
-    }
-    const vid = db.videos || {};
-    await conn.query(
-      `INSERT INTO video_storyboard (id, video_url, poster_image, scenes_json)
-       VALUES (1, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE video_url = VALUES(video_url), poster_image = VALUES(poster_image), scenes_json = VALUES(scenes_json)`,
-      [
-        vid.videoUrl || "https://assets.zanzirangihouse.com/videos/brand-reel-4k.mp4",
-        vid.posterImage || "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1600&q=85",
-        JSON.stringify(vid.scenes || [])
-      ]
-    );
-    const seo = db.seo || {};
-    for (const [routePath, r] of Object.entries(seo.routes || {})) {
-      const ro = r;
-      await conn.query(
-        `INSERT INTO seo_routes (route_path, title, description, canonical_url, og_title, og_description, og_image, robots)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE 
-          title = VALUES(title), description = VALUES(description), canonical_url = VALUES(canonical_url),
-          og_title = VALUES(og_title), og_description = VALUES(og_description), og_image = VALUES(og_image),
-          robots = VALUES(robots)`,
-        [
-          routePath,
-          ro.title,
-          ro.description,
-          ro.canonical,
-          ro.ogTitle || ro.title,
-          ro.ogDescription || ro.description,
-          ro.ogImage || "",
-          ro.robots || "index, follow"
-        ]
-      );
-    }
-    console.log(`Migrating ${db.media?.length || 0} media library assets...`);
-    for (const m of db.media || []) {
-      await conn.query(
-        `INSERT INTO media_assets 
-          (id, filename, url, mime_type, size_bytes, width, height, alt_text, caption, usage_count, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE 
-          filename = VALUES(filename), url = VALUES(url), mime_type = VALUES(mime_type),
-          size_bytes = VALUES(size_bytes), width = VALUES(width), height = VALUES(height),
-          alt_text = VALUES(alt_text), caption = VALUES(caption), usage_count = VALUES(usage_count)`,
-        [
-          m.id,
-          m.filename,
-          m.url,
-          m.mimeType,
-          m.sizeBytes,
-          m.width || null,
-          m.height || null,
-          m.altText || "",
-          m.caption || "",
-          m.usageCount || 0,
-          m.createdAt ? new Date(m.createdAt) : /* @__PURE__ */ new Date()
-        ]
-      );
-    }
-    await conn.query(
-      `INSERT INTO schema_migrations (version, applied_at) VALUES ('001_initial_schema', NOW())
-       ON DUPLICATE KEY UPDATE applied_at = NOW()`
-    );
-    conn.release();
-    console.log("\n======================================================");
-    console.log("\u{1F389} MYSQL DATABASE MIGRATION COMPLETED SUCCESSFULLY!");
-    console.log("======================================================");
-    console.log(`- Users: ${db.users?.length || 0}`);
-    console.log(`- Villas: ${db.villas?.length || 0}`);
-    console.log(`- Gallery Items: ${db.gallery?.length || 0}`);
-    console.log(`- Facilities: ${db.facilities?.length || 0}`);
-    console.log(`- Testimonials: ${db.testimonials?.length || 0}`);
-    console.log(`- Hero Slides: ${hp.hero?.slides?.length || 0}`);
-    console.log(`- Sections: ${hp.sections?.length || 0}`);
-    console.log(`- SEO Routes: ${Object.keys(seo.routes || {}).length}`);
-    console.log(`- Media Assets: ${db.media?.length || 0}`);
-    console.log("======================================================\n");
-  } catch (err) {
-    console.error("\u274C Migration failed:", err.message);
-    throw err;
-  } finally {
-    if (shouldEndPool && pool) {
-      await pool.end();
-    }
+  return connectionPool;
+}
+async function closeMysqlPool() {
+  if (connectionPool) {
+    await connectionPool.end();
+    connectionPool = null;
   }
 }
-var init_migrateFromJson = __esm({
-  "server/database/migrateFromJson.ts"() {
-    init_env();
-    if (process.argv[1] && process.argv[1].includes("migrateFromJson")) {
-      runMigration().catch((err) => {
-        console.error("\u274C Direct migration failed:", err.message);
-        process.exit(1);
+async function testDatabaseConnection() {
+  const host = process.env.DB_HOST || env.MYSQL_HOST || "localhost";
+  const port = Number(process.env.DB_PORT || env.MYSQL_PORT || 3306);
+  const user = process.env.DB_USER || env.MYSQL_USER || "u170555096_admindatabase";
+  const database = process.env.DB_NAME || env.MYSQL_DATABASE || "u170555096_Zanzirangi";
+  const steps = [];
+  let overallSuccess = true;
+  let finalError;
+  const t1 = Date.now();
+  try {
+    if (host === "localhost" || net.isIP(host)) {
+      steps.push({
+        step: "1_dns_resolution",
+        name: "DNS / Host Resolution",
+        status: "passed",
+        durationMs: Date.now() - t1,
+        details: host === "localhost" ? "Resolved loopback alias (localhost)" : `Direct IP address provided (${host})`
+      });
+    } else {
+      const lookupResult = await dns.promises.lookup(host);
+      steps.push({
+        step: "1_dns_resolution",
+        name: "DNS / Host Resolution",
+        status: "passed",
+        durationMs: Date.now() - t1,
+        details: `Hostname ${host} resolved to ${lookupResult.address}`
       });
     }
+  } catch (dnsErr) {
+    overallSuccess = false;
+    finalError = `DNS Resolution Failed: ${dnsErr.message}`;
+    steps.push({
+      step: "1_dns_resolution",
+      name: "DNS / Host Resolution",
+      status: "failed",
+      durationMs: Date.now() - t1,
+      error: dnsErr.message
+    });
+    return {
+      success: false,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      target: { host, port, database, user },
+      steps,
+      error: finalError
+    };
+  }
+  const t2 = Date.now();
+  const tcpPassed = await new Promise((resolve) => {
+    const socket = new net.Socket();
+    let resolved = false;
+    socket.setTimeout(4e3);
+    socket.once("connect", () => {
+      resolved = true;
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once("timeout", () => {
+      if (!resolved) {
+        resolved = true;
+        socket.destroy();
+        resolve(false);
+      }
+    });
+    socket.once("error", () => {
+      if (!resolved) {
+        resolved = true;
+        socket.destroy();
+        resolve(false);
+      }
+    });
+    socket.connect(port, host);
+  });
+  if (tcpPassed) {
+    steps.push({
+      step: "2_tcp_connection",
+      name: "TCP Port Connectivity",
+      status: "passed",
+      durationMs: Date.now() - t2,
+      details: `Successfully opened TCP connection to ${host}:${port}`
+    });
+  } else {
+    overallSuccess = false;
+    finalError = `TCP Connection Failed: Unable to establish connection to ${host}:${port} within 4000ms.`;
+    steps.push({
+      step: "2_tcp_connection",
+      name: "TCP Port Connectivity",
+      status: "failed",
+      durationMs: Date.now() - t2,
+      error: finalError
+    });
+    return {
+      success: false,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      target: { host, port, database, user },
+      steps,
+      error: finalError
+    };
+  }
+  const t3 = Date.now();
+  let conn = null;
+  try {
+    const pool = getMysqlPool();
+    conn = await pool.getConnection();
+    steps.push({
+      step: "3_authentication_and_database",
+      name: "MySQL Authentication & Database Selection",
+      status: "passed",
+      durationMs: Date.now() - t3,
+      details: `Authenticated as '${user}' and selected database '${database}'`
+    });
+  } catch (authErr) {
+    overallSuccess = false;
+    finalError = `Authentication / Database Selection Failed: ${authErr.message}`;
+    steps.push({
+      step: "3_authentication_and_database",
+      name: "MySQL Authentication & Database Selection",
+      status: "failed",
+      durationMs: Date.now() - t3,
+      error: authErr.message
+    });
+    return {
+      success: false,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      target: { host, port, database, user },
+      steps,
+      error: finalError
+    };
+  }
+  const t5 = Date.now();
+  try {
+    const [rows] = await conn.query("SELECT 1 as ping, CURRENT_TIMESTAMP as server_time");
+    const pingValue = rows?.[0]?.ping;
+    if (pingValue === 1) {
+      steps.push({
+        step: "4_query_execution",
+        name: "Query Execution (SELECT 1)",
+        status: "passed",
+        durationMs: Date.now() - t5,
+        details: `Query executed successfully. Server timestamp: ${rows[0]?.server_time}`
+      });
+    } else {
+      throw new Error(`Unexpected query return value: ${JSON.stringify(rows)}`);
+    }
+  } catch (queryErr) {
+    overallSuccess = false;
+    finalError = `Simple Query Execution Failed: ${queryErr.message}`;
+    steps.push({
+      step: "4_query_execution",
+      name: "Query Execution (SELECT 1)",
+      status: "failed",
+      durationMs: Date.now() - t5,
+      error: queryErr.message
+    });
+  } finally {
+    if (conn) {
+      conn.release();
+    }
+  }
+  return {
+    success: overallSuccess,
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    target: { host, port, database, user },
+    steps,
+    error: finalError
+  };
+}
+var connectionPool;
+var init_connection = __esm({
+  "server/database/connection.ts"() {
+    init_env();
+    connectionPool = null;
   }
 });
 
 // server/index.ts
 import express2 from "express";
-import fs5 from "fs";
-import path6 from "path";
+import fs4 from "fs";
+import path5 from "path";
 import { fileURLToPath as fileURLToPath2 } from "url";
 
 // server/api.ts
@@ -1251,10 +1071,179 @@ var DEFAULT_SETTINGS = {
   maintenanceMode: false
 };
 
+// server/seedKnowledgeBase.ts
+var DEFAULT_KNOWLEDGE_BASE = [
+  {
+    id: "kb_checkin_01",
+    question: "What are the check-in and check-out times?",
+    answer: "Standard check-in is from 14:00 (2:00 PM) and check-out is until 11:00 AM. Flexible early check-in or late checkout can be accommodated complimentary whenever villa availability permits.",
+    category: "Check-in",
+    language: "en",
+    status: "PUBLISHED",
+    source: "FAQ_IMPORT",
+    created_at: (/* @__PURE__ */ new Date()).toISOString(),
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  },
+  {
+    id: "kb_transfer_01",
+    question: "How does the airport transfer work and how far is it?",
+    answer: "Zanzirangi House is located in Kizimkazi Dimbani, approximately 55 minutes from Abeid Amani Karume International Airport (ZNZ). We provide private luxury VIP chauffeur transfers with refreshing cold towels and tropical refreshments upon arrival.",
+    category: "Airport Transfer",
+    language: "en",
+    status: "PUBLISHED",
+    source: "FAQ_IMPORT",
+    created_at: (/* @__PURE__ */ new Date()).toISOString(),
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  },
+  {
+    id: "kb_wifi_01",
+    question: "Is there high-speed Wi-Fi available across the property?",
+    answer: "Yes! High-speed Starlink satellite Wi-Fi (150+ Mbps) is complimentary across all private villas, lush gardens, swimming pools, and dining pavilions, ensuring seamless connectivity for streaming or remote work.",
+    category: "Wi-Fi",
+    language: "en",
+    status: "PUBLISHED",
+    source: "FAQ_IMPORT",
+    created_at: (/* @__PURE__ */ new Date()).toISOString(),
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  },
+  {
+    id: "kb_dining_01",
+    question: "Is breakfast included and what dining options are available?",
+    answer: "A gourmet tropical breakfast is included daily with your stay. Our oceanfront restaurant serves freshly landed Menai Bay seafood, authentic Swahili spice recipes, and international fine dining. In-villa dining is available around the clock.",
+    category: "Dining",
+    language: "en",
+    status: "PUBLISHED",
+    source: "FAQ_IMPORT",
+    created_at: (/* @__PURE__ */ new Date()).toISOString(),
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  },
+  {
+    id: "kb_beach_dining_01",
+    question: "Can we arrange a private romantic dinner on the beach?",
+    answer: "Yes! We arrange unforgettable candlelight dinners directly on the soft white sands or elevated coral terraces with torchlight and a custom 5-course seafood tasting menu.",
+    category: "Dining",
+    language: "en",
+    status: "PUBLISHED",
+    source: "FAQ_IMPORT",
+    created_at: (/* @__PURE__ */ new Date()).toISOString(),
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  },
+  {
+    id: "kb_villas_01",
+    question: "Do all villas have private plunge pools and beach access?",
+    answer: "Every single one of our 8 luxury sanctuaries features its own private freshwater infinity plunge pool, sun loungers, outdoor stone showers, and direct private pathway access to the shores of the Indian Ocean.",
+    category: "Villa",
+    language: "en",
+    status: "PUBLISHED",
+    source: "FAQ_IMPORT",
+    created_at: (/* @__PURE__ */ new Date()).toISOString(),
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  },
+  {
+    id: "kb_safari_01",
+    question: "How can we arrange a Serengeti fly-in safari expedition?",
+    answer: "We organize chartered fly-in safaris directly from Zanzibar airport (approx. 1h 45m) to Serengeti National Park, Ngorongoro Crater, and Tarangire with luxury partner tented camps overlooking migration corridors.",
+    category: "Safari",
+    language: "en",
+    status: "PUBLISHED",
+    source: "FAQ_IMPORT",
+    created_at: (/* @__PURE__ */ new Date()).toISOString(),
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  },
+  {
+    id: "kb_dolphins_01",
+    question: "Can we swim with dolphins in Kizimkazi?",
+    answer: "Kizimkazi is world-renowned for resident pods of wild bottlenose and spinner dolphins in the Menai Bay Conservation Area. We arrange ethical sunrise boat departures with licensed marine conservation guides right from our shore.",
+    category: "Other",
+    language: "en",
+    status: "PUBLISHED",
+    source: "FAQ_IMPORT",
+    created_at: (/* @__PURE__ */ new Date()).toISOString(),
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  },
+  {
+    id: "kb_dhow_01",
+    question: "How do we book a private sunset dhow sailing experience?",
+    answer: "A private wooden dhow sailing experience is unforgettable. Glide across the turquoise Indian Ocean while enjoying chilled Champagne and fresh Swahili canap\xE9s as the sun dips below the horizon.",
+    category: "Other",
+    language: "en",
+    status: "PUBLISHED",
+    source: "FAQ_IMPORT",
+    created_at: (/* @__PURE__ */ new Date()).toISOString(),
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  },
+  {
+    id: "kb_spa_01",
+    question: "What spa treatments and massage therapies are offered?",
+    answer: "Our in-villa holistic wellness treatments feature cold-pressed Zanzibari coconut oils, clove and cinnamon body scrubs, and soothing deep-tissue massages performed on your private oceanfront sun deck.",
+    category: "Wellness",
+    language: "en",
+    status: "PUBLISHED",
+    source: "FAQ_IMPORT",
+    created_at: (/* @__PURE__ */ new Date()).toISOString(),
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  },
+  {
+    id: "kb_stonetown_01",
+    question: "Can you organize a guided Stone Town and spice plantation tour?",
+    answer: "We organize private cultural journeys with master Swahili historians through UNESCO-listed Stone Town, followed by a sensory walk through an organic spice plantation tasting fresh vanilla, nutmeg, and cloves.",
+    category: "Other",
+    language: "en",
+    status: "PUBLISHED",
+    source: "FAQ_IMPORT",
+    created_at: (/* @__PURE__ */ new Date()).toISOString(),
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  },
+  {
+    id: "kb_family_01",
+    question: "Is Zanzirangi House suitable for families with children?",
+    answer: "Families are warmly welcomed. We offer interconnecting villa sanctuaries, extra rollaway beds, tailored kids menus, and professional babysitting upon request.",
+    category: "Family",
+    language: "en",
+    status: "PUBLISHED",
+    source: "FAQ_IMPORT",
+    created_at: (/* @__PURE__ */ new Date()).toISOString(),
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  },
+  {
+    id: "kb_honeymoon_01",
+    question: "What special amenities are available for honeymoon couples?",
+    answer: "For honeymooners, we prepare complimentary chilled Champagne, fresh tropical floral arrangements, an intimate sunset dhow cruise, and a romantic beach dinner under the stars.",
+    category: "Villa",
+    language: "en",
+    status: "PUBLISHED",
+    source: "FAQ_IMPORT",
+    created_at: (/* @__PURE__ */ new Date()).toISOString(),
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  },
+  {
+    id: "kb_payment_01",
+    question: "What payment methods and cancellation policies apply?",
+    answer: "We accept major credit cards (Visa, MasterCard, Amex), international bank wire transfers, and mobile payments. Flexible cancellation terms apply up to 14 days prior to arrival with full refund.",
+    category: "Pricing",
+    language: "en",
+    status: "PUBLISHED",
+    source: "FAQ_IMPORT",
+    created_at: (/* @__PURE__ */ new Date()).toISOString(),
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  },
+  {
+    id: "kb_diving_01",
+    question: "Where are the best snorkeling and diving spots nearby?",
+    answer: "Partnering with certified PADI dive masters, we take you to the pristine coral reefs of Mnemba Atoll and Kizimkazi reef to observe sea turtles, manta rays, and vibrant marine life.",
+    category: "Other",
+    language: "en",
+    status: "PUBLISHED",
+    source: "FAQ_IMPORT",
+    created_at: (/* @__PURE__ */ new Date()).toISOString(),
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  }
+];
+
 // server/db.ts
 var __filename = fileURLToPath(import.meta.url);
 var __dirname = path.dirname(__filename);
-var DATA_DIR = path.resolve(__dirname, "data");
+var DATA_DIR = fs.existsSync(path.resolve(process.cwd(), "server/data")) ? path.resolve(process.cwd(), "server/data") : fs.existsSync(path.resolve(process.cwd(), "data")) ? path.resolve(process.cwd(), "data") : path.resolve(__dirname, "data");
 var DB_FILE = path.join(DATA_DIR, "db.json");
 var DEFAULT_HOMEPAGE_CONTENT = {
   hero: {
@@ -1331,7 +1320,7 @@ function initDatabase() {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
-  const initialBootstrapPassword = process.env.ADMIN_INITIAL_PASSWORD || "ChangeMeImmediately2026!";
+  const initialBootstrapPassword = process.env.ADMIN_INITIAL_PASSWORD || (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : "ZanzirangiAuth" + Date.now());
   const salt = bcrypt.genSaltSync(12);
   const defaultHash = bcrypt.hashSync(initialBootstrapPassword, salt);
   if (fs.existsSync(DB_FILE)) {
@@ -1389,6 +1378,22 @@ function initDatabase() {
           parsed.settings = DEFAULT_SETTINGS;
           mutated = true;
         }
+        if (!parsed.support_conversations) {
+          parsed.support_conversations = [];
+          mutated = true;
+        }
+        if (!parsed.support_messages) {
+          parsed.support_messages = [];
+          mutated = true;
+        }
+        if (!parsed.support_knowledge_base || parsed.support_knowledge_base.length === 0) {
+          parsed.support_knowledge_base = DEFAULT_KNOWLEDGE_BASE;
+          mutated = true;
+        }
+        if (!parsed.support_ai_events) {
+          parsed.support_ai_events = [];
+          mutated = true;
+        }
         if (mutated) {
           saveDatabase(parsed);
         }
@@ -1417,6 +1422,10 @@ function initDatabase() {
     seo: DEFAULT_SEO,
     media: DEFAULT_MEDIA,
     settings: DEFAULT_SETTINGS,
+    support_conversations: [],
+    support_messages: [],
+    support_knowledge_base: DEFAULT_KNOWLEDGE_BASE,
+    support_ai_events: [],
     auditLog: [
       {
         action: "DB_INITIALIZED",
@@ -1828,43 +1837,27 @@ var JsonDatabaseAdapter = class {
 };
 
 // server/database/mysqlAdapter.ts
+init_connection();
 init_env();
-import mysql2 from "mysql2/promise";
 var MysqlDatabaseAdapter = class {
   constructor() {
     this.provider = "mysql";
-    this.pool = null;
   }
   getPool() {
-    if (!this.pool) {
-      this.pool = mysql2.createPool({
-        host: env.MYSQL_HOST || "localhost",
-        port: env.MYSQL_PORT || 3306,
-        database: env.MYSQL_DATABASE || "zanzirangi_house",
-        user: env.MYSQL_USER || "root",
-        password: env.MYSQL_PASSWORD || "",
-        waitForConnections: true,
-        connectionLimit: env.MYSQL_CONNECTION_LIMIT || 10,
-        queueLimit: 0,
-        enableKeepAlive: true,
-        keepAliveInitialDelay: 1e4
-      });
-    }
-    return this.pool;
+    return getMysqlPool();
   }
   async connect() {
     try {
       const pool = this.getPool();
       const conn = await pool.getConnection();
       conn.release();
-      console.log(`\u{1F42C} Connected to Hostinger MySQL Database [${env.MYSQL_DATABASE}@${env.MYSQL_HOST}]`);
+      const host = process.env.DB_HOST || env.MYSQL_HOST || "localhost";
+      const db = process.env.DB_NAME || env.MYSQL_DATABASE || "u170555096_Zanzirangi";
+      console.log(`\u{1F42C} Connected to Hostinger MySQL Database [${db}@${host}]`);
       try {
         const [tables] = await pool.query("SHOW TABLES LIKE 'homepage_config'");
         if (!tables || tables.length === 0) {
-          console.log("\u26A1 Fresh Hostinger database detected. Initializing schema and baseline content...");
-          const { runMigration: runMigration2 } = await Promise.resolve().then(() => (init_migrateFromJson(), migrateFromJson_exports));
-          await runMigration2(pool);
-          console.log("\u2705 Hostinger MySQL schema initialized and seeded successfully.");
+          console.warn("\u26A0\uFE0F Notice: Database tables not found yet. Run `npm run db:migrate:mysql` to initialize schema and migrate content.");
         } else {
           console.log("\u2705 Hostinger MySQL schema verified and ready.");
         }
@@ -1877,11 +1870,8 @@ var MysqlDatabaseAdapter = class {
     }
   }
   async disconnect() {
-    if (this.pool) {
-      await this.pool.end();
-      this.pool = null;
-      console.log("\u{1F42C} MySQL connection pool closed gracefully.");
-    }
+    await closeMysqlPool();
+    console.log("\u{1F42C} MySQL connection pool closed gracefully.");
   }
   async healthCheck() {
     try {
@@ -2024,7 +2014,7 @@ var MysqlDatabaseAdapter = class {
                 s.primaryCtaLink,
                 s.secondaryCtaText,
                 s.secondaryCtaLink,
-                s.imageUrl,
+                s.imageUrl || s.heroImage || "",
                 s.videoUrl,
                 s.alignment || "center",
                 s.overlayOpacity || 0.4,
@@ -2063,7 +2053,7 @@ var MysqlDatabaseAdapter = class {
              VALUES (?, ?, ?, ?, ?) 
              ON DUPLICATE KEY UPDATE label = VALUES(label), description = VALUES(description), 
              sort_order = VALUES(sort_order), visible = VALUES(visible)`,
-            [sec.id, sec.label, sec.description, sec.order, sec.visible !== false ? 1 : 0]
+            [sec.id, sec.label || sec.name, sec.description, sec.order, sec.visible !== false ? 1 : 0]
           );
         }
       }
@@ -2096,34 +2086,48 @@ var MysqlDatabaseAdapter = class {
       if (!imagesMap.has(img.villa_id)) imagesMap.set(img.villa_id, []);
       imagesMap.get(img.villa_id).push(img.image_url);
     }
-    return villaRows.map((v) => ({
-      id: v.id,
-      name: v.name,
-      shortName: v.short_name,
-      type: v.type,
-      subtitle: v.subtitle,
-      shortDescription: v.short_description,
-      description: v.description,
-      pricePerNight: parseFloat(v.price_per_night),
-      priceUnit: v.price_unit,
-      promotionalPrice: v.promotional_price ? parseFloat(v.promotional_price) : void 0,
-      sizeSqm: v.size_sqm,
-      maxGuests: v.max_guests,
-      bedrooms: v.bedrooms,
-      bathrooms: v.bathrooms,
-      beds: v.beds_count,
-      bed: v.bed_type,
-      bathroom: v.bathroom_type,
-      view: v.view_type,
-      architecturalFeature: v.architectural_feature,
-      heroImage: v.hero_image,
-      coverImage: v.cover_image,
-      status: v.status,
-      featured: Boolean(v.featured),
-      order: v.sort_order,
-      amenities: amenitiesMap.get(v.id) || [],
-      gallery: imagesMap.get(v.id) || []
-    }));
+    return villaRows.map((v) => {
+      const roomNum = v.id && v.id.startsWith("villa-") ? `VILLA ${v.id.replace("villa-", "").padStart(2, "0").toUpperCase()}` : "VILLA 01";
+      const sizeStr = v.size_sqm ? `${v.size_sqm} m\xB2 (${Math.round(v.size_sqm * 10.7639).toLocaleString()} sq ft)` : "85 m\xB2 (915 sq ft)";
+      const rawPrice = v.price_per_night !== void 0 && v.price_per_night !== null ? String(v.price_per_night) : "400";
+      const priceStr = rawPrice.startsWith("$") ? rawPrice : `$${parseFloat(rawPrice)}`;
+      const rawPromo = v.promotional_price !== void 0 && v.promotional_price !== null ? String(v.promotional_price) : "";
+      const promoStr = rawPromo ? rawPromo.startsWith("$") ? rawPromo : `$${parseFloat(rawPromo)}` : void 0;
+      const imagesList = imagesMap.get(v.id) || (v.hero_image ? [v.hero_image] : []);
+      return {
+        id: v.id,
+        roomNumber: roomNum,
+        name: v.name,
+        shortName: v.short_name || v.name,
+        type: v.type,
+        subtitle: v.subtitle || "",
+        shortDescription: v.short_description || "",
+        description: v.description,
+        pricePerNight: priceStr,
+        priceUnit: v.price_unit || "USD",
+        promotionalPrice: promoStr,
+        size: sizeStr,
+        sizeSqm: v.size_sqm,
+        capacity: v.max_guests || 2,
+        maxGuests: v.max_guests || 2,
+        bedrooms: v.bedrooms || 1,
+        bathrooms: v.bathrooms || 1,
+        beds: v.beds_count || 1,
+        bed: v.bed_type || "King Bed",
+        bathroom: v.bathroom_type || "En-suite",
+        view: v.view_type || "Ocean View",
+        architecturalFeature: v.architectural_feature || "",
+        heroImage: v.hero_image,
+        coverImage: v.cover_image || v.hero_image,
+        images: imagesList,
+        gallery: imagesList,
+        status: v.status || "published",
+        availability: v.status === "published",
+        featured: Boolean(v.featured),
+        order: v.sort_order || 0,
+        amenities: amenitiesMap.get(v.id) || []
+      };
+    });
   }
   async getVillaById(id) {
     const villas = await this.getVillas();
@@ -2460,10 +2464,10 @@ var MysqlDatabaseAdapter = class {
           [
             routePath,
             r.title,
-            r.description,
-            r.canonical,
-            r.ogTitle || r.title,
-            r.ogDescription || r.description,
+            r.description || "",
+            r.canonical || "",
+            r.ogTitle || r.title || "",
+            r.ogDescription || r.description || "",
             r.ogImage || "",
             r.robots || "index, follow"
           ]
@@ -2484,9 +2488,9 @@ var MysqlDatabaseAdapter = class {
     return rows.map((m) => ({
       id: m.id,
       filename: m.filename,
-      url: m.url,
+      url: m.url || m.public_url,
       mimeType: m.mime_type,
-      sizeBytes: Number(m.size_bytes),
+      sizeBytes: Number(m.size_bytes || m.size || 0),
       width: m.width,
       height: m.height,
       altText: m.alt_text,
@@ -2499,23 +2503,27 @@ var MysqlDatabaseAdapter = class {
     const pool = this.getPool();
     await pool.query(
       `INSERT INTO media_assets 
-        (id, filename, url, mime_type, size_bytes, width, height, alt_text, caption, usage_count) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
+        (id, filename, original_filename, url, public_url, mime_type, size, size_bytes, width, height, alt_text, title, caption, usage_count) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
        ON DUPLICATE KEY UPDATE 
-        filename = VALUES(filename), url = VALUES(url), mime_type = VALUES(mime_type), 
-        size_bytes = VALUES(size_bytes), width = VALUES(width), height = VALUES(height), 
-        alt_text = VALUES(alt_text), caption = VALUES(caption), usage_count = VALUES(usage_count)`,
+        filename = VALUES(filename), url = VALUES(url), public_url = VALUES(public_url), mime_type = VALUES(mime_type), 
+        size = VALUES(size), size_bytes = VALUES(size_bytes), width = VALUES(width), height = VALUES(height), 
+        alt_text = VALUES(alt_text), title = VALUES(title), caption = VALUES(caption), usage_count = VALUES(usage_count)`,
       [
         asset.id,
         asset.filename,
+        asset.filename,
+        asset.url,
         asset.url,
         asset.mimeType,
+        asset.sizeBytes,
         asset.sizeBytes,
         asset.width || null,
         asset.height || null,
         asset.altText || "",
+        asset.altText || asset.filename,
         asset.caption || "",
-        asset.usageCount || 0
+        asset.usageCount || asset.referenceCount || 0
       ]
     );
     await this.addAuditLog({
@@ -2715,6 +2723,7 @@ var MysqlDatabaseAdapter = class {
 
 // server/database/index.ts
 init_env();
+init_connection();
 
 // server/database/repositories/homepageRepository.ts
 var HomepageRepository = class {
@@ -2905,6 +2914,468 @@ var AuditRepository = class {
 };
 var auditRepository = new AuditRepository();
 
+// server/database/repositories/supportRepository.ts
+init_connection();
+function toIso(val) {
+  if (!val) return (/* @__PURE__ */ new Date()).toISOString();
+  if (val instanceof Date) return val.toISOString();
+  try {
+    return new Date(val).toISOString();
+  } catch {
+    return (/* @__PURE__ */ new Date()).toISOString();
+  }
+}
+function parseJson(val) {
+  if (val === null || val === void 0) return null;
+  if (typeof val === "object") return val;
+  try {
+    return JSON.parse(val);
+  } catch {
+    return null;
+  }
+}
+var SupportRepository = class {
+  // -------------------------------------------------------------
+  // Conversations
+  // -------------------------------------------------------------
+  async getConversations(filter) {
+    const pool = getMysqlPool();
+    let query = `
+      SELECT 
+        c.*,
+        COUNT(m.id) as message_count,
+        (
+          SELECT m2.message 
+          FROM support_messages m2 
+          WHERE m2.conversation_id = c.id 
+          ORDER BY m2.created_at DESC 
+          LIMIT 1
+        ) as last_message_text
+      FROM support_conversations c
+      LEFT JOIN support_messages m ON m.conversation_id = c.id
+      WHERE 1=1
+    `;
+    const params = [];
+    if (filter?.status && filter.status !== "ALL") {
+      query += " AND c.status = ?";
+      params.push(filter.status);
+    }
+    if (filter?.search) {
+      const q = `%${filter.search.trim().toLowerCase()}%`;
+      query += ` AND (
+        LOWER(c.id) LIKE ? OR 
+        LOWER(c.visitor_id) LIKE ? OR 
+        LOWER(JSON_UNQUOTE(JSON_EXTRACT(c.metadata, '$.fullName'))) LIKE ? OR
+        LOWER(JSON_UNQUOTE(JSON_EXTRACT(c.metadata, '$.email'))) LIKE ? OR
+        LOWER(JSON_UNQUOTE(JSON_EXTRACT(c.metadata, '$.villaName'))) LIKE ?
+      )`;
+      params.push(q, q, q, q, q);
+    }
+    query += " GROUP BY c.id ORDER BY c.last_message_at DESC";
+    if (filter?.limit && filter.limit > 0) {
+      query += " LIMIT ?";
+      params.push(Number(filter.limit));
+    }
+    const [rows] = await pool.query(query, params);
+    return rows.map((r) => ({
+      id: r.id,
+      visitor_id: r.visitor_id,
+      session_id: r.session_id,
+      status: r.status,
+      language: r.language || "en",
+      assigned_admin_id: r.assigned_admin_id || null,
+      current_page: r.current_page || "/",
+      booking_id: r.booking_id || null,
+      metadata: parseJson(r.metadata),
+      created_at: toIso(r.created_at),
+      updated_at: toIso(r.updated_at),
+      last_message_at: toIso(r.last_message_at),
+      messageCount: Number(r.message_count || 0),
+      lastMessageText: r.last_message_text || void 0
+    }));
+  }
+  async getConversationById(id) {
+    const pool = getMysqlPool();
+    const [rows] = await pool.query(
+      "SELECT * FROM support_conversations WHERE id = ? LIMIT 1",
+      [id]
+    );
+    if (!rows || rows.length === 0) return null;
+    const r = rows[0];
+    return {
+      id: r.id,
+      visitor_id: r.visitor_id,
+      session_id: r.session_id,
+      status: r.status,
+      language: r.language || "en",
+      assigned_admin_id: r.assigned_admin_id || null,
+      current_page: r.current_page || "/",
+      booking_id: r.booking_id || null,
+      metadata: parseJson(r.metadata),
+      created_at: toIso(r.created_at),
+      updated_at: toIso(r.updated_at),
+      last_message_at: toIso(r.last_message_at)
+    };
+  }
+  async getActiveConversationByVisitor(visitorId) {
+    const pool = getMysqlPool();
+    const [rows] = await pool.query(
+      `SELECT * FROM support_conversations 
+       WHERE visitor_id = ? AND status NOT IN ('CLOSED', 'RESOLVED')
+       ORDER BY last_message_at DESC 
+       LIMIT 1`,
+      [visitorId]
+    );
+    if (rows && rows.length > 0) {
+      const r2 = rows[0];
+      return {
+        id: r2.id,
+        visitor_id: r2.visitor_id,
+        session_id: r2.session_id,
+        status: r2.status,
+        language: r2.language || "en",
+        assigned_admin_id: r2.assigned_admin_id || null,
+        current_page: r2.current_page || "/",
+        booking_id: r2.booking_id || null,
+        metadata: parseJson(r2.metadata),
+        created_at: toIso(r2.created_at),
+        updated_at: toIso(r2.updated_at),
+        last_message_at: toIso(r2.last_message_at)
+      };
+    }
+    const [fallbackRows] = await pool.query(
+      `SELECT * FROM support_conversations 
+       WHERE visitor_id = ? 
+       ORDER BY last_message_at DESC 
+       LIMIT 1`,
+      [visitorId]
+    );
+    if (!fallbackRows || fallbackRows.length === 0) return null;
+    const r = fallbackRows[0];
+    return {
+      id: r.id,
+      visitor_id: r.visitor_id,
+      session_id: r.session_id,
+      status: r.status,
+      language: r.language || "en",
+      assigned_admin_id: r.assigned_admin_id || null,
+      current_page: r.current_page || "/",
+      booking_id: r.booking_id || null,
+      metadata: parseJson(r.metadata),
+      created_at: toIso(r.created_at),
+      updated_at: toIso(r.updated_at),
+      last_message_at: toIso(r.last_message_at)
+    };
+  }
+  async createConversation(data) {
+    const pool = getMysqlPool();
+    const id = `conv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const status = data.status || "AI_ACTIVE";
+    const language = data.language || "en";
+    const currentPage = data.current_page || "/";
+    const bookingId = data.booking_id || null;
+    const metadataStr = data.metadata ? JSON.stringify(data.metadata) : null;
+    await pool.query(
+      `INSERT INTO support_conversations 
+        (id, visitor_id, session_id, status, language, current_page, booking_id, metadata, created_at, updated_at, last_message_at) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [id, data.visitor_id, data.session_id, status, language, currentPage, bookingId, metadataStr]
+    );
+    const created = await this.getConversationById(id);
+    return created;
+  }
+  async updateConversation(id, updates) {
+    const pool = getMysqlPool();
+    const setClauses = [];
+    const params = [];
+    if (updates.status !== void 0) {
+      setClauses.push("status = ?");
+      params.push(updates.status);
+    }
+    if (updates.language !== void 0) {
+      setClauses.push("language = ?");
+      params.push(updates.language);
+    }
+    if (updates.assigned_admin_id !== void 0) {
+      setClauses.push("assigned_admin_id = ?");
+      params.push(updates.assigned_admin_id);
+    }
+    if (updates.current_page !== void 0) {
+      setClauses.push("current_page = ?");
+      params.push(updates.current_page);
+    }
+    if (updates.booking_id !== void 0) {
+      setClauses.push("booking_id = ?");
+      params.push(updates.booking_id);
+    }
+    if (updates.metadata !== void 0) {
+      setClauses.push("metadata = ?");
+      params.push(updates.metadata ? JSON.stringify(updates.metadata) : null);
+    }
+    if (updates.last_message_at !== void 0) {
+      setClauses.push("last_message_at = ?");
+      params.push(new Date(updates.last_message_at));
+    }
+    setClauses.push("updated_at = CURRENT_TIMESTAMP");
+    if (setClauses.length === 1) {
+      return this.getConversationById(id);
+    }
+    params.push(id);
+    await pool.query(
+      `UPDATE support_conversations SET ${setClauses.join(", ")} WHERE id = ?`,
+      params
+    );
+    return this.getConversationById(id);
+  }
+  // -------------------------------------------------------------
+  // Messages
+  // -------------------------------------------------------------
+  async getMessages(conversationId) {
+    const pool = getMysqlPool();
+    const [rows] = await pool.query(
+      "SELECT * FROM support_messages WHERE conversation_id = ? ORDER BY created_at ASC",
+      [conversationId]
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      conversation_id: r.conversation_id,
+      sender_type: r.sender_type,
+      sender_id: r.sender_id,
+      message: r.message,
+      message_type: r.message_type || "TEXT",
+      ai_confidence: r.ai_confidence !== null && r.ai_confidence !== void 0 ? parseFloat(r.ai_confidence) : null,
+      metadata: parseJson(r.metadata),
+      created_at: toIso(r.created_at)
+    }));
+  }
+  async createMessage(data) {
+    const pool = getMysqlPool();
+    const id = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const messageType = data.message_type || "TEXT";
+    const confidence = data.ai_confidence !== void 0 ? data.ai_confidence : null;
+    const metadataStr = data.metadata ? JSON.stringify(data.metadata) : null;
+    await pool.query(
+      `INSERT INTO support_messages 
+        (id, conversation_id, sender_type, sender_id, message, message_type, ai_confidence, metadata, created_at) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [id, data.conversation_id, data.sender_type, data.sender_id, data.message, messageType, confidence, metadataStr]
+    );
+    await pool.query(
+      "UPDATE support_conversations SET last_message_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [data.conversation_id]
+    );
+    return {
+      id,
+      conversation_id: data.conversation_id,
+      sender_type: data.sender_type,
+      sender_id: data.sender_id,
+      message: data.message,
+      message_type: messageType,
+      ai_confidence: confidence,
+      metadata: data.metadata || null,
+      created_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  // -------------------------------------------------------------
+  // Knowledge Base
+  // -------------------------------------------------------------
+  async getKnowledgeBase(filter) {
+    const pool = getMysqlPool();
+    let query = "SELECT * FROM support_knowledge_base WHERE 1=1";
+    const params = [];
+    if (filter?.category && filter.category !== "ALL") {
+      query += " AND LOWER(category) = LOWER(?)";
+      params.push(filter.category);
+    }
+    if (filter?.language && filter.language !== "ALL") {
+      query += ' AND (language = ? OR language = "all")';
+      params.push(filter.language);
+    }
+    if (filter?.status && filter.status !== "ALL") {
+      query += " AND status = ?";
+      params.push(filter.status);
+    }
+    if (filter?.search) {
+      const q = `%${filter.search.trim().toLowerCase()}%`;
+      query += " AND (LOWER(question) LIKE ? OR LOWER(answer) LIKE ?)";
+      params.push(q, q);
+    }
+    query += " ORDER BY updated_at DESC";
+    const [rows] = await pool.query(query, params);
+    return rows.map((r) => ({
+      id: r.id,
+      question: r.question,
+      answer: r.answer,
+      category: r.category || "General",
+      language: r.language || "en",
+      status: r.status,
+      source: r.source,
+      created_at: toIso(r.created_at),
+      updated_at: toIso(r.updated_at)
+    }));
+  }
+  async getKnowledgeItem(id) {
+    const pool = getMysqlPool();
+    const [rows] = await pool.query(
+      "SELECT * FROM support_knowledge_base WHERE id = ? LIMIT 1",
+      [id]
+    );
+    if (!rows || rows.length === 0) return null;
+    const r = rows[0];
+    return {
+      id: r.id,
+      question: r.question,
+      answer: r.answer,
+      category: r.category || "General",
+      language: r.language || "en",
+      status: r.status,
+      source: r.source,
+      created_at: toIso(r.created_at),
+      updated_at: toIso(r.updated_at)
+    };
+  }
+  async saveKnowledgeItem(data) {
+    const pool = getMysqlPool();
+    const id = data.id || `kb_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const category = data.category || "General";
+    const language = data.language || "en";
+    const status = data.status || "PUBLISHED";
+    const source = data.source || "MANUAL";
+    await pool.query(
+      `INSERT INTO support_knowledge_base 
+        (id, question, answer, category, language, status, source, created_at, updated_at) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON DUPLICATE KEY UPDATE 
+        question = VALUES(question),
+        answer = VALUES(answer),
+        category = VALUES(category),
+        language = VALUES(language),
+        status = VALUES(status),
+        source = VALUES(source),
+        updated_at = CURRENT_TIMESTAMP`,
+      [id, data.question.trim(), data.answer.trim(), category, language, status, source]
+    );
+    const saved = await this.getKnowledgeItem(id);
+    return saved;
+  }
+  async deleteKnowledgeItem(id) {
+    const pool = getMysqlPool();
+    const [res] = await pool.query(
+      "DELETE FROM support_knowledge_base WHERE id = ?",
+      [id]
+    );
+    return res.affectedRows > 0;
+  }
+  // -------------------------------------------------------------
+  // AI Events & Audit Trail
+  // -------------------------------------------------------------
+  async logAiEvent(data) {
+    const pool = getMysqlPool();
+    const id = `aie_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    await pool.query(
+      `INSERT INTO support_ai_events 
+        (id, conversation_id, message_id, intent, confidence, knowledge_source, decision, created_at) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [id, data.conversation_id, data.message_id, data.intent, data.confidence, data.knowledge_source, data.decision]
+    );
+    return {
+      id,
+      conversation_id: data.conversation_id,
+      message_id: data.message_id,
+      intent: data.intent,
+      confidence: data.confidence,
+      knowledge_source: data.knowledge_source,
+      decision: data.decision,
+      created_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  async getAiEvents(conversationId) {
+    const pool = getMysqlPool();
+    const [rows] = await pool.query(
+      "SELECT * FROM support_ai_events WHERE conversation_id = ? ORDER BY created_at ASC",
+      [conversationId]
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      conversation_id: r.conversation_id,
+      message_id: r.message_id,
+      intent: r.intent,
+      confidence: parseFloat(r.confidence),
+      knowledge_source: r.knowledge_source,
+      decision: r.decision,
+      created_at: toIso(r.created_at)
+    }));
+  }
+  // -------------------------------------------------------------
+  // Analytics
+  // -------------------------------------------------------------
+  async getAnalytics() {
+    const pool = getMysqlPool();
+    const [convRows] = await pool.query("SELECT status, assigned_admin_id FROM support_conversations");
+    const [eventRows] = await pool.query("SELECT intent FROM support_ai_events");
+    const totalConversations = convRows.length;
+    const aiResolved = convRows.filter((c) => c.status === "RESOLVED" && !c.assigned_admin_id).length;
+    const humanAssisted = convRows.filter((c) => c.assigned_admin_id || c.status === "HUMAN_ACTIVE").length;
+    const waiting = convRows.filter((c) => c.status === "WAITING_HUMAN").length;
+    const unresolved = convRows.filter((c) => c.status !== "RESOLVED" && c.status !== "CLOSED").length;
+    const aiResolutionRate = totalConversations > 0 ? Math.round(aiResolved / totalConversations * 100) : 0;
+    const categoryCounts = {
+      "Check-in": 0,
+      "Pricing": 0,
+      "Villa": 0,
+      "Airport Transfer": 0,
+      "Safari": 0,
+      "Dining": 0,
+      "Wi-Fi": 0,
+      "Wellness": 0,
+      "Family": 0,
+      "Other": 0
+    };
+    eventRows.forEach((e) => {
+      const intent = (e.intent || "").toLowerCase();
+      if (intent.includes("checkin") || intent.includes("checkout") || intent.includes("time")) {
+        categoryCounts["Check-in"]++;
+      } else if (intent.includes("price") || intent.includes("rate") || intent.includes("payment")) {
+        categoryCounts["Pricing"]++;
+      } else if (intent.includes("villa") || intent.includes("room") || intent.includes("pool")) {
+        categoryCounts["Villa"]++;
+      } else if (intent.includes("airport") || intent.includes("transfer") || intent.includes("shuttle")) {
+        categoryCounts["Airport Transfer"]++;
+      } else if (intent.includes("safari") || intent.includes("serengeti") || intent.includes("ngorongoro")) {
+        categoryCounts["Safari"]++;
+      } else if (intent.includes("din") || intent.includes("food") || intent.includes("breakfast")) {
+        categoryCounts["Dining"]++;
+      } else if (intent.includes("wifi") || intent.includes("internet") || intent.includes("starlink")) {
+        categoryCounts["Wi-Fi"]++;
+      } else if (intent.includes("spa") || intent.includes("wellness") || intent.includes("massage")) {
+        categoryCounts["Wellness"]++;
+      } else if (intent.includes("family") || intent.includes("children") || intent.includes("kid")) {
+        categoryCounts["Family"]++;
+      } else {
+        categoryCounts["Other"]++;
+      }
+    });
+    const totalCategoryHits = Object.values(categoryCounts).reduce((a, b) => a + b, 0) || 1;
+    const categories = Object.entries(categoryCounts).map(([cat, count]) => ({
+      category: cat,
+      count,
+      percentage: Math.round(count / totalCategoryHits * 100)
+    }));
+    return {
+      totalConversations,
+      aiResolved,
+      humanAssisted,
+      waiting,
+      unresolved,
+      aiResolutionRate,
+      avgAiResponseTimeSec: 0.8,
+      avgHumanResponseTimeMin: 4.2,
+      categories
+    };
+  }
+};
+var supportRepository = new SupportRepository();
+
 // server/database/index.ts
 var adapterInstance = null;
 function getDatabaseAdapter() {
@@ -2912,14 +3383,12 @@ function getDatabaseAdapter() {
     if (env.DATABASE_PROVIDER === "mysql") {
       adapterInstance = new MysqlDatabaseAdapter();
     } else {
+      if (env.NODE_ENV === "production") {
+        throw new Error("\u{1F4A5} CRITICAL: JsonDatabaseAdapter cannot be instantiated in production mode. Set DATABASE_PROVIDER=mysql.");
+      }
       adapterInstance = new JsonDatabaseAdapter();
     }
   }
-  return adapterInstance;
-}
-function fallbackToJsonAdapter() {
-  console.warn("\u26A0\uFE0F Switching active database provider to JSON fallback adapter.");
-  adapterInstance = new JsonDatabaseAdapter();
   return adapterInstance;
 }
 
@@ -3017,9 +3486,9 @@ async function loginUser(email, password) {
 
 // server/storage/LocalMediaStorage.ts
 init_env();
-import fs3 from "fs";
-import path4 from "path";
-import crypto from "crypto";
+import fs2 from "fs";
+import path3 from "path";
+import crypto2 from "crypto";
 var ALLOWED_MIME_TYPES = /* @__PURE__ */ new Set([
   "image/jpeg",
   "image/png",
@@ -3054,12 +3523,12 @@ var FORBIDDEN_EXTENSIONS = /* @__PURE__ */ new Set([
 ]);
 var LocalMediaStorage = class {
   constructor(customStorageDir) {
-    this.storageDir = customStorageDir || env.MEDIA_STORAGE_PATH || path4.resolve(process.cwd(), "uploads");
+    this.storageDir = customStorageDir || env.MEDIA_STORAGE_PATH || path3.resolve(process.cwd(), "uploads");
     this.ensureDirectoryExists();
   }
   ensureDirectoryExists() {
-    if (!fs3.existsSync(this.storageDir)) {
-      fs3.mkdirSync(this.storageDir, { recursive: true });
+    if (!fs2.existsSync(this.storageDir)) {
+      fs2.mkdirSync(this.storageDir, { recursive: true });
     }
   }
   getStorageDirectory() {
@@ -3070,7 +3539,7 @@ var LocalMediaStorage = class {
   }
   async saveFile(buffer, originalName, mimeType) {
     this.ensureDirectoryExists();
-    const ext = path4.extname(originalName).toLowerCase();
+    const ext = path3.extname(originalName).toLowerCase();
     if (FORBIDDEN_EXTENSIONS.has(ext)) {
       throw new Error(`Security Exception: Uploading files with extension '${ext}' is strictly prohibited.`);
     }
@@ -3081,14 +3550,14 @@ var LocalMediaStorage = class {
     if (buffer.length > maxBytes) {
       throw new Error(`File size (${(buffer.length / (1024 * 1024)).toFixed(1)}MB) exceeds maximum limit of ${env.MAX_UPLOAD_SIZE_MB}MB.`);
     }
-    const hash = crypto.randomBytes(16).toString("hex");
-    const safeBaseName = path4.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 32);
+    const hash = crypto2.randomBytes(16).toString("hex");
+    const safeBaseName = path3.basename(originalName, ext).replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 32);
     const uniqueFilename = `${safeBaseName}_${Date.now()}_${hash.substring(0, 8)}${ext}`;
-    const destinationPath = path4.resolve(this.storageDir, uniqueFilename);
-    if (!destinationPath.startsWith(path4.resolve(this.storageDir))) {
+    const destinationPath = path3.resolve(this.storageDir, uniqueFilename);
+    if (!destinationPath.startsWith(path3.resolve(this.storageDir))) {
       throw new Error("Security Exception: Invalid destination path traversal detected.");
     }
-    await fs3.promises.writeFile(destinationPath, buffer);
+    await fs2.promises.writeFile(destinationPath, buffer);
     return {
       filename: uniqueFilename,
       originalFilename: originalName,
@@ -3099,35 +3568,35 @@ var LocalMediaStorage = class {
     };
   }
   async deleteFile(filename) {
-    const safeFilename = path4.basename(filename);
-    const filePath = path4.resolve(this.storageDir, safeFilename);
-    if (!filePath.startsWith(path4.resolve(this.storageDir))) {
+    const safeFilename = path3.basename(filename);
+    const filePath = path3.resolve(this.storageDir, safeFilename);
+    if (!filePath.startsWith(path3.resolve(this.storageDir))) {
       throw new Error("Security Exception: Path traversal attempt prevented.");
     }
-    if (fs3.existsSync(filePath)) {
-      await fs3.promises.unlink(filePath);
+    if (fs2.existsSync(filePath)) {
+      await fs2.promises.unlink(filePath);
       return true;
     }
     return false;
   }
   exists(filename) {
-    const safeFilename = path4.basename(filename);
-    const filePath = path4.resolve(this.storageDir, safeFilename);
-    return fs3.existsSync(filePath);
+    const safeFilename = path3.basename(filename);
+    const filePath = path3.resolve(this.storageDir, safeFilename);
+    return fs2.existsSync(filePath);
   }
   getUrl(filename) {
-    const safeFilename = path4.basename(filename);
+    const safeFilename = path3.basename(filename);
     return `/uploads/${safeFilename}`;
   }
 };
 
 // server/storage/HostingerMediaStorage.ts
-import fs4 from "fs";
-import path5 from "path";
+import fs3 from "fs";
+import path4 from "path";
 init_env();
 var HostingerMediaStorage = class extends LocalMediaStorage {
   constructor(customStorageDir) {
-    const hostingerDir = customStorageDir || env.MEDIA_STORAGE_PATH || path5.resolve(process.cwd(), "uploads");
+    const hostingerDir = customStorageDir || env.MEDIA_STORAGE_PATH || path4.resolve(process.cwd(), "uploads");
     super(hostingerDir);
     this.enforceDirectorySecurity();
   }
@@ -3138,7 +3607,7 @@ var HostingerMediaStorage = class extends LocalMediaStorage {
   enforceDirectorySecurity() {
     try {
       const storageDir = this.getStorageDirectory();
-      const htaccessPath = path5.join(storageDir, ".htaccess");
+      const htaccessPath = path4.join(storageDir, ".htaccess");
       const htaccessContent = [
         "# Zanzirangi House: Security Lockdown for Uploads Directory",
         "# Prohibit any script execution on Hostinger Apache / LiteSpeed",
@@ -3151,8 +3620,8 @@ var HostingerMediaStorage = class extends LocalMediaStorage {
         "RemoveType .php .phtml .php3 .php4 .php5 .phps",
         ""
       ].join("\n");
-      if (!fs4.existsSync(htaccessPath)) {
-        fs4.writeFileSync(htaccessPath, htaccessContent, "utf-8");
+      if (!fs3.existsSync(htaccessPath)) {
+        fs3.writeFileSync(htaccessPath, htaccessContent, "utf-8");
       }
     } catch (e) {
       console.warn("\u26A0\uFE0F Notice: Could not write protective .htaccess to uploads directory:", e.message);
@@ -3177,12 +3646,733 @@ var mediaStorage = getMediaStorage();
 
 // server/api.ts
 init_env();
+
+// server/supportApiRoutes.ts
+import { Router } from "express";
+
+// server/services/supportAiEngine.ts
+var HANDOFF_MESSAGES = {
+  en: "I'd be happy to help with that. Let me check this with our concierge team and get back to you.",
+  fr: "Je serais ravi de vous aider. Laissez-moi v\xE9rifier cela aupr\xE8s de notre \xE9quipe de conciergerie et je reviens vers vous.",
+  sw: "Ningefurahi kukusaidia kwa hilo. Ngoja nithibitishe hili na timu yetu ya makaribisho kisha nitakujulisha.",
+  es: "Con gusto le ayudo con eso. Perm\xEDtame consultar con nuestro equipo de conserjer\xEDa y me pondr\xE9 en contacto con usted.",
+  it: "Sar\xF2 lieto di aiutarvi. Permettetemi di verificare con il nostro team concierge e vi ricontatter\xF2 a breve.",
+  pl: "Z przyjemno\u015Bci\u0105 w tym pomog\u0119. Pozw\xF3l, \u017Ce skonsultuj\u0119 to z naszym zespo\u0142em konsjer\u017Ca i wr\xF3c\u0119 do Ciebie z odpowiedzi\u0105.",
+  ar: "\u064A\u0633\u0639\u062F\u0646\u064A \u0645\u0633\u0627\u0639\u062F\u062A\u0643 \u0641\u064A \u0630\u0644\u0643. \u062F\u0639\u0646\u064A \u0623\u062A\u062D\u0642\u0642 \u0645\u0646 \u0647\u0630\u0627 \u0627\u0644\u0623\u0645\u0631 \u0645\u0639 \u0641\u0631\u064A\u0642 \u0627\u0644\u0643\u0648\u0646\u0633\u064A\u0631\u062C \u0648\u0633\u0623\u0639\u0627\u0648\u062F \u0627\u0644\u0631\u062F \u0639\u0644\u064A\u0643.",
+  zh: "\u975E\u5E38\u4E50\u610F\u4E3A\u60A8\u534F\u52A9\u3002\u8BF7\u7A0D\u7B49\uFF0C\u6211\u5C06\u4E0E\u6211\u4EEC\u7684\u79C1\u4EBA\u793C\u5BBE\u7BA1\u5BB6\u56E2\u961F\u786E\u8BA4\u540E\u7ACB\u5373\u5411\u60A8\u7B54\u590D\u3002"
+};
+var SupportAiEngine = class {
+  /**
+   * Evaluates a visitor query through the Support Decision Layer:
+   * 1. Inspect dynamic Knowledge Base (published items)
+   * 2. Inspect deterministic FAQ rules
+   * 3. Detect high-constraint parameters (dates, large groups, discounts) requiring human review
+   * 4. Compute decision: AUTO_ANSWER, SAFE_ANSWER, or HANDOFF_TO_HUMAN
+   */
+  async evaluateQuery(query, lang = "en", _currentPage = "/") {
+    const q = query.trim().toLowerCase();
+    const fallbackHandoff = HANDOFF_MESSAGES[lang] || HANDOFF_MESSAGES.en;
+    const hasImmediateDate = /\b(tomorrow|tonight|today|besok|malam ini|demain|ce soir|mañana|domani|jutro|غدا|اليوم|明天|今晚)\b/i.test(q);
+    const hasSpecificLargeGroup = /\b(1[0-9]|[2-9][0-9])\s*(people|guests|persons|orang|personnes|personas|persone|osób|شخص|位|人)\b/i.test(q) || /\b(for|untuk|pour|para|per|dla|li|共)\s*(1[0-9]|[2-9][0-9])\b/i.test(q);
+    if (hasImmediateDate && hasSpecificLargeGroup) {
+      return {
+        replyText: fallbackHandoff,
+        intent: "large_group_immediate_availability_inquiry",
+        confidence: 0.5,
+        knowledge_source: "NONE",
+        decision: "HANDOFF_TO_HUMAN",
+        handoffReason: "Visitor requested immediate availability for a large group (10+ guests), requiring human concierge verification."
+      };
+    }
+    if (hasSpecificLargeGroup && (q.includes("dinner") || q.includes("candlelight") || q.includes("safari") || q.includes("tour") || q.includes("villa"))) {
+      return {
+        replyText: fallbackHandoff,
+        intent: "large_group_custom_arrangement",
+        confidence: 0.52,
+        knowledge_source: "NONE",
+        decision: "HANDOFF_TO_HUMAN",
+        handoffReason: "Large group custom arrangement requires concierge catering and logistics coordination."
+      };
+    }
+    try {
+      const kbItems = await supportRepository.getKnowledgeBase({
+        status: "PUBLISHED"
+      });
+      for (const item of kbItems) {
+        const itemQ = item.question.toLowerCase();
+        if (q === itemQ || q.length > 15 && itemQ.includes(q) || itemQ.length > 15 && q.includes(itemQ)) {
+          return {
+            replyText: item.answer,
+            intent: `kb_${item.category.toLowerCase().replace(/\s+/g, "_")}`,
+            confidence: 0.95,
+            knowledge_source: `KNOWLEDGE_BASE_${item.id}`,
+            decision: "AUTO_ANSWER"
+          };
+        }
+      }
+    } catch {
+    }
+    if (q.includes("serengeti") || q.includes("great migration")) {
+      return {
+        replyText: "Serengeti National Park is an extraordinary safari experience. Zanzirangi House arranges direct chartered fly-in safaris from Zanzibar airport (approx. 1h 45m) with luxury partner tented camps overlooking migration corridors.",
+        action: { label: "View Safari Destinations", actionType: "SCROLL", target: "tanzania" },
+        intent: "safari_serengeti",
+        confidence: 0.95,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    if (q.includes("ngorongoro") || q.includes("crater")) {
+      return {
+        replyText: "Ngorongoro Crater offers Africa\u2019s densest predator populations inside a UNESCO volcanic caldera. We organize chartered fly-in packages combining your beach retreat with panoramic crater floor game drives.",
+        action: { label: "Explore Ngorongoro", actionType: "SCROLL", target: "tanzania" },
+        intent: "safari_ngorongoro",
+        confidence: 0.95,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    if (q.includes("kilimanjaro")) {
+      return {
+        replyText: "Mount Kilimanjaro expeditions and scenic fly-over safaris are arranged through our certified mainland mountain guide partners. We can curate pre-climb acclimatization stays or relaxing post-climb beach recovery.",
+        action: { label: "Plan Safari & Kilimanjaro", actionType: "SCROLL", target: "tanzania" },
+        intent: "safari_kilimanjaro",
+        confidence: 0.92,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    if (q.includes("tarangire")) {
+      return {
+        replyText: "Tarangire National Park is celebrated for iconic baobab trees and vast elephant herds along the Tarangire River. We arrange chartered flight itineraries directly from Zanzibar.",
+        action: { label: "View Tarangire Safaris", actionType: "SCROLL", target: "tanzania" },
+        intent: "safari_tarangire",
+        confidence: 0.92,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const checkinKeywords = ["check-in", "checkin", "check out", "checkout", "horaires", "muda wa kuingia", "horario", "arrived", "departure", "jam masuk", "waktu masuk", "wymeldowani", "zameldowani", "\u5165\u4F4F", "\u9000\u623F", "\u0627\u0644\u0648\u0635\u0648\u0644", "\u0627\u0644\u0645\u063A\u0627\u062F\u0631\u0629"];
+    if (checkinKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: "Standard check-in is from 14:00 (2:00 PM) and check-out is until 11:00 AM. Flexible early check-in or late checkout can be accommodated based on villa availability.",
+        action: { label: "Book a Villa", actionType: "MODAL", target: "booking_modal" },
+        intent: "faq_checkin_checkout",
+        confidence: 0.94,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const wifiKeywords = ["wifi", "wi-fi", "internet", "speed", "starlink", "network", "connect", "online", "\u0633\u062A\u0627\u0631\u0644\u064A\u0646\u0643", "\u661F\u94FE", "\u65E0\u7EBF"];
+    if (wifiKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: "High-speed Starlink satellite Wi-Fi (150+ Mbps) is complimentary across all private villas, gardens, and dining pavilions, ensuring reliable connectivity for streaming or remote work.",
+        action: { label: "Check Villa Features", actionType: "SCROLL", target: "stay" },
+        intent: "faq_starlink_wifi",
+        confidence: 0.95,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const paymentKeywords = ["payment", "pay", "cancel", "deposit", "card", "visa", "mastercard", "amex", "paiement", "pago", "malipo", "bayar", "pembayaran", "p\u0142atno\u015B", "anulac", "\u0627\u0644\u062F\u0641\u0639", "\u0625\u0644\u063A\u0627\u0621", "\u4ED8\u6B3E", "\u53D6\u6D88"];
+    if (paymentKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: "We accept major credit cards (Visa, MasterCard, Amex), international bank transfers, and mobile payments. Cancellation terms offer full flexibility up to 14 days prior to arrival.",
+        action: { label: "Reserve a Villa", actionType: "MODAL", target: "booking_modal" },
+        intent: "faq_payment_cancellation",
+        confidence: 0.9,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const dolphinKeywords = ["dolphin", "pomboo", "dauphin", "delfin", "delfini", "\u062F\u0644\u0627\u0641\u064A\u0646", "\u062F\u0644\u0641\u064A\u0646", "\u6D77\u8C5A"];
+    if (dolphinKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: "Kizimkazi is world-famous for resident dolphin pods in the Menai Bay Conservation Area. We organize ethical sunrise dolphin safaris directly from our shore.",
+        action: { label: "Explore Dolphin Safaris", actionType: "SCROLL", target: "experiences" },
+        intent: "experience_dolphins",
+        confidence: 0.93,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const dhowKeywords = ["dhow", "jahazi", "dau", "voilier", "velero", "\u0642\u0627\u0631\u0628", "\u0627\u0644\u062F\u0627\u0648", "\u6728\u8239", "\u5E06\u8239"];
+    if (dhowKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: "Glide across the turquoise Indian Ocean aboard a handcrafted wooden dhow while enjoying chilled Champagne and fresh Swahili canap\xE9s as the sun sets.",
+        action: { label: "View Sunset Sailing", actionType: "SCROLL", target: "experiences" },
+        intent: "experience_sunset_dhow",
+        confidence: 0.93,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const candleKeywords = ["candle", "candlelight", "chandelles", "romantique", "mishumaa", "vela", "velas", "\u0634\u0645\u0648\u0639", "\u0634\u0645\u0639", "\u70DB\u5149", "\u015Bwiec"];
+    if (candleKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: "We arrange unforgettable candlelit dinners directly on the soft white sands or elevated coral terraces with torchlight and a custom 5-course seafood tasting menu.",
+        action: { label: "Taste Dining Moments", actionType: "SCROLL", target: "dining" },
+        intent: "dining_candlelight",
+        confidence: 0.88,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const spaKeywords = ["spa", "massage", "masaji", "bien-\xEAtre", "bienestar", "odnowa", "\u062A\u062F\u0644\u064A\u0643", "\u0633\u0628a", "\u6C34\u7597", "\u6309\u6469", "wellness", "therap"];
+    if (spaKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: "Our in-villa wellness treatments feature cold-pressed Zanzibari coconut oils, clove and cinnamon body scrubs, and soothing deep-tissue massages performed on your private ocean deck.",
+        action: { label: "View Wellness & Spa", actionType: "SCROLL", target: "experiences" },
+        intent: "experience_spa",
+        confidence: 0.92,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const stonetownKeywords = ["stone town", "spice", "\xE9pices", "viungo", "especias", "spezie", "\u0627\u0644\u062A\u0648\u0627\u0628\u0644", "\u0627\u0644\u0645\u062F\u064A\u0646\u0629 \u0627\u0644\u062D\u062C\u0631\u064A\u0629", "\u77F3\u5934\u57CE", "\u9999\u6599", "przypraw"];
+    if (stonetownKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: "We organize private cultural journeys with local historians through UNESCO-listed Stone Town and organic spice plantations celebrating vanilla, cloves, and cardamom.",
+        action: { label: "Discover Island Tours", actionType: "SCROLL", target: "experiences" },
+        intent: "experience_stone_town",
+        confidence: 0.92,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const familyKeywords = ["family", "children", "child", "kid", "famille", "enfant", "familia", "ni\xF1o", "watoto", "bambin", "\u0639\u0627\u0626\u0644", "\u0623\u0637\u0641\u0627\u0644", "\u5BB6\u5EAD", "\u513F\u7AE5", "rodzin"];
+    if (familyKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: "Families are warmly welcomed. We offer interconnecting villa sanctuaries, extra beds, tailored kids menus, and professional babysitting upon request.",
+        action: { label: "Explore Family Villas", actionType: "SCROLL", target: "stay" },
+        intent: "faq_family_children",
+        confidence: 0.9,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const honeymoonKeywords = ["honeymoon", "anniversary", "lune de miel", "fungate", "luna de miel", "luna di miele", "\u0639\u0633\u0644", "\u0631\u0648\u0645\u0627\u0646\u0633", "\u871C\u6708", "m\u0142od", "po\u015Blubn"];
+    if (honeymoonKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: "For honeymooners, we prepare complimentary chilled Champagne, fresh tropical floral arrangements, a private sunset dhow sail, and a romantic beach dinner under the stars.",
+        action: { label: "Plan Honeymoon Escape", actionType: "MODAL", target: "booking_modal" },
+        intent: "faq_honeymoon",
+        confidence: 0.91,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const divingKeywords = ["dive", "diving", "snorkel", "snorkeling", "plong\xE9e", "kuzamia", "buceo", "immersi", "\u063A\u0648\u0635", "\u0633\u0646\u0648\u0631\u0643\u0644", "\u6F5C\u6C34", "\u6D6E\u6F5C", "nurkowan", "reef", "coral"];
+    if (divingKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: "Partnering with certified PADI dive masters, we take you to the pristine reefs of Mnemba Atoll and Kizimkazi to observe sea turtles, manta rays, and vibrant marine life.",
+        action: { label: "Explore Marine Safaris", actionType: "SCROLL", target: "experiences" },
+        intent: "experience_diving",
+        confidence: 0.92,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const poolKeywords = ["pool", "plunge", "swim", "beach", "ocean", "piscine", "bwawa", "piscina", "pantai", "kolam", "basen", "\u0627\u0644\u0645\u0633\u0628\u062D", "\u0627\u0644\u0634\u0627\u0637\u0626", "\u6CF3\u6C60", "\u6C99\u6EE9"];
+    if (poolKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: "Every single one of our 8 luxury sanctuaries features its own private freshwater plunge pool, sun loungers, and direct private pathway access to the pristine shores of the Indian Ocean.",
+        action: { label: "View Private Villas", actionType: "SCROLL", target: "stay" },
+        intent: "faq_pools_beach",
+        confidence: 0.89,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const villaKeywords = ["villa", "rate", "price", "stay", "room", "availab", "suite", "bungalow", "prix", "chambre", "bei", "chumba", "precio", "tarifa", "\u0641\u0644\u0644", "\u0641\u064A\u0644\u0627", "\u0633\u0639\u0631", "\u522B\u5885", "\u4EF7\u683C"];
+    if (villaKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: "We feature 8 handcrafted luxury sanctuaries including oceanfront pool villas and secluded garden bungalows. Would you like to check dates and availability?",
+        action: { label: "Check Villa Availability", actionType: "MODAL", target: "booking_modal" },
+        intent: "faq_villas_rates",
+        confidence: 0.86,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const transferKeywords = ["airport", "transfer", "location", "where", "car", "distance", "arrive", "driver", "taxi", "shuttle", "a\xE9roport", "usafiri", "aeropuerto", "\u0645\u0637\u0627\u0631", "\u63A5\u9001"];
+    if (transferKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: "We provide private VIP meet-and-greet and chauffeur shuttle transfers from Abeid Amani Karume International Airport (ZNZ) directly to our sanctuary in Kizimkazi (approx. 55 minutes).",
+        action: { label: "View Transfer Details", actionType: "SCROLL", target: "shuttle" },
+        intent: "faq_transfers",
+        confidence: 0.88,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const diningKeywords = ["din", "food", "restaurant", "chef", "breakfast", "menu", "lunch", "eat", "drink", "cuisine", "nourriture", "chakula", "comida", "\u0645\u0637\u0639\u0645", "\u9910\u5385"];
+    if (diningKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: "Our gastronomic philosophy embraces organic garden-to-table produce and line-caught seafood with authentic Swahili and fine international dining.",
+        action: { label: "Taste Dining & Garden Menu", actionType: "SCROLL", target: "dining" },
+        intent: "faq_dining",
+        confidence: 0.86,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    return {
+      replyText: fallbackHandoff,
+      intent: "unrecognized_visitor_inquiry",
+      confidence: 0.4,
+      knowledge_source: "NONE",
+      decision: "HANDOFF_TO_HUMAN",
+      handoffReason: "Query contains unfamiliar, highly specific, or unverified inquiry requirements."
+    };
+  }
+  /**
+   * Generates a suggested reply for the human admin when HUMAN_ACTIVE is set.
+   */
+  generateSuggestedReplyForAdmin(lastVisitorMessage, _history) {
+    const q = lastVisitorMessage.toLowerCase();
+    if (q.includes("dinner") && (q.includes("candlelight") || q.includes("beach"))) {
+      return "Yes, we can check availability for a private candlelight dinner on the beach. May I confirm the preferred date, time, and any specific dietary preferences for your party?";
+    }
+    if (q.includes("transfer") || q.includes("airport") || q.includes("pickup")) {
+      return "Yes, private VIP airport transfers can be arranged subject to availability. May I confirm your flight number and expected arrival date?";
+    }
+    if (q.includes("safari") || q.includes("serengeti") || q.includes("ngorongoro")) {
+      return "We would be delighted to customize your Tanzania safari fly-in itinerary. How many nights would you like to dedicate to the game drives, and do you have a preferred travel month?";
+    }
+    if (q.includes("villa") || q.includes("room") || q.includes("book") || q.includes("stay")) {
+      return "Jambo! I would be pleased to review our direct sanctuary availability for your requested dates. Could you kindly share your preferred check-in and check-out schedule?";
+    }
+    return "Jambo! Thank you for contacting our concierge team directly. I am reviewing the details of your inquiry right now and will assist you immediately.";
+  }
+};
+var supportAiEngine = new SupportAiEngine();
+
+// server/supportApiRoutes.ts
+var supportRouter = Router();
+function toStr(val) {
+  if (Array.isArray(val)) return String(val[0] || "");
+  return typeof val === "string" ? val : val !== void 0 && val !== null ? String(val) : "";
+}
+supportRouter.post("/conversation", async (req, res) => {
+  try {
+    const { visitor_id, session_id, language, current_page, booking_id, metadata } = req.body;
+    if (!visitor_id || !session_id) {
+      return res.status(400).json({ success: false, error: "visitor_id and session_id are required" });
+    }
+    let conv = await supportRepository.getActiveConversationByVisitor(toStr(visitor_id));
+    if (!conv) {
+      conv = await supportRepository.createConversation({
+        visitor_id: toStr(visitor_id),
+        session_id: toStr(session_id),
+        language: toStr(language) || "en",
+        current_page: toStr(current_page) || "/",
+        booking_id: booking_id ? toStr(booking_id) : null,
+        metadata: metadata || null,
+        status: "AI_ACTIVE"
+      });
+    } else if (booking_id || metadata) {
+      conv = await supportRepository.updateConversation(conv.id, {
+        booking_id: booking_id ? toStr(booking_id) : conv.booking_id,
+        metadata: metadata ? { ...conv.metadata, ...metadata } : conv.metadata,
+        language: language ? toStr(language) : conv.language,
+        current_page: current_page ? toStr(current_page) : conv.current_page
+      });
+    }
+    const messages = await supportRepository.getMessages(conv.id);
+    res.json({
+      success: true,
+      data: {
+        conversation: conv,
+        messages
+      }
+    });
+  } catch (err) {
+    console.error("Error initializing support conversation:", err.message);
+    res.status(500).json({ success: false, error: "Failed to initialize conversation" });
+  }
+});
+supportRouter.get("/conversation/:id", async (req, res) => {
+  try {
+    const id = toStr(req.params.id);
+    const visitor_id = toStr(req.query.visitor_id) || toStr(req.headers["x-visitor-id"]);
+    const conv = await supportRepository.getConversationById(id);
+    if (!conv) {
+      return res.status(404).json({ success: false, error: "Conversation not found" });
+    }
+    if (visitor_id && conv.visitor_id !== visitor_id) {
+      return res.status(403).json({ success: false, error: "Access denied to this conversation" });
+    }
+    const messages = await supportRepository.getMessages(id);
+    res.json({ success: true, data: { conversation: conv, messages } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to retrieve conversation" });
+  }
+});
+supportRouter.post("/conversation/:id/messages", async (req, res) => {
+  try {
+    const id = toStr(req.params.id);
+    const { message, visitor_id, metadata } = req.body;
+    const msgText = toStr(message).trim();
+    if (!msgText) {
+      return res.status(400).json({ success: false, error: "Message cannot be empty" });
+    }
+    const conv = await supportRepository.getConversationById(id);
+    if (!conv) {
+      return res.status(404).json({ success: false, error: "Conversation not found" });
+    }
+    const vId = toStr(visitor_id);
+    if (vId && conv.visitor_id !== vId) {
+      return res.status(403).json({ success: false, error: "Access denied to this conversation" });
+    }
+    const userMsg = await supportRepository.createMessage({
+      conversation_id: id,
+      sender_type: "VISITOR",
+      sender_id: conv.visitor_id,
+      message: msgText,
+      message_type: "TEXT",
+      metadata
+    });
+    if (conv.status === "HUMAN_ACTIVE") {
+      return res.json({
+        success: true,
+        data: {
+          userMessage: userMsg,
+          botMessage: null,
+          conversationStatus: "HUMAN_ACTIVE"
+        }
+      });
+    }
+    const evaluation = await supportAiEngine.evaluateQuery(
+      msgText,
+      conv.language,
+      conv.current_page
+    );
+    await supportRepository.logAiEvent({
+      conversation_id: id,
+      message_id: userMsg.id,
+      intent: evaluation.intent,
+      confidence: evaluation.confidence,
+      knowledge_source: evaluation.knowledge_source,
+      decision: evaluation.decision
+    });
+    let botMsg = null;
+    let nextStatus = conv.status;
+    if (evaluation.decision === "HANDOFF_TO_HUMAN") {
+      nextStatus = "WAITING_HUMAN";
+      await supportRepository.updateConversation(id, {
+        status: "WAITING_HUMAN"
+      });
+      botMsg = await supportRepository.createMessage({
+        conversation_id: id,
+        sender_type: "AI",
+        sender_id: "juma_concierge_ai",
+        message: evaluation.replyText,
+        message_type: "TEXT",
+        ai_confidence: evaluation.confidence,
+        metadata: {
+          handoffReason: evaluation.handoffReason
+        }
+      });
+    } else {
+      botMsg = await supportRepository.createMessage({
+        conversation_id: id,
+        sender_type: "AI",
+        sender_id: "juma_concierge_ai",
+        message: evaluation.replyText,
+        message_type: evaluation.action ? "ACTION" : "TEXT",
+        ai_confidence: evaluation.confidence,
+        metadata: {
+          action: evaluation.action
+        }
+      });
+    }
+    res.json({
+      success: true,
+      data: {
+        userMessage: userMsg,
+        botMessage: botMsg,
+        conversationStatus: nextStatus
+      }
+    });
+  } catch (err) {
+    console.error("Error posting visitor support message:", err.message);
+    res.status(500).json({ success: false, error: "Failed to process support message" });
+  }
+});
+supportRouter.get("/conversation/:id/poll", async (req, res) => {
+  try {
+    const id = toStr(req.params.id);
+    const after = toStr(req.query.after);
+    const visitor_id = toStr(req.query.visitor_id) || toStr(req.headers["x-visitor-id"]);
+    const conv = await supportRepository.getConversationById(id);
+    if (!conv) {
+      return res.status(404).json({ success: false, error: "Conversation not found" });
+    }
+    if (visitor_id && conv.visitor_id !== visitor_id) {
+      return res.status(403).json({ success: false, error: "Access denied" });
+    }
+    let messages = await supportRepository.getMessages(id);
+    if (after) {
+      const afterTime = new Date(after).getTime();
+      messages = messages.filter((m) => new Date(m.created_at).getTime() > afterTime);
+    }
+    res.json({
+      success: true,
+      data: {
+        status: conv.status,
+        messages
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to poll messages" });
+  }
+});
+supportRouter.get("/admin/conversations", authenticateAdmin, async (req, res) => {
+  try {
+    const status = toStr(req.query.status);
+    const search = toStr(req.query.search);
+    const limit = req.query.limit ? parseInt(toStr(req.query.limit), 10) : void 0;
+    const conversations = await supportRepository.getConversations({
+      status: status || void 0,
+      search: search || void 0,
+      limit
+    });
+    const allConvs = await supportRepository.getConversations();
+    const counts = {
+      all: allConvs.length,
+      waiting: allConvs.filter((c) => c.status === "WAITING_HUMAN").length,
+      aiActive: allConvs.filter((c) => c.status === "AI_ACTIVE").length,
+      humanActive: allConvs.filter((c) => c.status === "HUMAN_ACTIVE").length,
+      resolved: allConvs.filter((c) => c.status === "RESOLVED").length,
+      closed: allConvs.filter((c) => c.status === "CLOSED").length
+    };
+    res.json({
+      success: true,
+      data: {
+        conversations,
+        counts
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to fetch conversations" });
+  }
+});
+supportRouter.get("/admin/conversations/:id", authenticateAdmin, async (req, res) => {
+  try {
+    const id = toStr(req.params.id);
+    const conv = await supportRepository.getConversationById(id);
+    if (!conv) {
+      return res.status(404).json({ success: false, error: "Conversation not found" });
+    }
+    const messages = await supportRepository.getMessages(id);
+    const aiEvents = await supportRepository.getAiEvents(id);
+    res.json({
+      success: true,
+      data: {
+        conversation: conv,
+        messages,
+        aiEvents
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to retrieve conversation details" });
+  }
+});
+supportRouter.post("/admin/conversations/:id/messages", authenticateAdmin, async (req, res) => {
+  try {
+    const id = toStr(req.params.id);
+    const { message, action, suggestedByAi } = req.body;
+    const msgText = toStr(message).trim();
+    if (!msgText) {
+      return res.status(400).json({ success: false, error: "Message cannot be empty" });
+    }
+    const conv = await supportRepository.getConversationById(id);
+    if (!conv) {
+      return res.status(404).json({ success: false, error: "Conversation not found" });
+    }
+    const adminEmail = req.user?.email || "admin@zanzirangihouse.com";
+    const newMsg = await supportRepository.createMessage({
+      conversation_id: id,
+      sender_type: "ADMIN",
+      sender_id: adminEmail,
+      message: msgText,
+      message_type: action ? "ACTION" : "TEXT",
+      metadata: {
+        action,
+        suggestedByAi: !!suggestedByAi
+      }
+    });
+    const updatedConv = await supportRepository.updateConversation(id, {
+      status: "HUMAN_ACTIVE",
+      assigned_admin_id: adminEmail
+    });
+    res.json({
+      success: true,
+      data: {
+        message: newMsg,
+        conversation: updatedConv
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to send admin message" });
+  }
+});
+supportRouter.patch("/admin/conversations/:id/status", authenticateAdmin, async (req, res) => {
+  try {
+    const id = toStr(req.params.id);
+    const status = toStr(req.body.status);
+    const validStatuses = [
+      "AI_ACTIVE",
+      "WAITING_HUMAN",
+      "HUMAN_ACTIVE",
+      "WAITING_FOR_VISITOR",
+      "RESOLVED",
+      "CLOSED"
+    ];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ success: false, error: `Invalid status: ${status}` });
+    }
+    const adminEmail = req.user?.email || "admin@zanzirangihouse.com";
+    const updates = { status };
+    if (status === "HUMAN_ACTIVE") {
+      updates.assigned_admin_id = adminEmail;
+    } else if (status === "AI_ACTIVE") {
+      updates.assigned_admin_id = null;
+    }
+    const updated = await supportRepository.updateConversation(id, updates);
+    if (!updated) {
+      return res.status(404).json({ success: false, error: "Conversation not found" });
+    }
+    let sysText = "";
+    if (status === "HUMAN_ACTIVE") {
+      sysText = `Concierge staff (${adminEmail}) has taken over the conversation. AI auto-replies are paused.`;
+    } else if (status === "AI_ACTIVE") {
+      sysText = `Conversation returned to AI Concierge (Juma).`;
+    } else if (status === "RESOLVED") {
+      sysText = `Conversation marked as resolved by ${adminEmail}.`;
+    } else if (status === "CLOSED") {
+      sysText = `Conversation closed.`;
+    }
+    if (sysText) {
+      await supportRepository.createMessage({
+        conversation_id: id,
+        sender_type: "SYSTEM",
+        sender_id: "system",
+        message: sysText,
+        message_type: "SYSTEM_EVENT"
+      });
+    }
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to update conversation status" });
+  }
+});
+supportRouter.get("/admin/conversations/:id/suggested-reply", authenticateAdmin, async (req, res) => {
+  try {
+    const id = toStr(req.params.id);
+    const messages = await supportRepository.getMessages(id);
+    const visitorMsgs = messages.filter((m) => m.sender_type === "VISITOR");
+    const lastVisitorMsg = visitorMsgs[visitorMsgs.length - 1]?.message || "";
+    const history = messages.map((m) => ({
+      sender: m.sender_type,
+      text: m.message
+    }));
+    const suggestedReply = supportAiEngine.generateSuggestedReplyForAdmin(lastVisitorMsg, history);
+    res.json({
+      success: true,
+      data: {
+        suggestedReply,
+        lastVisitorMessage: lastVisitorMsg
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to generate suggested reply" });
+  }
+});
+supportRouter.get("/admin/knowledge-base", authenticateAdmin, async (req, res) => {
+  try {
+    const category = toStr(req.query.category);
+    const language = toStr(req.query.language);
+    const status = toStr(req.query.status);
+    const search = toStr(req.query.search);
+    const items = await supportRepository.getKnowledgeBase({
+      category: category || void 0,
+      language: language || void 0,
+      status: status || void 0,
+      search: search || void 0
+    });
+    res.json({ success: true, data: items });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to fetch knowledge base" });
+  }
+});
+supportRouter.post("/admin/knowledge-base", authenticateAdmin, async (req, res) => {
+  try {
+    const { question, answer, category, language, status, source } = req.body;
+    const qText = toStr(question).trim();
+    const aText = toStr(answer).trim();
+    if (!qText || !aText) {
+      return res.status(400).json({ success: false, error: "Question and answer are required" });
+    }
+    const saved = await supportRepository.saveKnowledgeItem({
+      question: qText,
+      answer: aText,
+      category: toStr(category) || "General",
+      language: toStr(language) || "en",
+      status: toStr(status) || "PUBLISHED",
+      source: toStr(source) || "MANUAL"
+    });
+    res.json({ success: true, data: saved });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to save knowledge item" });
+  }
+});
+supportRouter.put("/admin/knowledge-base/:id", authenticateAdmin, async (req, res) => {
+  try {
+    const id = toStr(req.params.id);
+    const { question, answer, category, language, status } = req.body;
+    const saved = await supportRepository.saveKnowledgeItem({
+      id,
+      question: toStr(question),
+      answer: toStr(answer),
+      category: toStr(category),
+      language: toStr(language),
+      status: toStr(status)
+    });
+    res.json({ success: true, data: saved });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to update knowledge item" });
+  }
+});
+supportRouter.delete("/admin/knowledge-base/:id", authenticateAdmin, async (req, res) => {
+  try {
+    const id = toStr(req.params.id);
+    const deleted = await supportRepository.deleteKnowledgeItem(id);
+    res.json({ success: deleted });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to delete knowledge item" });
+  }
+});
+supportRouter.get("/admin/analytics", authenticateAdmin, async (req, res) => {
+  try {
+    const analytics = await supportRepository.getAnalytics();
+    res.json({ success: true, data: analytics });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to fetch support analytics" });
+  }
+});
+
+// server/api.ts
 var apiApp = express();
 apiApp.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "SAMEORIGIN");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   if (env.NODE_ENV === "production") {
     res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   }
@@ -3212,13 +4402,29 @@ apiApp.get("/health", async (_req, res) => {
   const dbHealth = await getDatabaseAdapter().healthCheck();
   res.json({
     status: "ok",
+    database: {
+      provider: dbHealth.provider,
+      connected: dbHealth.connected
+    },
     service: "Zanzirangi House CMS Engine",
-    environment: env.NODE_ENV,
-    database: dbHealth.connected ? "connected" : "error",
-    provider: dbHealth.provider,
     version: env.APP_VERSION,
     timestamp: (/* @__PURE__ */ new Date()).toISOString()
   });
+});
+apiApp.get("/health/database", authenticateAdmin, async (_req, res) => {
+  try {
+    const { testDatabaseConnection: testDatabaseConnection2 } = await Promise.resolve().then(() => (init_connection(), connection_exports));
+    const diagnostic = await testDatabaseConnection2();
+    res.json({
+      status: diagnostic.success ? "ok" : "degraded",
+      diagnostic
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: "error",
+      error: err.message
+    });
+  }
 });
 apiApp.post("/auth/login", loginRateLimiter, async (req, res) => {
   try {
@@ -3419,7 +4625,7 @@ apiApp.post("/admin/villas", authenticateAdmin, async (req, res) => {
 });
 apiApp.put("/admin/villas/:id", authenticateAdmin, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const existing = await villasRepository.getById(id);
     if (!existing) {
       res.status(404).json({ success: false, error: "Villa not found." });
@@ -3434,7 +4640,7 @@ apiApp.put("/admin/villas/:id", authenticateAdmin, async (req, res) => {
 });
 apiApp.delete("/admin/villas/:id", authenticateAdmin, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const deleted = await villasRepository.delete(id, req.user?.email || "admin");
     if (!deleted) {
       res.status(404).json({ success: false, error: "Villa not found." });
@@ -3485,7 +4691,7 @@ apiApp.put("/admin/gallery/:id", authenticateAdmin, async (req, res) => {
 });
 apiApp.delete("/admin/gallery/:id", authenticateAdmin, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const deleted = await galleryRepository.delete(id, req.user?.email || "admin");
     if (!deleted) {
       res.status(404).json({ success: false, error: "Gallery item not found." });
@@ -3561,7 +4767,7 @@ apiApp.put("/admin/testimonials/:id", authenticateAdmin, async (req, res) => {
 });
 apiApp.delete("/admin/testimonials/:id", authenticateAdmin, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const deleted = await testimonialsRepository.delete(id, req.user?.email || "admin");
     if (!deleted) {
       res.status(404).json({ success: false, error: "Testimonial not found." });
@@ -3618,6 +4824,7 @@ apiApp.post("/admin/media", authenticateAdmin, async (req, res) => {
       ...req.body,
       id: req.body.id || `med-${Date.now()}`,
       createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      uploadedAt: (/* @__PURE__ */ new Date()).toISOString(),
       usageCount: 0
     };
     const saved = await mediaRepository.save(newMedia, req.user?.email || "admin");
@@ -3628,7 +4835,7 @@ apiApp.post("/admin/media", authenticateAdmin, async (req, res) => {
 });
 apiApp.delete("/admin/media/:id", authenticateAdmin, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const deleted = await mediaRepository.delete(id, req.user?.email || "admin");
     if (!deleted) {
       res.status(404).json({ success: false, error: "Media asset not found." });
@@ -3658,7 +4865,8 @@ apiApp.post("/admin/media/upload", authenticateAdmin, async (req, res) => {
       altText: altText || uploadRes.filename,
       caption: "",
       usageCount: 0,
-      createdAt: (/* @__PURE__ */ new Date()).toISOString()
+      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      uploadedAt: (/* @__PURE__ */ new Date()).toISOString()
     };
     const saved = await mediaRepository.save(assetRecord, req.user?.email || "admin");
     res.json({ success: true, data: saved, message: "File uploaded and registered successfully." });
@@ -3694,7 +4902,7 @@ apiApp.get("/admin/dashboard-stats", authenticateAdmin, async (_req, res) => {
     res.status(500).json({ success: false, error: "Failed to fetch dashboard metrics." });
   }
 });
-apiApp.get("/admin/audit-logs", authenticateAdmin, async (req, res) => {
+apiApp.get(["/admin/audit-logs", "/admin/audit"], authenticateAdmin, async (req, res) => {
   try {
     const limit = parseInt(String(req.query.limit || "50"), 10);
     const logs = await auditRepository.getLogs(limit);
@@ -3703,35 +4911,36 @@ apiApp.get("/admin/audit-logs", authenticateAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to fetch audit logs." });
   }
 });
+apiApp.use("/support", supportRouter);
 
 // server/index.ts
 init_env();
 validateEnvironment();
 var __filename2 = fileURLToPath2(import.meta.url);
-var __dirname2 = path6.dirname(__filename2);
+var __dirname2 = path5.dirname(__filename2);
 var app = express2();
 getDatabaseAdapter().connect().then(() => {
   console.log(`\u{1F680} Database engine initialized [Provider: ${env.DATABASE_PROVIDER}]`);
 }).catch((err) => {
   console.error("\u274C Failed to initialize database on startup:", err.message);
   if (env.DATABASE_PROVIDER === "mysql") {
-    console.warn("\u26A0\uFE0F Hostinger MySQL connection unreachable. Falling back to JSON database engine to maintain zero downtime...");
-    fallbackToJsonAdapter().connect().then(() => {
-      console.log("\u2705 Fallback JSON database engine active and operational.");
-    }).catch((jsonErr) => {
-      console.error("\u274C Fallback JSON database failed:", jsonErr.message);
-    });
+    console.error("\u{1F4A5} Critical Database Failure: Hostinger MySQL unreachable. Silent fallback to JSON is strictly prohibited.");
+    if (env.NODE_ENV === "production") {
+      console.error("\u{1F4A5} Terminating production process to prevent inconsistent data state.");
+      process.exit(1);
+    }
   }
 });
 app.use("/uploads", express2.static(mediaStorage.getStorageDirectory()));
 app.use("/api", apiApp);
-var distPath = fs5.existsSync(path6.resolve(__dirname2, "../dist")) ? path6.resolve(__dirname2, "../dist") : path6.resolve(__dirname2, "./dist");
+var distPath = fs4.existsSync(path5.resolve(__dirname2, "../dist")) ? path5.resolve(__dirname2, "../dist") : path5.resolve(__dirname2, "./dist");
 app.use(express2.static(distPath));
-app.get("*", (req, res, next) => {
+app.use((req, res, next) => {
+  if (req.method !== "GET") return next();
   if (req.path.startsWith("/api") || req.path.startsWith("/uploads")) {
     return next();
   }
-  const indexPath = path6.join(distPath, "index.html");
+  const indexPath = path5.join(distPath, "index.html");
   res.sendFile(indexPath, (err) => {
     if (err) {
       res.status(404).send("Zanzirangi House - Frontend distribution not built yet. Please run `npm run build`.");

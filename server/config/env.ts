@@ -1,8 +1,9 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Load environment variables from .env file if available
+// Load environment variables from .env and .env.local if available
 dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true });
 
 export interface ServerEnv {
   NODE_ENV: 'development' | 'production' | 'test';
@@ -43,7 +44,9 @@ export const env: ServerEnv = {
   APP_URL: process.env.APP_URL || (nodeEnv === 'production' ? 'https://zanzirangihouse.com' : 'http://localhost:3000'),
   PUBLIC_URL: process.env.PUBLIC_URL || (nodeEnv === 'production' ? 'https://zanzirangihouse.com' : 'http://localhost:3000'),
   API_URL: process.env.API_URL || (nodeEnv === 'production' ? 'https://zanzirangihouse.com/api' : '/api'),
-  DATABASE_PROVIDER: (process.env.DATABASE_PROVIDER || 'json') as 'json' | 'mysql',
+  DATABASE_PROVIDER: (nodeEnv === 'production'
+    ? 'mysql'
+    : (process.env.FORCE_JSON_DB === 'true' ? 'json' : (process.env.DATABASE_PROVIDER || 'mysql'))) as 'json' | 'mysql',
   MYSQL_HOST: process.env.DB_HOST || process.env.MYSQL_HOST,
   MYSQL_PORT: parseInt(process.env.DB_PORT || process.env.MYSQL_PORT || '3306', 10),
   MYSQL_DATABASE: process.env.DB_NAME || process.env.MYSQL_DATABASE,
@@ -66,28 +69,29 @@ export const env: ServerEnv = {
  */
 export function validateEnvironment(): void {
   if (env.NODE_ENV === 'production') {
-    if (!env.JWT_SECRET || env.JWT_SECRET === 'zanzirangi_dev_jwt_secret_2026') {
-      console.warn('⚠️ [Hostinger Notice] Using default JWT_SECRET. Consider setting a custom JWT_SECRET in Hostinger Environment Variables.');
-      if (!env.JWT_SECRET) {
-        env.JWT_SECRET = 'zanzirangi_prod_secure_secret_fallback_2026';
-      }
+    if (env.DATABASE_PROVIDER !== 'mysql') {
+      console.error('💥 [Hostinger DB Critical Error] Production environment strictly requires DATABASE_PROVIDER=mysql. Silent fallback to JSON is strictly prohibited.');
+      throw new Error('Production environment strictly requires DATABASE_PROVIDER=mysql. Silent fallback to JSON is strictly prohibited.');
     }
 
-    if (env.DATABASE_PROVIDER === 'mysql') {
-      const missingDbVars: string[] = [];
-      if (!env.MYSQL_HOST) missingDbVars.push('MYSQL_HOST');
-      if (!env.MYSQL_DATABASE) missingDbVars.push('MYSQL_DATABASE');
-      if (!env.MYSQL_USER) missingDbVars.push('MYSQL_USER');
-      if (!env.MYSQL_PASSWORD) missingDbVars.push('MYSQL_PASSWORD');
+    if (!env.JWT_SECRET || env.JWT_SECRET === 'zanzirangi_dev_jwt_secret_2026' || env.JWT_SECRET.length < 32) {
+      console.error('💥 [Hostinger Auth Critical Error] JWT_SECRET must be set to a random value of at least 32 characters in Hostinger Environment Variables.');
+      throw new Error('Missing or weak JWT_SECRET in production');
+    }
 
-      if (missingDbVars.length > 0) {
-        console.warn(`⚠️ [Hostinger DB Notice] Missing MySQL variables: ${missingDbVars.join(', ')}. Gracefully falling back to JSON database to keep website live.`);
-        env.DATABASE_PROVIDER = 'json';
-      }
+    const missingDbVars: string[] = [];
+    if (!env.MYSQL_HOST) missingDbVars.push('DB_HOST / MYSQL_HOST');
+    if (!env.MYSQL_DATABASE) missingDbVars.push('DB_NAME / MYSQL_DATABASE');
+    if (!env.MYSQL_USER) missingDbVars.push('DB_USER / MYSQL_USER');
+    if (!env.MYSQL_PASSWORD) missingDbVars.push('DB_PASSWORD / MYSQL_PASSWORD');
+
+    if (missingDbVars.length > 0) {
+      console.error(`💥 [Hostinger DB Critical Error] Missing MySQL variables: ${missingDbVars.join(', ')}. Silent fallback to JSON is strictly prohibited.`);
+      throw new Error(`Missing required MySQL environment variables: ${missingDbVars.join(', ')}`);
     }
 
     console.log(`🛡️ Production environment validated successfully [Provider: ${env.DATABASE_PROVIDER}, URL: ${env.APP_URL}]`);
   } else {
-    console.log(`🔧 Development environment loaded [Provider: ${env.DATABASE_PROVIDER}, Host: http://localhost:${env.PORT}]`);
+    console.log(`🔧 Environment loaded [Provider: ${env.DATABASE_PROVIDER}, Host: http://localhost:${env.PORT}]`);
   }
 }

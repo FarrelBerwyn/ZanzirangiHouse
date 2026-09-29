@@ -9,3 +9,7 @@ coverage/
 uploads/
 backups/
 *.zip
+
+# Local JSON DB (contains user password hashes)
+server/data/db.json
+server/data/db.json.backup

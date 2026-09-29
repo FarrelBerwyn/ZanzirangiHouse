@@ -271,8 +271,8 @@ async function runAllTests() {
 
     // 17. Database Health & Reconnect
     const healthRes = await request('/health');
-    const healthPass = healthRes.status === 200 && healthRes.data?.database === 'connected';
-    logResult(17, 'Database Health & Pool Connection', healthPass, `provider: ${healthRes.data?.provider}`);
+    const healthPass = healthRes.status === 200 && (healthRes.data?.database?.connected === true || healthRes.data?.database === 'connected');
+    logResult(17, 'Database Health & Pool Connection', healthPass, `provider: ${healthRes.data?.database?.provider || healthRes.data?.provider}`);
 
     // 18. Migration from JSON -> MySQL Script Verification
     const migrationScriptExists = fs.existsSync(path.resolve(process.cwd(), 'scripts/migrate-json-to-mysql.ts'));

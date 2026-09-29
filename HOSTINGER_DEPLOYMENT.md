@@ -127,15 +127,15 @@ Open your web browser and test each of the following URLs:
    API_URL=https://zanzirangihouse.com/api
    CORS_ORIGIN=https://zanzirangihouse.com
    DATABASE_PROVIDER=mysql
-   MYSQL_HOST=127.0.0.1
-   MYSQL_PORT=3306
-   MYSQL_DATABASE=u123456789_zanzirangi
-   MYSQL_USER=u123456789_admin
-   MYSQL_PASSWORD=your_hostinger_db_password
-   JWT_SECRET=zanzirangi_prod_secret_crypto_key_2026
+   DB_HOST=localhost
+   DB_PORT=3306
+   DB_NAME=u170555096_Zanzirangi
+   DB_USER=u170555096_admindatabase
+   DB_PASSWORD=<your_hostinger_db_password>
+   JWT_SECRET=<generate_secure_random_key>
    JWT_EXPIRES_IN=7d
    ADMIN_EMAIL=info@zanzirangihouse.com
-   MEDIA_STORAGE_PATH=/home/u123456789/persistent/uploads
+   MEDIA_STORAGE_PATH=./uploads
    ```
 4. Click **Save** and **Restart Application**.
 
@@ -155,5 +155,5 @@ When `server.js` boots with `DATABASE_PROVIDER=mysql`:
   - If using Hostinger LiteSpeed/Apache with Node running in the background, `.htaccess` contains `mod_proxy` rules to route `/api/*` and `/uploads/*` directly to `http://127.0.0.1:3000/`.
 - **Admin Access**:
   - Navigate directly to `https://zanzirangihouse.com/admin`
-  - Default credentials: `info@zanzirangihouse.com` / `Zanzirangi2026!`
+  - Authenticate using the configured admin email and secure password set via environment variables.
 

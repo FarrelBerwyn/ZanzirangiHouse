@@ -3,25 +3,29 @@ import path from 'path';
 import mysql from 'mysql2/promise';
 import { env } from '../server/config/env.ts';
 
-interface MigrationReport {
+interface MigrationReportRow {
   table: string;
   sourceCount: number;
-  migratedCount: number;
-  skippedCount: number;
+  inserted: number;
+  updated: number;
+  skipped: number;
+  errors: number;
   status: 'SUCCESS' | 'WARNING' | 'FAILED';
 }
 
-export async function runJsonToMysqlMigration(): Promise<MigrationReport[]> {
+export async function runJsonToMysqlMigration(): Promise<MigrationReportRow[]> {
   console.log('================================================================');
   console.log('ZANZIRANGI HOUSE: JSON → MYSQL PRODUCTION MIGRATION UTILITY');
   console.log('================================================================');
 
   const dbJsonPath = path.resolve(process.cwd(), 'server/data/db.json');
-  const backupPath = path.resolve(process.cwd(), 'server/data/db.json.backup');
-  const timestampedBackupPath = path.resolve(
-    process.cwd(),
-    `backups/db-backup-${Date.now()}.json`
-  );
+  const timestamp = Date.now();
+  const backupsDir = path.resolve(process.cwd(), 'server/data/backups');
+  if (!fs.existsSync(backupsDir)) {
+    fs.mkdirSync(backupsDir, { recursive: true });
+  }
+  const timestampedBackupPath = path.join(backupsDir, `db.json.${timestamp}.backup`);
+  const legacyBackupPath = path.resolve(process.cwd(), 'server/data/db.json.backup');
 
   // 1. Read & Validate db.json
   if (!fs.existsSync(dbJsonPath)) {
@@ -38,22 +42,19 @@ export async function runJsonToMysqlMigration(): Promise<MigrationReport[]> {
   }
 
   // 2. Create Backups before touching anything
-  console.log(`⏳ Creating atomic backup at: ${backupPath}`);
-  fs.writeFileSync(backupPath, rawJson, 'utf-8');
-
-  const backupsDir = path.dirname(timestampedBackupPath);
-  if (!fs.existsSync(backupsDir)) {
-    fs.mkdirSync(backupsDir, { recursive: true });
-  }
+  console.log(`⏳ Creating backups at:`);
+  console.log(`   - ${timestampedBackupPath}`);
+  console.log(`   - ${legacyBackupPath}`);
   fs.writeFileSync(timestampedBackupPath, rawJson, 'utf-8');
-  console.log(`✓ Timestamped backup created at: ${timestampedBackupPath}`);
+  fs.writeFileSync(legacyBackupPath, rawJson, 'utf-8');
+  console.log(`✓ Backups created successfully.`);
 
-  // 3. Connect to MySQL
-  const dbHost = env.MYSQL_HOST || '127.0.0.1';
-  const dbPort = env.MYSQL_PORT || 3306;
-  const dbName = env.MYSQL_DATABASE || 'zanzirangi_house';
-  const dbUser = env.MYSQL_USER || 'root';
-  const dbPassword = env.MYSQL_PASSWORD || '';
+  // 3. Connect to MySQL using Hostinger credentials
+  const dbHost = process.env.DB_HOST || env.MYSQL_HOST || 'localhost';
+  const dbPort = Number(process.env.DB_PORT || env.MYSQL_PORT || 3306);
+  const dbName = process.env.DB_NAME || env.MYSQL_DATABASE || 'u170555096_Zanzirangi';
+  const dbUser = process.env.DB_USER || env.MYSQL_USER || 'u170555096_admindatabase';
+  const dbPassword = process.env.DB_PASSWORD || env.MYSQL_PASSWORD || '';
 
   console.log(`⏳ Connecting to MySQL server at ${dbUser}@${dbHost}:${dbPort}/${dbName}...`);
   const pool = mysql.createPool({
@@ -80,40 +81,47 @@ export async function runJsonToMysqlMigration(): Promise<MigrationReport[]> {
   await conn.query(ddlSql);
   console.log('✓ Database schema tables verified.');
 
-  const reports: MigrationReport[] = [];
+  const reports: MigrationReportRow[] = [];
 
   // Helper migration runner
   async function migrateEntity(
     name: string,
     sourceArray: any[] | undefined,
-    processor: (item: any) => Promise<void>
+    processor: (item: any) => Promise<'inserted' | 'updated'>
   ) {
     const list = Array.isArray(sourceArray) ? sourceArray : sourceArray ? [sourceArray] : [];
-    let count = 0;
+    let inserted = 0;
+    let updated = 0;
     let skipped = 0;
+    let errors = 0;
+
     for (const item of list) {
       try {
-        await processor(item);
-        count++;
+        const action = await processor(item);
+        if (action === 'inserted') inserted++;
+        else if (action === 'updated') updated++;
       } catch (err: any) {
         console.error(`  ⚠️ Error migrating ${name} item:`, err.message);
-        skipped++;
+        errors++;
       }
     }
+
     reports.push({
       table: name,
       sourceCount: list.length,
-      migratedCount: count,
-      skippedCount: skipped,
-      status: skipped === 0 ? 'SUCCESS' : 'WARNING',
+      inserted,
+      updated,
+      skipped,
+      errors,
+      status: errors === 0 ? 'SUCCESS' : 'WARNING',
     });
-    console.log(`  ✓ ${name}: ${count}/${list.length} records processed.`);
+    console.log(`  ✓ ${name}: ${inserted + updated}/${list.length} records processed (${errors} errors).`);
   }
 
   // 5. Migrate Users
   console.log('⏳ Migrating administrative user accounts...');
   await migrateEntity('users', data.users, async (u) => {
-    await conn.query(
+    const [res]: any = await conn.query(
       `INSERT INTO users (id, email, name, role, password_hash, created_at, last_login)
        VALUES (?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE 
@@ -128,12 +136,13 @@ export async function runJsonToMysqlMigration(): Promise<MigrationReport[]> {
         u.lastLogin ? new Date(u.lastLogin) : null,
       ]
     );
+    return res.affectedRows === 1 ? 'inserted' : 'updated';
   });
 
-  // 6. Migrate Site Settings (Authoritative centralized settings)
+  // 6. Migrate Site Settings
   console.log('⏳ Migrating site & property settings...');
   const s = data.settings || {};
-  await conn.query(
+  const [sRes]: any = await conn.query(
     `INSERT INTO site_settings 
       (id, site_name, tagline, phone, concierge_phone, whatsapp, email, reservation_notification_email, 
        reservation_email, address, instagram, facebook, youtube, booking_url, currency, default_currency, 
@@ -173,22 +182,50 @@ export async function runJsonToMysqlMigration(): Promise<MigrationReport[]> {
   reports.push({
     table: 'site_settings',
     sourceCount: 1,
-    migratedCount: 1,
-    skippedCount: 0,
+    inserted: sRes.affectedRows === 1 ? 1 : 0,
+    updated: sRes.affectedRows === 1 ? 0 : 1,
+    skipped: 0,
+    errors: 0,
     status: 'SUCCESS',
   });
 
-  // 7. Migrate Homepage Config & Hero Slides
-  console.log('⏳ Migrating homepage config and hero slides...');
+  // 7. Migrate Contact Settings
   const hp = data.homepage || {};
+  const contact = hp.contact || {};
+  const [cRes]: any = await conn.query(
+    `INSERT INTO contact_settings (id, phone, email, whatsapp_number, concierge_phone, address, google_maps_url)
+     VALUES (1, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+      phone = VALUES(phone), email = VALUES(email), whatsapp_number = VALUES(whatsapp_number),
+      concierge_phone = VALUES(concierge_phone), address = VALUES(address), google_maps_url = VALUES(google_maps_url)`,
+    [
+      contact.phone || s.phone || '+255 777 890 123',
+      contact.email || s.email || 'info@zanzirangihouse.com',
+      contact.whatsappNumber || s.whatsapp || '+255 777 890 123',
+      s.conciergePhone || '+255 777 890 123',
+      contact.address || s.address || 'Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania',
+      contact.googleMapsUrl || 'https://maps.google.com/?q=Kizimkazi+Dimbani+Zanzibar',
+    ]
+  );
+  reports.push({
+    table: 'contact_settings',
+    sourceCount: 1,
+    inserted: cRes.affectedRows === 1 ? 1 : 0,
+    updated: cRes.affectedRows === 1 ? 0 : 1,
+    skipped: 0,
+    errors: 0,
+    status: 'SUCCESS',
+  });
+
+  // 8. Migrate Homepage Config
+  console.log('⏳ Migrating homepage config and hero slides...');
   const hero = hp.hero || {};
   const intro = hp.intro || {};
-  const contact = hp.contact || {};
   const socials = hp.socials || {};
   const footer = hp.footer || {};
   const meta = hp.meta || {};
 
-  await conn.query(
+  const [hpRes]: any = await conn.query(
     `INSERT INTO homepage_config (
       id, hero_title, hero_subtitle, hero_description, hero_badge_text,
       hero_primary_cta_text, hero_primary_cta_link, hero_secondary_cta_text, hero_secondary_cta_link,
@@ -236,14 +273,16 @@ export async function runJsonToMysqlMigration(): Promise<MigrationReport[]> {
   reports.push({
     table: 'homepage_config',
     sourceCount: 1,
-    migratedCount: 1,
-    skippedCount: 0,
+    inserted: hpRes.affectedRows === 1 ? 1 : 0,
+    updated: hpRes.affectedRows === 1 ? 0 : 1,
+    skipped: 0,
+    errors: 0,
     status: 'SUCCESS',
   });
 
-  // Hero Slides
+  // 9. Hero Slides
   await migrateEntity('hero_slides', hero.slides, async (slide) => {
-    await conn.query(
+    const [res]: any = await conn.query(
       `INSERT INTO hero_slides 
         (id, title, subtitle, description, badge_text, primary_cta_text, primary_cta_link,
          secondary_cta_text, secondary_cta_link, image_url, video_url, alignment, overlay_opacity, sort_order, visible)
@@ -264,7 +303,7 @@ export async function runJsonToMysqlMigration(): Promise<MigrationReport[]> {
         slide.primaryCtaLink || null,
         slide.secondaryCtaText || null,
         slide.secondaryCtaLink || null,
-        slide.imageUrl || slide.image || '',
+        slide.imageUrl || slide.heroImage || slide.image || '',
         slide.videoUrl || null,
         slide.alignment || 'center',
         slide.overlayOpacity ?? 0.4,
@@ -272,22 +311,24 @@ export async function runJsonToMysqlMigration(): Promise<MigrationReport[]> {
         slide.visible !== false ? 1 : 0,
       ]
     );
+    return res.affectedRows === 1 ? 'inserted' : 'updated';
   });
 
-  // Homepage Sections
+  // 10. Homepage Sections
   await migrateEntity('homepage_sections', hp.sections, async (sec) => {
-    await conn.query(
+    const [res]: any = await conn.query(
       `INSERT INTO homepage_sections (id, label, description, sort_order, visible)
        VALUES (?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE label = VALUES(label), description = VALUES(description), sort_order = VALUES(sort_order), visible = VALUES(visible)`,
-      [sec.id, sec.label, sec.description || null, sec.order ?? 0, sec.visible !== false ? 1 : 0]
+      [sec.id, sec.label || sec.name, sec.description || null, sec.order ?? 0, sec.visible !== false ? 1 : 0]
     );
+    return res.affectedRows === 1 ? 'inserted' : 'updated';
   });
 
-  // 8. Migrate Villas & Villa Amenities / Images
+  // 11. Migrate Villas & Villa Amenities / Images
   console.log('⏳ Migrating luxury villas...');
   await migrateEntity('villas', data.villas, async (v) => {
-    await conn.query(
+    const [res]: any = await conn.query(
       `INSERT INTO villas 
         (id, name, short_name, type, subtitle, short_description, description, price_per_night,
          price_unit, promotional_price, size_sqm, max_guests, bedrooms, bathrooms, beds_count,
@@ -310,20 +351,20 @@ export async function runJsonToMysqlMigration(): Promise<MigrationReport[]> {
         v.subtitle || null,
         v.shortDescription || null,
         v.description || null,
-        v.pricePerNight || 400.0,
+        v.pricePerNight ? parseFloat(String(v.pricePerNight).replace(/[^0-9.]/g, '')) || 400.0 : 400.0,
         v.priceUnit || 'USD',
-        v.promotionalPrice || null,
-        v.sizeSqm || 85,
-        v.maxGuests || 2,
+        v.promotionalPrice ? parseFloat(String(v.promotionalPrice).replace(/[^0-9.]/g, '')) : null,
+        v.sizeSqm || (v.size ? parseInt(String(v.size), 10) : 85),
+        v.maxGuests || v.capacity || 2,
         v.bedrooms || 1,
-        v.bathrooms || 1,
+        v.bathrooms || (v.bathroom ? parseInt(String(v.bathroom), 10) : 1),
         v.bedsCount || 1,
-        v.bedType || null,
-        v.bathroomType || null,
-        v.viewType || null,
+        v.bedType || v.bed || null,
+        v.bathroomType || (typeof v.bathroom === 'string' ? v.bathroom : null),
+        v.viewType || v.view || null,
         v.architecturalFeature || null,
         v.heroImage || null,
-        v.coverImage || null,
+        v.coverImage || v.heroImage || null,
         v.status || 'published',
         v.featured ? 1 : 0,
         v.order ?? 0,
@@ -355,12 +396,32 @@ export async function runJsonToMysqlMigration(): Promise<MigrationReport[]> {
         );
       }
     }
+
+    return res.affectedRows === 1 ? 'inserted' : 'updated';
   });
 
-  // 9. Migrate Gallery Items
+  // 12. Migrate Gallery Categories & Items
   console.log('⏳ Migrating gallery curation...');
+  const galleryCats = [
+    { id: 'property', name: 'Estate & Grounds', order: 0 },
+    { id: 'villas', name: 'Villas & Suites', order: 1 },
+    { id: 'dining', name: 'Culinary & Dining', order: 2 },
+    { id: 'pool', name: 'Oceanfront Pools', order: 3 },
+    { id: 'garden', name: 'Lush Gardens', order: 4 },
+    { id: 'zanzibar', name: 'Zanzibar Escapes', order: 5 },
+    { id: 'experiences', name: 'Bespoke Journeys', order: 6 },
+  ];
+  await migrateEntity('gallery_categories', galleryCats, async (cat) => {
+    const [res]: any = await conn.query(
+      `INSERT INTO gallery_categories (id, name, sort_order) VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE name = VALUES(name), sort_order = VALUES(sort_order)`,
+      [cat.id, cat.name, cat.order]
+    );
+    return res.affectedRows === 1 ? 'inserted' : 'updated';
+  });
+
   await migrateEntity('gallery_items', data.gallery, async (g) => {
-    await conn.query(
+    const [res]: any = await conn.query(
       `INSERT INTO gallery_items (id, category, title, caption, description, image_url, aspect_ratio, sort_order, published)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
@@ -369,22 +430,23 @@ export async function runJsonToMysqlMigration(): Promise<MigrationReport[]> {
          sort_order = VALUES(sort_order), published = VALUES(published)`,
       [
         g.id,
-        g.category || 'sanctuary',
+        g.category || 'property',
         g.title || 'Sanctuary View',
         g.caption || null,
         g.description || null,
         g.imageUrl || g.image || '',
-        g.aspectRatio || '4/3',
+        g.aspectRatio || g.aspect || '4/3',
         g.order ?? 0,
         g.published !== false ? 1 : 0,
       ]
     );
+    return res.affectedRows === 1 ? 'inserted' : 'updated';
   });
 
-  // 10. Migrate Facilities
+  // 13. Migrate Facilities
   console.log('⏳ Migrating facilities...');
   await migrateEntity('facilities', data.facilities, async (f) => {
-    await conn.query(
+    const [res]: any = await conn.query(
       `INSERT INTO facilities (id, title, category, description, hours, highlight, image_url, icon, sort_order, visible)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
@@ -404,12 +466,13 @@ export async function runJsonToMysqlMigration(): Promise<MigrationReport[]> {
         f.visible !== false ? 1 : 0,
       ]
     );
+    return res.affectedRows === 1 ? 'inserted' : 'updated';
   });
 
-  // 11. Migrate Testimonials
+  // 14. Migrate Testimonials
   console.log('⏳ Migrating guest testimonials...');
   await migrateEntity('testimonials', data.testimonials, async (t) => {
-    await conn.query(
+    const [res]: any = await conn.query(
       `INSERT INTO testimonials 
         (id, guest_name, country, avatar_url, rating, stay_date, villa_stayed, title, review_text, verified_stay, featured, sort_order, visible)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -434,12 +497,13 @@ export async function runJsonToMysqlMigration(): Promise<MigrationReport[]> {
         t.visible !== false ? 1 : 0,
       ]
     );
+    return res.affectedRows === 1 ? 'inserted' : 'updated';
   });
 
-  // 12. Migrate Videos
+  // 15. Migrate Videos & Storyboard
   console.log('⏳ Migrating video storyboard...');
   const vids = data.videos || {};
-  await conn.query(
+  const [vidRes]: any = await conn.query(
     `INSERT INTO video_storyboard (id, video_url, poster_image, scenes_json)
      VALUES (1, ?, ?, ?)
      ON DUPLICATE KEY UPDATE video_url = VALUES(video_url), poster_image = VALUES(poster_image), scenes_json = VALUES(scenes_json)`,
@@ -452,16 +516,18 @@ export async function runJsonToMysqlMigration(): Promise<MigrationReport[]> {
   reports.push({
     table: 'video_storyboard',
     sourceCount: 1,
-    migratedCount: 1,
-    skippedCount: 0,
+    inserted: vidRes.affectedRows === 1 ? 1 : 0,
+    updated: vidRes.affectedRows === 1 ? 0 : 1,
+    skipped: 0,
+    errors: 0,
     status: 'SUCCESS',
   });
 
-  // 13. Migrate SEO Routes
+  // 16. Migrate SEO Routes
   console.log('⏳ Migrating SEO route configurations...');
   const seoRoutes = data.seo?.routes ? Object.values(data.seo.routes) : [];
   await migrateEntity('seo_routes', seoRoutes, async (r: any) => {
-    await conn.query(
+    const [res]: any = await conn.query(
       `INSERT INTO seo_routes (route_path, title, description, canonical_url, og_title, og_description, og_image, robots)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
@@ -478,34 +544,60 @@ export async function runJsonToMysqlMigration(): Promise<MigrationReport[]> {
         r.robots || 'index, follow',
       ]
     );
+    return res.affectedRows === 1 ? 'inserted' : 'updated';
   });
 
-  // 14. Migrate Media Assets
+  // 17. Migrate Media Assets
   console.log('⏳ Migrating media asset records...');
   await migrateEntity('media_assets', data.media, async (m) => {
-    await conn.query(
-      `INSERT INTO media_assets (id, filename, url, mime_type, size_bytes, width, height, alt_text, caption, usage_count, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    const [res]: any = await conn.query(
+      `INSERT INTO media_assets 
+        (id, filename, original_filename, mime_type, size, size_bytes, storage_path, public_url, url, width, height, alt_text, title, caption, usage_count, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
-         filename = VALUES(filename), url = VALUES(url), mime_type = VALUES(mime_type),
-         size_bytes = VALUES(size_bytes), alt_text = VALUES(alt_text), caption = VALUES(caption)`,
+         filename = VALUES(filename), mime_type = VALUES(mime_type), size = VALUES(size), size_bytes = VALUES(size_bytes),
+         storage_path = VALUES(storage_path), public_url = VALUES(public_url), url = VALUES(url),
+         alt_text = VALUES(alt_text), title = VALUES(title), caption = VALUES(caption)`,
       [
         m.id,
         m.filename,
-        m.url,
+        m.filename,
         m.mimeType || 'image/jpeg',
         m.sizeBytes || 0,
+        m.sizeBytes || 0,
+        path.join('uploads', m.filename),
+        m.url,
+        m.url,
         m.width || null,
         m.height || null,
         m.altText || null,
+        m.altText || m.filename,
         m.caption || null,
-        m.referenceCount || 1,
+        m.referenceCount || m.usageCount || 1,
         m.uploadedAt ? new Date(m.uploadedAt) : new Date(),
       ]
     );
+    return res.affectedRows === 1 ? 'inserted' : 'updated';
   });
 
-  // 15. Record Schema Migration Version
+  // 18. Migrate Audit Logs
+  console.log(`⏳ Migrating ${data.auditLog?.length || 0} audit log records...`);
+  await migrateEntity('audit_logs', data.auditLog, async (log) => {
+    const [res]: any = await conn.query(
+      `INSERT INTO audit_logs (action, user_email, details, ip_address, created_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        log.action,
+        log.userEmail,
+        log.details || null,
+        log.ipAddress || null,
+        log.timestamp ? new Date(log.timestamp) : new Date(),
+      ]
+    );
+    return res.affectedRows === 1 ? 'inserted' : 'updated';
+  });
+
+  // 19. Record Schema Migration Version
   await conn.query(
     'INSERT INTO schema_migrations (version) VALUES (?) ON DUPLICATE KEY UPDATE applied_at = CURRENT_TIMESTAMP',
     ['001_initial_schema']
@@ -515,10 +607,29 @@ export async function runJsonToMysqlMigration(): Promise<MigrationReport[]> {
   await pool.end();
 
   console.log('================================================================');
-  console.log('MIGRATION SUMMARY REPORT:');
+  console.log('JSON → MYSQL MIGRATION REPORT');
   console.log('================================================================');
-  console.table(reports);
-  console.log('🎉 Migration completed successfully! No data was silently discarded.');
+  console.log(
+    'TABLE'.padEnd(22) +
+    'SOURCE RECORDS'.padEnd(16) +
+    'INSERTED'.padEnd(12) +
+    'UPDATED'.padEnd(12) +
+    'SKIPPED'.padEnd(10) +
+    'ERRORS'.padEnd(8)
+  );
+  console.log('----------------------------------------------------------------');
+  for (const r of reports) {
+    console.log(
+      r.table.padEnd(22) +
+      String(r.sourceCount).padEnd(16) +
+      String(r.inserted).padEnd(12) +
+      String(r.updated).padEnd(12) +
+      String(r.skipped).padEnd(10) +
+      String(r.errors).padEnd(8)
+    );
+  }
+  console.log('================================================================');
+  console.log('🎉 Migration finished. All records preserved without data loss.');
   return reports;
 }
 

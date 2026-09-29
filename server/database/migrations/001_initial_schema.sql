@@ -43,6 +43,18 @@ CREATE TABLE IF NOT EXISTS site_settings (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS contact_settings (
+  id INT PRIMARY KEY DEFAULT 1,
+  phone VARCHAR(100),
+  email VARCHAR(191),
+  whatsapp_number VARCHAR(100),
+  concierge_phone VARCHAR(100),
+  address TEXT,
+  google_maps_url VARCHAR(500),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS homepage_config (
   id INT PRIMARY KEY DEFAULT 1,
   hero_title VARCHAR(255) NOT NULL,
@@ -145,6 +157,13 @@ CREATE TABLE IF NOT EXISTS villa_images (
   INDEX idx_villa_images (villa_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS gallery_categories (
+  id VARCHAR(100) PRIMARY KEY,
+  name VARCHAR(191) NOT NULL,
+  description TEXT,
+  sort_order INT DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS gallery_items (
   id VARCHAR(100) PRIMARY KEY,
   category VARCHAR(100) NOT NULL,
@@ -196,6 +215,15 @@ CREATE TABLE IF NOT EXISTS video_storyboard (
   scenes_json LONGTEXT NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS video_items (
+  id VARCHAR(100) PRIMARY KEY,
+  title VARCHAR(255),
+  video_url VARCHAR(500) NOT NULL,
+  poster_image VARCHAR(500),
+  sort_order INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS seo_routes (
   route_path VARCHAR(100) PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
@@ -211,15 +239,21 @@ CREATE TABLE IF NOT EXISTS seo_routes (
 CREATE TABLE IF NOT EXISTS media_assets (
   id VARCHAR(100) PRIMARY KEY,
   filename VARCHAR(255) NOT NULL,
-  url VARCHAR(500) NOT NULL,
+  original_filename VARCHAR(255),
   mime_type VARCHAR(100) NOT NULL,
-  size_bytes BIGINT NOT NULL,
+  size BIGINT NOT NULL DEFAULT 0,
+  size_bytes BIGINT NOT NULL DEFAULT 0,
+  storage_path VARCHAR(500),
+  public_url VARCHAR(500) NOT NULL,
+  url VARCHAR(500) NOT NULL,
   width INT NULL,
   height INT NULL,
   alt_text VARCHAR(255),
+  title VARCHAR(255),
   caption TEXT,
   usage_count INT DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_media_filename (filename)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

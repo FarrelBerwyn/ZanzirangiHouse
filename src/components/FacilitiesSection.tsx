@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Sparkles, ArrowRight } from 'lucide-react';
-import { Language } from '../types';
+import { Language, Facility } from '../types';
 import { getLocalizedFacilities } from '../data/facilitiesTranslations';
 import { TRANSLATIONS } from '../data/translations';
 

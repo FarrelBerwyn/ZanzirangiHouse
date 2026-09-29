@@ -17,6 +17,7 @@ import {
   X,
   ShieldCheck,
   Radio,
+  MessageSquare,
 } from 'lucide-react';
 import { AdminUser, authApi } from '../services/authApi';
 import zanzirangiLogo from '../assets/zanzirangi-logo-new.jpeg';
@@ -53,6 +54,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, ready: true },
+    { key: 'support', label: 'Customer Support', icon: MessageSquare, ready: true },
     { key: 'homepage', label: 'Homepage', icon: Home, ready: true },
     { key: 'rooms', label: 'Villas', icon: BedDouble, ready: true },
     { key: 'gallery', label: 'Gallery', icon: ImageIcon, ready: true },

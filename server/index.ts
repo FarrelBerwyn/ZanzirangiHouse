@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { apiApp } from './api.ts';
-import { getDatabaseAdapter, fallbackToJsonAdapter } from './database/index.ts';
+import { getDatabaseAdapter } from './database/index.ts';
 import { mediaStorage } from './storage/mediaStorage.ts';
 import { env, validateEnvironment } from './config/env.ts';
 
@@ -24,15 +24,11 @@ getDatabaseAdapter()
   .catch((err) => {
     console.error('❌ Failed to initialize database on startup:', err.message);
     if (env.DATABASE_PROVIDER === 'mysql') {
-      console.warn('⚠️ Hostinger MySQL connection unreachable. Falling back to JSON database engine to maintain zero downtime...');
-      fallbackToJsonAdapter()
-        .connect()
-        .then(() => {
-          console.log('✅ Fallback JSON database engine active and operational.');
-        })
-        .catch((jsonErr) => {
-          console.error('❌ Fallback JSON database failed:', jsonErr.message);
-        });
+      console.error('💥 Critical Database Failure: Hostinger MySQL unreachable. Silent fallback to JSON is strictly prohibited.');
+      if (env.NODE_ENV === 'production') {
+        console.error('💥 Terminating production process to prevent inconsistent data state.');
+        process.exit(1);
+      }
     }
   });
 
@@ -50,7 +46,8 @@ const distPath = fs.existsSync(path.resolve(__dirname, '../dist'))
 app.use(express.static(distPath));
 
 // 6. SPA fallback for direct deep-link route navigation and browser refresh
-app.get('*', (req, res, next) => {
+app.use((req, res, next) => {
+  if (req.method !== 'GET') return next();
   if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
     return next();
   }

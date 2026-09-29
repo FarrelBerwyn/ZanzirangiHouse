@@ -1,12 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { X, Send, Sparkles } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { X, Send, Sparkles, UserCheck } from 'lucide-react';
 import { Language } from '../types';
 import { CHAT_TRANSLATIONS, ChatQuickPrompt } from '../data/chatTranslations';
 import { ScrollFadeContainer } from './ScrollFadeContainer';
+import { supportApi } from '../services/supportApi';
+import { SupportActionMetadata } from '../../server/database/supportTypes';
 
 interface Message {
   id: string;
-  sender: 'bot' | 'user';
+  sender: 'bot' | 'user' | 'admin' | 'system';
   text: string;
   timestamp: string;
   action?: {
@@ -45,6 +47,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [hasUnread, setHasUnread] = useState(true);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversationStatus, setConversationStatus] = useState<string>('AI_ACTIVE');
+  const visitorSessionRef = useRef(supportApi.getOrCreateVisitorSession());
 
   const t = CHAT_TRANSLATIONS[currentLang] || CHAT_TRANSLATIONS.en;
   const isRtl = currentLang === 'ar';
@@ -148,6 +153,66 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
       setIsOpen(false);
     }
   };
+
+  const resolveAction = (action?: SupportActionMetadata) => {
+    if (!action) return undefined;
+    return {
+      label: action.label,
+      onClick: () => {
+        if (action.actionType === 'MODAL' || action.target === 'booking_modal') {
+          if (onOpenBooking) onOpenBooking();
+          else scrollToSection('stay');
+        } else if (action.target) {
+          scrollToSection(action.target);
+        }
+      },
+    };
+  };
+
+  const initConversation = useCallback(async (bookingContext?: any) => {
+    try {
+      const session = visitorSessionRef.current;
+      const res = await supportApi.initVisitorConversation({
+        visitor_id: session.visitorId,
+        session_id: session.sessionId,
+        language: currentLang,
+        current_page: typeof window !== 'undefined' ? window.location.pathname : '/',
+        booking_id: bookingContext?.bookingId || null,
+        metadata: bookingContext || null,
+      });
+
+      if (res.conversation) {
+        setConversationId(res.conversation.id);
+        setConversationStatus(res.conversation.status);
+      }
+
+      if (res.messages && res.messages.length > 0) {
+        const mapped: Message[] = res.messages.map((m) => {
+          let sender: 'bot' | 'user' | 'admin' | 'system' = 'bot';
+          if (m.sender_type === 'VISITOR') sender = 'user';
+          else if (m.sender_type === 'ADMIN') sender = 'admin';
+          else if (m.sender_type === 'SYSTEM') sender = 'system';
+          else sender = 'bot';
+
+          const timeStr = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          return {
+            id: m.id,
+            sender,
+            text: m.message,
+            timestamp: timeStr,
+            action: resolveAction(m.metadata?.action),
+          };
+        });
+        setMessages(mapped);
+      }
+    } catch (err) {
+      console.warn('Visitor conversation init failed, using local mode:', err);
+    }
+  }, [currentLang, onOpenBooking]);
+
+  useEffect(() => {
+    initConversation();
+  }, [initConversation]);
 
   const generateBotReply = (userQuery: string): { text: string; action?: { label: string; onClick: () => void } } => {
     const q = userQuery.toLowerCase();
@@ -517,7 +582,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
     };
   };
 
-  const handleSendMessage = (textToSend?: string) => {
+  const handleSendMessage = async (textToSend?: string, customBookingContext?: any) => {
     const query = textToSend || inputValue;
     if (!query.trim()) return;
 
@@ -532,19 +597,100 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
     if (!textToSend) setInputValue('');
     setIsTyping(true);
 
-    setTimeout(() => {
-      const reply = generateBotReply(query);
-      const botMsg: Message = {
-        id: `bot-${Date.now()}`,
-        sender: 'bot',
-        text: reply.text,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        action: reply.action,
-      };
-      setMessages((prev) => [...prev, botMsg]);
+    try {
+      let convId = conversationId;
+      const session = visitorSessionRef.current;
+      if (!convId) {
+        const initRes = await supportApi.initVisitorConversation({
+          visitor_id: session.visitorId,
+          session_id: session.sessionId,
+          language: currentLang,
+          current_page: typeof window !== 'undefined' ? window.location.pathname : '/',
+          booking_id: customBookingContext?.bookingId || null,
+          metadata: customBookingContext || null,
+        });
+        convId = initRes.conversation.id;
+        setConversationId(convId);
+        setConversationStatus(initRes.conversation.status);
+      }
+
+      const res = await supportApi.sendVisitorMessage(convId, session.visitorId, query, customBookingContext);
+      setConversationStatus(res.conversationStatus);
+
+      if (res.botMessage) {
+        const timeStr = new Date(res.botMessage.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const botMsg: Message = {
+          id: res.botMessage.id,
+          sender: 'bot',
+          text: res.botMessage.message,
+          timestamp: timeStr,
+          action: resolveAction(res.botMessage.metadata?.action),
+        };
+        setMessages((prev) => [...prev, botMsg]);
+      }
       setIsTyping(false);
-    }, 450);
+    } catch (err) {
+      console.warn('Backend message send failed, using deterministic local reply:', err);
+      setTimeout(() => {
+        const reply = generateBotReply(query);
+        const botMsg: Message = {
+          id: `bot-${Date.now()}`,
+          sender: 'bot',
+          text: reply.text,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          action: reply.action,
+        };
+        setMessages((prev) => [...prev, botMsg]);
+        setIsTyping(false);
+      }, 450);
+    }
   };
+
+  // Near-real-time polling for admin and system messages
+  useEffect(() => {
+    if (!isOpen || !conversationId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const session = visitorSessionRef.current;
+        const pollRes = await supportApi.pollVisitorMessages(conversationId, session.visitorId);
+        if (pollRes.status) {
+          setConversationStatus(pollRes.status);
+        }
+        if (pollRes.messages && pollRes.messages.length > 0) {
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const newOnes: Message[] = [];
+            for (const pm of pollRes.messages) {
+              if (!existingIds.has(pm.id)) {
+                let sender: 'bot' | 'user' | 'admin' | 'system' = 'bot';
+                if (pm.sender_type === 'VISITOR') sender = 'user';
+                else if (pm.sender_type === 'ADMIN') sender = 'admin';
+                else if (pm.sender_type === 'SYSTEM') sender = 'system';
+
+                const timeStr = new Date(pm.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                newOnes.push({
+                  id: pm.id,
+                  sender,
+                  text: pm.message,
+                  timestamp: timeStr,
+                  action: resolveAction(pm.metadata?.action),
+                });
+              }
+            }
+            if (newOnes.length > 0) {
+              return [...prev, ...newOnes];
+            }
+            return prev;
+          });
+        }
+      } catch {
+        // Silent poll error handling
+      }
+    }, 3500);
+
+    return () => clearInterval(interval);
+  }, [isOpen, conversationId]);
 
   // Handle external query trigger (from other sections)
   useEffect(() => {
@@ -560,18 +706,20 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
   // Handle global custom DOM event
   useEffect(() => {
     const handleOpenSupportEvent = (e: Event) => {
-      const customEvent = e as CustomEvent<{ query?: string }>;
+      const customEvent = e as CustomEvent<{ query?: string; bookingContext?: any }>;
       const query = customEvent.detail?.query;
+      const bookingContext = customEvent.detail?.bookingContext;
       setIsOpen(true);
       if (query) {
         setTimeout(() => {
-          handleSendMessage(query);
+          handleSendMessage(query, bookingContext);
         }, 100);
       }
     };
     window.addEventListener('open-customer-support', handleOpenSupportEvent);
     return () => window.removeEventListener('open-customer-support', handleOpenSupportEvent);
   }, []);
+
 
   const actionLabels: Record<
     Language,
@@ -763,12 +911,12 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
         />
       )}
 
-      {/* Customer Support Chat Window (Positioned on top at Z-50 with larger side gaps and slightly smaller width) */}
+      {/* Customer Support Chat Window (Vertically and horizontally centered on mobile modal, anchored at bottom-left on desktop) */}
       {isOpen && (
         <div
           ref={chatContainerRef}
           id="customer-support-chat-window"
-          className="fixed bottom-20 sm:bottom-22 left-1/2 -translate-x-1/2 sm:left-6 sm:translate-x-0 z-50 w-[calc(100vw-3.75rem)] sm:w-[385px] max-w-[385px] h-[510px] sm:h-[550px] max-h-[76vh] sm:max-h-[80vh] bg-[#141413]/98 backdrop-blur-2xl border border-[#C4A27A]/50 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-fadeIn text-[#FAF8F5] font-sans"
+          className="fixed top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 sm:top-auto sm:translate-y-0 sm:bottom-22 sm:left-6 sm:translate-x-0 z-50 w-[calc(100vw-3.75rem)] sm:w-[385px] max-w-[385px] h-[510px] sm:h-[550px] max-h-[82vh] sm:max-h-[80vh] bg-[#141413]/98 backdrop-blur-2xl border border-[#C4A27A]/50 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-fadeIn text-[#FAF8F5] font-sans"
         >
           {/* Top Header */}
           <div className="px-5 py-4 bg-gradient-to-r from-[#1C1B1A] via-[#22211F] to-[#1C1B1A] border-b border-[#2C2B28] flex items-center justify-between">
@@ -813,54 +961,82 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
 
           {/* Messages Container */}
           <div className="flex-1 p-4 overflow-y-auto space-y-3.5 bg-[#0F0E0E]/95 text-sm">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex flex-col ${
-                  msg.sender === 'user'
-                    ? isRtl ? 'items-start' : 'items-end'
-                    : isRtl ? 'items-end' : 'items-start'
-                }`}
-              >
+            {messages.map((msg) => {
+              if (msg.sender === 'system') {
+                return (
+                  <div key={msg.id} className="text-center py-1">
+                    <span className="text-[10px] font-mono text-[#D8CCB8]/80 bg-[#1C1B1A]/80 border border-[#2C2B28] px-3 py-1 rounded-full inline-block shadow-sm">
+                      {msg.text}
+                    </span>
+                  </div>
+                );
+              }
+
+              return (
                 <div
-                  className={`flex items-end space-x-2 rtl:space-x-reverse max-w-[85%] ${
-                    msg.sender === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'
+                  key={msg.id}
+                  className={`flex flex-col ${
+                    msg.sender === 'user'
+                      ? isRtl ? 'items-start' : 'items-end'
+                      : isRtl ? 'items-end' : 'items-start'
                   }`}
                 >
-                  {msg.sender === 'bot' && (
-                    <div className="w-6 h-6 rounded-full overflow-hidden border border-[#C4A27A]/60 flex-shrink-0 bg-[#2C2B28] shadow-sm">
-                      <img
-                        src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80"
-                        alt="Juma"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  )}
-
                   <div
-                    className={`p-3.5 rounded-2xl text-xs sm:text-[13px] leading-relaxed ${
-                      msg.sender === 'user'
-                        ? 'bg-[#B8966C] text-[#141413] font-semibold rounded-br-none shadow-md'
-                        : 'bg-[#1C1B1A] text-[#FAF8F5] border border-[#2C2B28] rounded-bl-none shadow'
+                    className={`flex items-end space-x-2 rtl:space-x-reverse max-w-[85%] ${
+                      msg.sender === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'
                     }`}
                   >
-                    <p>{msg.text}</p>
-
-                    {msg.action && (
-                      <button
-                        onClick={msg.action.onClick}
-                        className="mt-3 inline-flex items-center px-3 py-1.5 bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] font-bold text-[11px] uppercase tracking-wider rounded-lg transition-all shadow"
-                      >
-                        {msg.action.label} {isRtl ? '←' : '→'}
-                      </button>
+                    {msg.sender === 'bot' && (
+                      <div className="w-6 h-6 rounded-full overflow-hidden border border-[#C4A27A]/60 flex-shrink-0 bg-[#2C2B28] shadow-sm">
+                        <img
+                          src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80"
+                          alt="Juma"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
                     )}
+
+                    {msg.sender === 'admin' && (
+                      <div className="w-6 h-6 rounded-full overflow-hidden border border-emerald-500/80 flex-shrink-0 bg-[#2C2B28] shadow-sm flex items-center justify-center text-emerald-400">
+                        <UserCheck className="w-3.5 h-3.5" />
+                      </div>
+                    )}
+
+                    <div
+                      className={`p-3.5 rounded-2xl text-xs sm:text-[13px] leading-relaxed ${
+                        msg.sender === 'user'
+                          ? 'bg-[#B8966C] text-[#141413] font-semibold rounded-br-none shadow-md'
+                          : msg.sender === 'admin'
+                          ? 'bg-[#22211F] text-[#FAF8F5] border border-emerald-600/50 rounded-bl-none shadow'
+                          : 'bg-[#1C1B1A] text-[#FAF8F5] border border-[#2C2B28] rounded-bl-none shadow'
+                      }`}
+                    >
+                      {msg.sender === 'admin' && (
+                        <div className="text-[10px] font-mono text-emerald-400 mb-1 flex items-center space-x-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          <span>Concierge Staff</span>
+                        </div>
+                      )}
+
+                      <p>{msg.text}</p>
+
+                      {msg.action && (
+                        <button
+                          onClick={msg.action.onClick}
+                          className="mt-3 inline-flex items-center px-3 py-1.5 bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] font-bold text-[11px] uppercase tracking-wider rounded-lg transition-all shadow"
+                        >
+                          {msg.action.label} {isRtl ? '←' : '→'}
+                        </button>
+                      )}
+                    </div>
                   </div>
+                  <span className="text-[9px] text-[#8C8880] mt-1 px-8 font-mono">
+                    {msg.timestamp}
+                  </span>
                 </div>
-                <span className="text-[9px] text-[#8C8880] mt-1 px-8 font-mono">
-                  {msg.timestamp}
-                </span>
-              </div>
-            ))}
+              );
+            })}
+
 
             {isTyping && (
               <div className="flex items-center space-x-2 rtl:space-x-reverse">

@@ -1,5 +1,6 @@
 import mysql from 'mysql2/promise';
 import { DatabaseAdapter, UserRecord, AuditLogRecord } from './adapter.ts';
+import { getMysqlPool, closeMysqlPool } from './connection.ts';
 import { env } from '../config/env.ts';
 import {
   HomepageContent,
@@ -16,24 +17,9 @@ import {
 
 export class MysqlDatabaseAdapter implements DatabaseAdapter {
   public provider: 'mysql' = 'mysql';
-  private pool: mysql.Pool | null = null;
 
   private getPool(): mysql.Pool {
-    if (!this.pool) {
-      this.pool = mysql.createPool({
-        host: env.MYSQL_HOST || 'localhost',
-        port: env.MYSQL_PORT || 3306,
-        database: env.MYSQL_DATABASE || 'zanzirangi_house',
-        user: env.MYSQL_USER || 'root',
-        password: env.MYSQL_PASSWORD || '',
-        waitForConnections: true,
-        connectionLimit: env.MYSQL_CONNECTION_LIMIT || 10,
-        queueLimit: 0,
-        enableKeepAlive: true,
-        keepAliveInitialDelay: 10000,
-      });
-    }
-    return this.pool;
+    return getMysqlPool();
   }
 
   async connect(): Promise<void> {
@@ -41,16 +27,15 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
       const pool = this.getPool();
       const conn = await pool.getConnection();
       conn.release();
-      console.log(`🐬 Connected to Hostinger MySQL Database [${env.MYSQL_DATABASE}@${env.MYSQL_HOST}]`);
+      const host = process.env.DB_HOST || env.MYSQL_HOST || 'localhost';
+      const db = process.env.DB_NAME || env.MYSQL_DATABASE || 'u170555096_Zanzirangi';
+      console.log(`🐬 Connected to Hostinger MySQL Database [${db}@${host}]`);
 
-      // Auto-verify schema and seed initial baseline if fresh database
+      // Safe verification without automatic reset or seed overwrite
       try {
         const [tables]: any = await pool.query("SHOW TABLES LIKE 'homepage_config'");
         if (!tables || tables.length === 0) {
-          console.log('⚡ Fresh Hostinger database detected. Initializing schema and baseline content...');
-          const { runMigration } = await import('./migrateFromJson.ts');
-          await runMigration(pool);
-          console.log('✅ Hostinger MySQL schema initialized and seeded successfully.');
+          console.warn('⚠️ Notice: Database tables not found yet. Run `npm run db:migrate:mysql` to initialize schema and migrate content.');
         } else {
           console.log('✅ Hostinger MySQL schema verified and ready.');
         }
@@ -64,11 +49,8 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
   }
 
   async disconnect(): Promise<void> {
-    if (this.pool) {
-      await this.pool.end();
-      this.pool = null;
-      console.log('🐬 MySQL connection pool closed gracefully.');
-    }
+    await closeMysqlPool();
+    console.log('🐬 MySQL connection pool closed gracefully.');
   }
 
   async healthCheck(): Promise<{ connected: boolean; provider: string; error?: string }> {
@@ -220,7 +202,7 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
                 s.primaryCtaLink,
                 s.secondaryCtaText,
                 s.secondaryCtaLink,
-                s.imageUrl,
+                s.imageUrl || s.heroImage || '',
                 s.videoUrl,
                 s.alignment || 'center',
                 s.overlayOpacity || 0.4,
@@ -264,7 +246,7 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
              VALUES (?, ?, ?, ?, ?) 
              ON DUPLICATE KEY UPDATE label = VALUES(label), description = VALUES(description), 
              sort_order = VALUES(sort_order), visible = VALUES(visible)`,
-            [sec.id, sec.label, sec.description, sec.order, sec.visible !== false ? 1 : 0]
+            [sec.id, (sec as any).label || sec.name, sec.description, sec.order, sec.visible !== false ? 1 : 0]
           );
         }
       }
@@ -304,34 +286,51 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
       imagesMap.get(img.villa_id)!.push(img.image_url);
     }
 
-    return villaRows.map((v: any) => ({
-      id: v.id,
-      name: v.name,
-      shortName: v.short_name,
-      type: v.type,
-      subtitle: v.subtitle,
-      shortDescription: v.short_description,
-      description: v.description,
-      pricePerNight: parseFloat(v.price_per_night),
-      priceUnit: v.price_unit,
-      promotionalPrice: v.promotional_price ? parseFloat(v.promotional_price) : undefined,
-      sizeSqm: v.size_sqm,
-      maxGuests: v.max_guests,
-      bedrooms: v.bedrooms,
-      bathrooms: v.bathrooms,
-      beds: v.beds_count,
-      bed: v.bed_type,
-      bathroom: v.bathroom_type,
-      view: v.view_type,
-      architecturalFeature: v.architectural_feature,
-      heroImage: v.hero_image,
-      coverImage: v.cover_image,
-      status: v.status,
-      featured: Boolean(v.featured),
-      order: v.sort_order,
-      amenities: amenitiesMap.get(v.id) || [],
-      gallery: imagesMap.get(v.id) || [],
-    }));
+    return villaRows.map((v: any) => {
+      const roomNum = v.id && v.id.startsWith('villa-')
+        ? `VILLA ${v.id.replace('villa-', '').padStart(2, '0').toUpperCase()}`
+        : 'VILLA 01';
+      const sizeStr = v.size_sqm ? `${v.size_sqm} m² (${Math.round(v.size_sqm * 10.7639).toLocaleString()} sq ft)` : '85 m² (915 sq ft)';
+      const rawPrice = v.price_per_night !== undefined && v.price_per_night !== null ? String(v.price_per_night) : '400';
+      const priceStr = rawPrice.startsWith('$') ? rawPrice : `$${parseFloat(rawPrice)}`;
+      const rawPromo = v.promotional_price !== undefined && v.promotional_price !== null ? String(v.promotional_price) : '';
+      const promoStr = rawPromo ? (rawPromo.startsWith('$') ? rawPromo : `$${parseFloat(rawPromo)}`) : undefined;
+      const imagesList = imagesMap.get(v.id) || (v.hero_image ? [v.hero_image] : []);
+
+      return {
+        id: v.id,
+        roomNumber: roomNum,
+        name: v.name,
+        shortName: v.short_name || v.name,
+        type: v.type,
+        subtitle: v.subtitle || '',
+        shortDescription: v.short_description || '',
+        description: v.description,
+        pricePerNight: priceStr,
+        priceUnit: v.price_unit || 'USD',
+        promotionalPrice: promoStr,
+        size: sizeStr,
+        sizeSqm: v.size_sqm,
+        capacity: v.max_guests || 2,
+        maxGuests: v.max_guests || 2,
+        bedrooms: v.bedrooms || 1,
+        bathrooms: v.bathrooms || 1,
+        beds: v.beds_count || 1,
+        bed: v.bed_type || 'King Bed',
+        bathroom: v.bathroom_type || 'En-suite',
+        view: v.view_type || 'Ocean View',
+        architecturalFeature: v.architectural_feature || '',
+        heroImage: v.hero_image,
+        coverImage: v.cover_image || v.hero_image,
+        images: imagesList,
+        gallery: imagesList,
+        status: v.status || 'published',
+        availability: v.status === 'published',
+        featured: Boolean(v.featured),
+        order: v.sort_order || 0,
+        amenities: amenitiesMap.get(v.id) || [],
+      };
+    });
   }
 
   async getVillaById(id: string): Promise<Villa | null> {
@@ -703,13 +702,13 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
             robots = VALUES(robots)`,
           [
             routePath,
-            r.title,
-            r.description,
-            r.canonical,
-            r.ogTitle || r.title,
-            r.ogDescription || r.description,
-            r.ogImage || '',
-            r.robots || 'index, follow',
+            (r as any).title,
+            (r as any).description || '',
+            (r as any).canonical || '',
+            (r as any).ogTitle || (r as any).title || '',
+            (r as any).ogDescription || (r as any).description || '',
+            (r as any).ogImage || '',
+            (r as any).robots || 'index, follow',
           ]
         );
       }
@@ -731,9 +730,9 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
     return rows.map((m: any) => ({
       id: m.id,
       filename: m.filename,
-      url: m.url,
+      url: m.url || m.public_url,
       mimeType: m.mime_type,
-      sizeBytes: Number(m.size_bytes),
+      sizeBytes: Number(m.size_bytes || m.size || 0),
       width: m.width,
       height: m.height,
       altText: m.alt_text,
@@ -747,23 +746,27 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
     const pool = this.getPool();
     await pool.query(
       `INSERT INTO media_assets 
-        (id, filename, url, mime_type, size_bytes, width, height, alt_text, caption, usage_count) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
+        (id, filename, original_filename, url, public_url, mime_type, size, size_bytes, width, height, alt_text, title, caption, usage_count) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
        ON DUPLICATE KEY UPDATE 
-        filename = VALUES(filename), url = VALUES(url), mime_type = VALUES(mime_type), 
-        size_bytes = VALUES(size_bytes), width = VALUES(width), height = VALUES(height), 
-        alt_text = VALUES(alt_text), caption = VALUES(caption), usage_count = VALUES(usage_count)`,
+        filename = VALUES(filename), url = VALUES(url), public_url = VALUES(public_url), mime_type = VALUES(mime_type), 
+        size = VALUES(size), size_bytes = VALUES(size_bytes), width = VALUES(width), height = VALUES(height), 
+        alt_text = VALUES(alt_text), title = VALUES(title), caption = VALUES(caption), usage_count = VALUES(usage_count)`,
       [
         asset.id,
         asset.filename,
+        asset.filename,
+        asset.url,
         asset.url,
         asset.mimeType,
+        asset.sizeBytes,
         asset.sizeBytes,
         asset.width || null,
         asset.height || null,
         asset.altText || '',
+        asset.altText || asset.filename,
         asset.caption || '',
-        asset.usageCount || 0,
+        (asset as any).usageCount || asset.referenceCount || 0,
       ]
     );
 

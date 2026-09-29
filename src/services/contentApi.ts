@@ -14,11 +14,12 @@ import {
 
 export interface HeroSlide {
   id: string;
-  badgeText: string;
+  badgeText?: string;
   title: string;
-  subtitle: string;
-  description: string;
+  subtitle?: string;
+  description?: string;
   heroImage: string;
+  imageUrl?: string;
   videoUrl?: string;
   primaryCtaText: string;
   primaryCtaLink: string;
@@ -26,11 +27,14 @@ export interface HeroSlide {
   secondaryCtaLink: string;
   order: number;
   visible: boolean;
+  alignment?: string;
+  overlayOpacity?: number;
 }
 
 export interface HomepageSectionConfig {
   id: string;
   name: string;
+  label?: string;
   title?: string;
   subtitle?: string;
   description?: string;
@@ -86,21 +90,31 @@ export interface VillaModel {
   id: string;
   roomNumber: string;
   name: string;
+  shortName?: string;
   type: string;
+  subtitle?: string;
   capacity: number;
   bed: string;
   bathroom: string;
   size: string;
   view: string;
   pricePerNight: string;
+  priceUnit?: string;
   promotionalPrice?: string;
+  sizeSqm?: number;
+  maxGuests?: number;
+  bedrooms?: number;
+  bathrooms?: number;
+  beds?: number;
   availability: boolean;
   featured?: boolean;
   architecturalFeature: string;
   shortDescription: string;
   description: string;
   heroImage: string;
+  coverImage?: string;
   images: string[];
+  gallery?: string[];
   amenities: string[];
   order: number;
   status: 'published' | 'draft' | 'archived';
@@ -109,10 +123,13 @@ export interface VillaModel {
 export interface GalleryModel {
   id: string;
   title: string;
-  category: 'property' | 'villas' | 'dining' | 'pool' | 'garden' | 'zanzibar' | 'experiences';
+  category: 'property' | 'villas' | 'dining' | 'pool' | 'garden' | 'zanzibar' | 'experiences' | string;
   image: string;
+  imageUrl?: string;
   aspect: 'landscape' | 'portrait' | 'square';
+  aspectRatio?: string;
   caption: string;
+  description?: string;
   order: number;
   published: boolean;
 }
@@ -123,8 +140,10 @@ export interface FacilityModel {
   category: string;
   description: string;
   image: string;
+  imageUrl?: string;
   hours: string;
   highlight: string;
+  icon?: string;
   order: number;
   visible: boolean;
 }
@@ -139,8 +158,11 @@ export interface TestimonialModel {
   villaStayed: string;
   title: string;
   reviewText: string;
+  avatar?: string;
+  avatarUrl?: string;
   featured?: boolean;
   verified?: boolean;
+  verifiedStay?: boolean;
   visible?: boolean;
   order: number;
 }
@@ -152,14 +174,14 @@ export interface VideoStoryboardScene {
 }
 
 export interface VideoModel {
-  id: string;
-  title: string;
-  eyebrow: string;
-  badge: string;
+  id?: string;
+  title?: string;
+  eyebrow?: string;
+  badge?: string;
   videoUrl: string;
   posterImage: string;
   scenes: VideoStoryboardScene[];
-  visible: boolean;
+  visible?: boolean;
 }
 
 export interface SeoConfig {
@@ -179,14 +201,24 @@ export interface MediaAsset {
   id: string;
   filename: string;
   url: string;
-  type: 'image' | 'video' | 'document';
+  type?: 'image' | 'video' | 'document' | string;
   mimeType: string;
   sizeBytes: number;
   altText: string;
   caption?: string;
   uploadedAt: string;
-  referenceCount: number;
+  referenceCount?: number;
+  usageCount?: number;
+  width?: number;
+  height?: number;
 }
+
+export type Villa = VillaModel;
+export type GalleryItem = GalleryModel;
+export type Facility = FacilityModel;
+export type Review = TestimonialModel;
+export type VideoData = VideoModel;
+export type SeoData = SeoConfig;
 
 export interface SettingsModel {
   siteName: string;
