@@ -121,10 +121,13 @@ function scanDir(dir) {
 scanDir(STAGING);
 console.log('✓ Secret scan passed! Zero credentials detected in staging.');
 
-// 5. Compress to ZIP using PowerShell Compress-Archive
+// 5. Compress to ZIP with bsdtar (ships with Windows 10+, macOS and most Linux).
+// PowerShell 5.1 Compress-Archive writes backslash paths that Linux extracts as flat filenames.
 console.log('⏳ Creating hostinger_deploy.zip...');
-const psCommand = `powershell -Command "Compress-Archive -Path '${STAGING}\\*' -DestinationPath '${ZIP_OUTPUT}' -Force"`;
-execSync(psCommand, { stdio: 'inherit' });
+const topLevelEntries = fs.readdirSync(STAGING).map((name) => `"${name}"`).join(' ');
+// Pin the Windows bsdtar so Git Bash's GNU tar (no zip support) is never picked up.
+const tarBin = process.platform === 'win32' ? `"${process.env.SystemRoot}\\System32\\tar.exe"` : 'tar';
+execSync(`${tarBin} -a -cf "${ZIP_OUTPUT}" -C "${STAGING}" ${topLevelEntries}`, { stdio: 'inherit' });
 
 // 6. Clean staging directory
 fs.rmSync(STAGING, { recursive: true, force: true });
