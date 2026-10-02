@@ -767,7 +767,7 @@ export const DEFAULT_SETTINGS = {
   email: 'info@zanzirangihouse.com',
   reservationNotificationEmail: 'reservations@zanzirangihouse.com',
   reservationEmail: 'reservations@zanzirangihouse.com',
-  address: 'Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania',
+  address: 'Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania',
   instagram: 'https://instagram.com/zanzirangi.house',
   facebook: 'https://facebook.com/zanzirangihouse',
   youtube: 'https://youtube.com/@zanzirangihouse',
@@ -775,4 +775,8 @@ export const DEFAULT_SETTINGS = {
   logo: '/src/assets/zanzirangi-logo-new.jpeg',
   favicon: '/favicon.svg',
   maintenanceMode: false,
+  supportAvatar: '/uploads/avatar-1790937078607_1790937078818_0381644b.jpg',
+  supportName: 'Elena',
+  supportTitle: 'Customer Support',
+  supportStatus: 'Active 24/7',
 };

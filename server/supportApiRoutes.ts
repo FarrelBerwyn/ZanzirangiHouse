@@ -1,8 +1,20 @@
 import { Router, Request, Response } from 'express';
 import { supportRepository } from './database/repositories/supportRepository.ts';
 import { supportAiEngine } from './services/supportAiEngine.ts';
-import { authenticateAdmin, AuthenticatedRequest } from './auth.ts';
+import { authenticateAdmin, AuthenticatedRequest, requirePermission } from './auth.ts';
+import { auditRepository } from './database/repositories/auditRepository.ts';
+
+// Support inbox & knowledge base are restricted to admins holding the 'support' permission.
+const requireSupport = requirePermission('support');
+
+const auditSupport = (req: AuthenticatedRequest, action: string, details: string) =>
+  auditRepository
+    .log({ action, userEmail: req.user?.email || 'admin', details, ipAddress: req.ip })
+    .catch((e: any) => console.error('[AUDIT] Support audit failed:', e.message));
 import { SupportConversationStatus } from './database/supportTypes.ts';
+import { emailService } from './services/emailService.ts';
+import { webPushService } from './services/webPushService.ts';
+import { supportEscalationService } from './services/supportEscalationService.ts';
 
 export const supportRouter = Router();
 
@@ -82,7 +94,7 @@ supportRouter.get('/conversation/:id', async (req: Request, res: Response) => {
     }
 
     // Security check: visitor must own conversation
-    if (visitor_id && conv.visitor_id !== visitor_id) {
+    if (!visitor_id || conv.visitor_id !== visitor_id) {
       return res.status(403).json({ success: false, error: 'Access denied to this conversation' });
     }
 
@@ -117,7 +129,7 @@ supportRouter.post('/conversation/:id/messages', async (req: Request, res: Respo
     }
 
     const vId = toStr(visitor_id);
-    if (vId && conv.visitor_id !== vId) {
+    if (!vId || conv.visitor_id !== vId) {
       return res.status(403).json({ success: false, error: 'Access denied to this conversation' });
     }
 
@@ -131,27 +143,14 @@ supportRouter.post('/conversation/:id/messages', async (req: Request, res: Respo
       metadata,
     });
 
-    // 2. Check if Human Concierge is currently active
-    if (conv.status === 'HUMAN_ACTIVE') {
-      // Keep conversation in HUMAN_ACTIVE, do not auto-reply with AI
-      return res.json({
-        success: true,
-        data: {
-          userMessage: userMsg,
-          botMessage: null,
-          conversationStatus: 'HUMAN_ACTIVE',
-        },
-      });
-    }
-
-    // 3. Evaluate query with AI Decision Layer
+    // 2. Evaluate query with AI Decision Layer
     const evaluation = await supportAiEngine.evaluateQuery(
       msgText,
       conv.language,
       conv.current_page
     );
 
-    // 4. Save AI event audit log
+    // 3. Save AI event audit log
     await supportRepository.logAiEvent({
       conversation_id: id,
       message_id: userMsg.id,
@@ -165,9 +164,24 @@ supportRouter.post('/conversation/:id/messages', async (req: Request, res: Respo
     let nextStatus: SupportConversationStatus = conv.status;
 
     if (evaluation.decision === 'HANDOFF_TO_HUMAN') {
+      // Detailed question, negotiation, discount, event, or explicit human request!
       nextStatus = 'WAITING_HUMAN';
       await supportRepository.updateConversation(id, {
         status: 'WAITING_HUMAN',
+      });
+
+      // Multi-layer notification & Escalation system:
+      // 1. Web Dashboard chime & badge
+      // 2. Web Push notification to HP staff
+      // 3. Urgent Email alert via Hostinger SMTP to info@zanzirangihouse.com
+      // 4. Escalation timers (2m push reminder, 5m email reminder, 10m fallback)
+      await supportEscalationService.triggerHumanRequired({
+        conversationId: id,
+        visitorMessage: msgText,
+        visitorId: conv.visitor_id,
+        language: conv.language,
+        currentPage: conv.current_page,
+        handoffReason: evaluation.handoffReason,
       });
 
       botMsg = await supportRepository.createMessage({
@@ -182,7 +196,12 @@ supportRouter.post('/conversation/:id/messages', async (req: Request, res: Respo
         },
       });
     } else {
-      // AUTO_ANSWER or SAFE_ANSWER
+      // AUTO_ANSWER (Simple question, greeting like "malam", pleasantry, or recognized FAQ)
+      // Answer immediately with Elena!
+      if (conv.status === 'HUMAN_ACTIVE') {
+        nextStatus = 'HUMAN_ACTIVE';
+      }
+
       botMsg = await supportRepository.createMessage({
         conversation_id: id,
         sender_type: 'AI',
@@ -225,7 +244,7 @@ supportRouter.get('/conversation/:id/poll', async (req: Request, res: Response) 
       return res.status(404).json({ success: false, error: 'Conversation not found' });
     }
 
-    if (visitor_id && conv.visitor_id !== visitor_id) {
+    if (!visitor_id || conv.visitor_id !== visitor_id) {
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
@@ -255,7 +274,7 @@ supportRouter.get('/conversation/:id/poll', async (req: Request, res: Response) 
  * GET /api/support/admin/conversations
  * Lists conversations with filter, search, unread badge counters.
  */
-supportRouter.get('/admin/conversations', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
+supportRouter.get('/admin/conversations', authenticateAdmin, requireSupport, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const status = toStr(req.query.status);
     const search = toStr(req.query.search);
@@ -293,7 +312,7 @@ supportRouter.get('/admin/conversations', authenticateAdmin, async (req: Authent
  * GET /api/support/admin/conversations/:id
  * Fetches conversation details, full message history, and AI audit events.
  */
-supportRouter.get('/admin/conversations/:id', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
+supportRouter.get('/admin/conversations/:id', authenticateAdmin, requireSupport, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const id = toStr(req.params.id);
     const conv = await supportRepository.getConversationById(id);
@@ -324,7 +343,7 @@ supportRouter.get('/admin/conversations/:id', authenticateAdmin, async (req: Aut
  * - If status was WAITING_HUMAN, updates to HUMAN_ACTIVE
  * - Can include contextual links (action metadata)
  */
-supportRouter.post('/admin/conversations/:id/messages', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
+supportRouter.post('/admin/conversations/:id/messages', authenticateAdmin, requireSupport, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const id = toStr(req.params.id);
     const { message, action, suggestedByAi } = req.body;
@@ -358,6 +377,9 @@ supportRouter.post('/admin/conversations/:id/messages', authenticateAdmin, async
       status: 'HUMAN_ACTIVE',
       assigned_admin_id: adminEmail,
     });
+    // Stop reminder timers for this conversation
+    await supportEscalationService.resolveEscalation(id);
+    await auditSupport(req, 'SUPPORT_REPLY_SENT', `Replied in conversation ${id}`);
 
     res.json({
       success: true,
@@ -375,7 +397,7 @@ supportRouter.post('/admin/conversations/:id/messages', authenticateAdmin, async
  * PATCH /api/support/admin/conversations/:id/status
  * Updates status (TAKE OVER -> HUMAN_ACTIVE, RETURN TO AI -> AI_ACTIVE, RESOLVE -> RESOLVED, CLOSE -> CLOSED).
  */
-supportRouter.patch('/admin/conversations/:id/status', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
+supportRouter.patch('/admin/conversations/:id/status', authenticateAdmin, requireSupport, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const id = toStr(req.params.id);
     const status = toStr(req.body.status) as SupportConversationStatus;
@@ -429,6 +451,7 @@ supportRouter.patch('/admin/conversations/:id/status', authenticateAdmin, async 
       });
     }
 
+    await auditSupport(req, 'SUPPORT_STATUS_CHANGED', `Conversation ${id} → ${status}`);
     res.json({ success: true, data: updated });
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Failed to update conversation status' });
@@ -439,7 +462,7 @@ supportRouter.patch('/admin/conversations/:id/status', authenticateAdmin, async 
  * GET /api/support/admin/conversations/:id/suggested-reply
  * Generates an AI suggested reply for the human concierge to use or edit.
  */
-supportRouter.get('/admin/conversations/:id/suggested-reply', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
+supportRouter.get('/admin/conversations/:id/suggested-reply', authenticateAdmin, requireSupport, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const id = toStr(req.params.id);
     const messages = await supportRepository.getMessages(id);
@@ -473,7 +496,7 @@ supportRouter.get('/admin/conversations/:id/suggested-reply', authenticateAdmin,
 /**
  * GET /api/support/admin/knowledge-base
  */
-supportRouter.get('/admin/knowledge-base', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
+supportRouter.get('/admin/knowledge-base', authenticateAdmin, requireSupport, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const category = toStr(req.query.category);
     const language = toStr(req.query.language);
@@ -495,7 +518,7 @@ supportRouter.get('/admin/knowledge-base', authenticateAdmin, async (req: Authen
 /**
  * POST /api/support/admin/knowledge-base
  */
-supportRouter.post('/admin/knowledge-base', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
+supportRouter.post('/admin/knowledge-base', authenticateAdmin, requireSupport, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { question, answer, category, language, status, source } = req.body;
     const qText = toStr(question).trim();
@@ -513,6 +536,7 @@ supportRouter.post('/admin/knowledge-base', authenticateAdmin, async (req: Authe
       status: (toStr(status) as any) || 'PUBLISHED',
       source: (toStr(source) as any) || 'MANUAL',
     });
+    await auditSupport(req, 'KNOWLEDGE_ITEM_CREATED', `Created knowledge item: ${qText.slice(0, 80)}`);
 
     res.json({ success: true, data: saved });
   } catch (err: any) {
@@ -523,7 +547,7 @@ supportRouter.post('/admin/knowledge-base', authenticateAdmin, async (req: Authe
 /**
  * PUT /api/support/admin/knowledge-base/:id
  */
-supportRouter.put('/admin/knowledge-base/:id', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
+supportRouter.put('/admin/knowledge-base/:id', authenticateAdmin, requireSupport, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const id = toStr(req.params.id);
     const { question, answer, category, language, status } = req.body;
@@ -536,6 +560,7 @@ supportRouter.put('/admin/knowledge-base/:id', authenticateAdmin, async (req: Au
       language: toStr(language),
       status: toStr(status) as any,
     });
+    await auditSupport(req, 'KNOWLEDGE_ITEM_UPDATED', `Updated knowledge item ${id}`);
 
     res.json({ success: true, data: saved });
   } catch (err: any) {
@@ -546,11 +571,15 @@ supportRouter.put('/admin/knowledge-base/:id', authenticateAdmin, async (req: Au
 /**
  * DELETE /api/support/admin/knowledge-base/:id
  */
-supportRouter.delete('/admin/knowledge-base/:id', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
+supportRouter.delete('/admin/knowledge-base/:id', authenticateAdmin, requireSupport, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const id = toStr(req.params.id);
     const deleted = await supportRepository.deleteKnowledgeItem(id);
-    res.json({ success: deleted });
+    if (!deleted) {
+      return res.status(404).json({ success: false, error: 'Knowledge item not found' });
+    }
+    await auditSupport(req, 'KNOWLEDGE_ITEM_DELETED', `Deleted knowledge item ${id}`);
+    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Failed to delete knowledge item' });
   }
@@ -563,7 +592,7 @@ supportRouter.delete('/admin/knowledge-base/:id', authenticateAdmin, async (req:
 /**
  * GET /api/support/admin/analytics
  */
-supportRouter.get('/admin/analytics', authenticateAdmin, async (req: AuthenticatedRequest, res: Response) => {
+supportRouter.get('/admin/analytics', authenticateAdmin, requireSupport, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const analytics = await supportRepository.getAnalytics();
     res.json({ success: true, data: analytics });
@@ -571,3 +600,168 @@ supportRouter.get('/admin/analytics', authenticateAdmin, async (req: Authenticat
     res.status(500).json({ success: false, error: 'Failed to fetch support analytics' });
   }
 });
+
+// ==============================================================================
+// 5. BOOKING & HOSTINGER EMAIL ALERTS
+// ==============================================================================
+
+/**
+ * POST /api/support/booking-alert
+ * Dispatched when a guest submits a villa booking inquiry modal.
+ * Triggers instant Hostinger SMTP email alert to hotel management.
+ */
+supportRouter.post('/booking-alert', async (req: Request, res: Response) => {
+  try {
+    const booking = req.body;
+    if (!booking || !booking.fullName || !booking.villaName) {
+      return res.status(400).json({ success: false, error: 'Incomplete booking details' });
+    }
+
+    // Fire email asynchronously via Hostinger SMTP without blocking visitor
+    emailService.sendBookingAlert(booking).catch((err) => {
+      console.error('[EMAIL] Background booking alert failed:', err.message);
+    });
+
+    res.json({ success: true, message: 'Booking alert dispatched successfully' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/support/admin/test-email
+ * Verifies Hostinger SMTP connection and sends test email.
+ */
+supportRouter.post('/admin/test-email', authenticateAdmin, requireSupport, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { targetEmail } = req.body;
+    const to = targetEmail || req.user?.email || 'info@zanzirangihouse.com';
+    const result = await emailService.testConnection(to);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ==============================================================================
+// 6. WEB PUSH NOTIFICATIONS & STAFF ON-DUTY
+// ==============================================================================
+
+/**
+ * GET /api/support/push/public-key
+ * Returns VAPID public key for Web Push subscription in browser / PWA.
+ */
+supportRouter.get('/push/public-key', (_req: Request, res: Response) => {
+  res.json({ success: true, publicKey: webPushService.getPublicKey() });
+});
+
+/**
+ * POST /api/support/push/subscribe
+ * Registers or updates a staff member's Web Push subscription.
+ */
+supportRouter.post('/push/subscribe', authenticateAdmin, requireSupport, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { subscription } = req.body;
+    if (!subscription || !subscription.endpoint || !subscription.keys) {
+      return res.status(400).json({ success: false, error: 'Invalid push subscription payload' });
+    }
+
+    const email = req.user?.email || 'admin@zanzirangihouse.com';
+    const role = req.user?.role || 'STAFF';
+
+    const saved = await supportRepository.savePushSubscription({
+      user_email: email,
+      role,
+      endpoint: subscription.endpoint,
+      p256dh: subscription.keys.p256dh,
+      auth: subscription.keys.auth,
+      user_agent: req.headers['user-agent'] || null,
+    });
+
+    res.json({ success: true, subscription: saved });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/support/push/unsubscribe
+ * Unregisters a staff member's Web Push subscription.
+ */
+supportRouter.post('/push/unsubscribe', authenticateAdmin, requireSupport, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { endpoint } = req.body;
+    if (endpoint) {
+      await supportRepository.deletePushSubscription(endpoint);
+    }
+    res.json({ success: true, message: 'Unsubscribed successfully' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/support/push/test
+ * Sends a test push notification to verify the staff HP receives the alert.
+ */
+supportRouter.post('/push/test', authenticateAdmin, requireSupport, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const email = req.user?.email || 'Staff';
+    const result = await webPushService.sendNotificationToStaff({
+      title: '🔔 Zanzirangi House Support – Test Alert',
+      body: `Hi ${email.split('@')[0]}! Your phone is connected to Zanzirangi Support Alerts. When guests require human assistance, you will receive real-time notifications here.`,
+      url: '/admin',
+    });
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/support/duty/status
+ * Fetches On Duty staff members and current user's duty state.
+ */
+supportRouter.get('/duty/status', authenticateAdmin, requireSupport, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const staffList = await supportRepository.getStaffDutyList();
+    const myEmail = req.user?.email || '';
+    const myDuty = staffList.find((s) => s.user_email.toLowerCase() === myEmail.toLowerCase());
+
+    res.json({
+      success: true,
+      staff: staffList,
+      isOnDuty: Boolean(myDuty?.is_on_duty),
+      hasAgentOnline: staffList.some((s) => s.is_on_duty),
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/support/duty/toggle
+ * Toggles On Duty / Off Duty status for the authenticated staff member.
+ */
+supportRouter.post('/duty/toggle', authenticateAdmin, requireSupport, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { isOnDuty } = req.body;
+    const email = req.user?.email || 'admin@zanzirangihouse.com';
+    const name = (req.user as any)?.name || email.split('@')[0];
+    const role = req.user?.role || 'STAFF';
+
+    const updated = await supportRepository.updateStaffDuty(email, Boolean(isOnDuty), name, role);
+    const staffList = await supportRepository.getStaffDutyList();
+
+    res.json({
+      success: true,
+      duty: updated,
+      staff: staffList,
+      hasAgentOnline: staffList.some((s) => s.is_on_duty),
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+

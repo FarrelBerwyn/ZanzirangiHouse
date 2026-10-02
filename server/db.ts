@@ -61,9 +61,9 @@ export const DEFAULT_HOMEPAGE_CONTENT = {
   },
   contact: {
     phone: '+255 777 890 123',
-    email: 'concierge@zanzirangihouse.com',
+    email: 'info@zanzirangihouse.com',
     whatsappNumber: '255777890123',
-    address: 'Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania',
+    address: 'Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania',
     googleMapsUrl: 'https://maps.google.com/?q=Kizimkazi+Dimbani+Zanzibar',
   },
   socials: {
@@ -121,6 +121,9 @@ export interface DatabaseSchema {
     passwordHash: string;
     createdAt: string;
     lastLogin?: string | null;
+    status?: 'active' | 'disabled';
+    permissions?: string[];
+    tokenVersion?: number;
   }>;
   homepage: any;
   villas: any;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Lock, Eye, EyeOff, ShieldAlert, ArrowRight } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ShieldAlert, ArrowRight, Sun, Moon } from 'lucide-react';
 import { authApi } from '../services/authApi';
+import { useAdminTheme } from './useAdminTheme';
 import zanzirangiLogo from '../assets/zanzirangi-logo-new.jpeg';
 
 interface AdminLoginProps {
@@ -13,6 +14,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { theme, toggleTheme } = useAdminTheme();
 
   useEffect(() => {
     document.title = 'Admin Login | Zanzirangi House';
@@ -26,7 +28,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      setErrorMessage('Silakan masukkan email dan password admin.');
+      setErrorMessage('Please enter your admin email and password.');
       return;
     }
 
@@ -39,7 +41,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
     if (result.success) {
       onLoginSuccess();
     } else {
-      setErrorMessage(result.error || 'Login gagal. Periksa kembali email dan password.');
+      setErrorMessage(result.error || 'Login failed. Please check your email and password.');
     }
   };
 
@@ -49,28 +51,42 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#141413] text-[#FAF8F5] flex flex-col justify-center items-center px-4 sm:px-6 py-12 relative overflow-hidden font-sans">
+    <div
+      data-admin-theme={theme}
+      className="adm-root min-h-screen bg-adm-bg text-adm-text flex flex-col justify-center items-center px-4 sm:px-6 py-12 relative overflow-hidden font-sans"
+    >
+      {/* Light / Dark Theme Toggle */}
+      <button
+        type="button"
+        onClick={toggleTheme}
+        className="absolute top-4 right-4 z-20 inline-flex items-center justify-center w-9 h-9 rounded-xl bg-adm-surface border border-adm-line hover:border-adm-accent/50 text-adm-text-2 hover:text-adm-accent transition-all cursor-pointer"
+        title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      >
+        {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+      </button>
+
       {/* Background ambient luxury glow */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#B8966C]/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-10 right-10 w-80 h-80 bg-[#C4A27A]/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-adm-accent/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-10 right-10 w-80 h-80 bg-adm-accent/5 rounded-full blur-3xl pointer-events-none" />
 
       {/* Main Login Card */}
-      <div className="relative z-10 w-full max-w-md bg-[#1C1B1A] border border-[#2C2B28] rounded-2xl shadow-2xl p-6 sm:p-8 backdrop-blur-md">
+      <div className="relative z-10 w-full max-w-md bg-adm-surface border border-adm-line rounded-2xl shadow-2xl p-6 sm:p-8 backdrop-blur-md">
         {/* Brand Header with Logo */}
         <div className="text-center mb-8">
           <img
             src={zanzirangiLogo}
             alt="Zanzirangi House Logo"
-            className="w-16 h-16 mx-auto mb-4 rounded-full object-cover border border-[#C4A27A]/40 shadow-lg"
+            className="w-16 h-16 mx-auto mb-4 rounded-full object-cover border border-adm-accent/40 shadow-lg"
           />
-          <span className="text-[11px] font-mono tracking-[0.25em] uppercase text-[#C4A27A] block mb-1">
+          <span className="text-[11px] font-mono tracking-[0.25em] uppercase text-adm-accent block mb-1">
             ZANZIRANGI HOUSE
           </span>
-          <h1 className="font-serif text-2xl sm:text-3xl font-light text-[#FAF8F5] tracking-wide">
+          <h1 className="font-serif text-2xl sm:text-3xl font-light text-adm-text tracking-wide">
             Admin Login
           </h1>
-          <p className="text-xs text-[#A39F98] mt-2 max-w-xs mx-auto leading-relaxed">
-            Masuk ke Dashboard CMS untuk mengelola konten website
+          <p className="text-xs text-adm-muted mt-2 max-w-xs mx-auto leading-relaxed">
+            Sign in to the CMS dashboard to manage website content
           </p>
         </div>
 
@@ -86,11 +102,11 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Email field */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-[#D8CCB8] block">
+            <label className="text-xs font-medium text-adm-text-2 block">
               Email
             </label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-[#8E8B85] absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Mail className="w-4 h-4 text-adm-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="email"
                 id="admin-email-input"
@@ -99,19 +115,19 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
                 placeholder="info@zanzirangihouse.com"
                 required
                 autoComplete="email"
-                className="w-full bg-[#141413] border border-[#2C2B28] focus:border-[#C4A27A] focus:ring-1 focus:ring-[#C4A27A] rounded-lg pl-10 pr-4 py-2.5 text-sm text-[#FAF8F5] placeholder-[#66645E] transition-all outline-none"
+                className="w-full bg-adm-bg border border-adm-line focus:border-adm-accent focus:ring-1 focus:ring-adm-accent rounded-lg pl-10 pr-4 py-2.5 text-sm text-adm-text placeholder-adm-faint transition-all outline-none"
               />
             </div>
 
             {/* Quick selector pill helper for registered mailboxes */}
             <div className="pt-1 flex flex-wrap gap-1.5 items-center">
-              <span className="text-[10px] text-[#8E8B85]">Quick:</span>
+              <span className="text-[10px] text-adm-muted">Quick:</span>
               {['info@zanzirangihouse.com', 'dominic@zanzirangihouse.com'].map((m) => (
                 <button
                   type="button"
                   key={m}
                   onClick={() => handleSelectQuickMail(m)}
-                  className="text-[10px] font-mono text-[#C4A27A] hover:underline bg-[#141413] border border-[#2C2B28] px-2 py-0.5 rounded cursor-pointer transition-colors"
+                  className="text-[10px] font-mono text-adm-accent hover:underline bg-adm-bg border border-adm-line px-2 py-0.5 rounded cursor-pointer transition-colors"
                 >
                   {m.split('@')[0]}
                 </button>
@@ -121,25 +137,25 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
 
           {/* Password field */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-[#D8CCB8] block">
+            <label className="text-xs font-medium text-adm-text-2 block">
               Password
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-[#8E8B85] absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Lock className="w-4 h-4 text-adm-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 id="admin-password-input"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Masukkan password"
+                placeholder="Enter your password"
                 required
                 autoComplete="current-password"
-                className="w-full bg-[#141413] border border-[#2C2B28] focus:border-[#C4A27A] focus:ring-1 focus:ring-[#C4A27A] rounded-lg pl-10 pr-10 py-2.5 text-sm text-[#FAF8F5] placeholder-[#66645E] transition-all outline-none"
+                className="w-full bg-adm-bg border border-adm-line focus:border-adm-accent focus:ring-1 focus:ring-adm-accent rounded-lg pl-10 pr-10 py-2.5 text-sm text-adm-text placeholder-adm-faint transition-all outline-none"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8E8B85] hover:text-[#FAF8F5] transition-colors p-1 cursor-pointer"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-adm-muted hover:text-adm-text transition-colors p-1 cursor-pointer"
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -152,12 +168,12 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
             type="submit"
             id="admin-login-submit"
             disabled={isLoading}
-            className="w-full mt-2 py-3 px-4 bg-[#B8966C] hover:bg-[#C4A27A] disabled:opacity-50 text-[#141413] font-semibold text-xs tracking-wider uppercase rounded-lg transition-all shadow-lg active:scale-[0.98] flex items-center justify-center space-x-2 cursor-pointer"
+            className="w-full mt-2 py-3 px-4 bg-adm-accent-fill hover:bg-adm-accent-hover disabled:opacity-50 text-adm-on-accent font-semibold text-xs tracking-wider uppercase rounded-lg transition-all shadow-lg active:scale-[0.98] flex items-center justify-center space-x-2 cursor-pointer"
           >
             {isLoading ? (
               <span className="inline-flex items-center space-x-2">
-                <span className="w-3.5 h-3.5 border-2 border-[#141413] border-t-transparent rounded-full animate-spin" />
-                <span>Memproses Login...</span>
+                <span className="w-3.5 h-3.5 border-2 border-adm-on-accent border-t-transparent rounded-full animate-spin" />
+                <span>Signing in...</span>
               </span>
             ) : (
               <>
@@ -169,7 +185,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
         </form>
 
         {/* Security watermark footer */}
-        <div className="mt-8 pt-4 border-t border-[#2C2B28] text-center text-[10px] text-[#6B6862] font-mono">
+        <div className="mt-8 pt-4 border-t border-adm-line text-center text-[10px] text-adm-faint font-mono">
           <span>Zanzirangi House Admin Panel • Secure Area</span>
         </div>
       </div>

@@ -1,60 +1,42 @@
 import React from 'react';
 import { ArrowRight, Utensils, Compass, Plane, Home, Mail } from 'lucide-react';
+import { Language } from '../types';
+import { INTERNAL_LINKS_I18N, InternalLinkKey } from '../data/pageTranslations';
 
 interface RelatedLink {
   title: string;
   description: string;
   url: string;
   ctaText: string;
-  icon: 'villas' | 'dining' | 'experiences' | 'safari' | 'contact';
+  icon: InternalLinkKey;
 }
 
 interface InternalLinkingSectionProps {
   currentPage: 'villas' | 'dining' | 'experiences' | 'safari' | 'about' | 'contact';
   onNavigate: (url: string) => void;
+  currentLang?: Language;
 }
+
+const LINK_ORDER: InternalLinkKey[] = ['villas', 'dining', 'experiences', 'safari', 'contact'];
 
 export const InternalLinkingSection: React.FC<InternalLinkingSectionProps> = ({
   currentPage,
   onNavigate,
+  currentLang = 'en',
 }) => {
-  const allDestinations: Record<string, RelatedLink> = {
-    villas: {
-      title: 'Private Luxury Villas',
-      description: 'Explore 8 handcrafted plunge-pool suites in Kizimkazi with 24/7 dedicated butler service.',
-      url: '/villas',
-      ctaText: 'Explore our private villas',
-      icon: 'villas',
-    },
-    dining: {
-      title: 'Oceanfront Dining',
-      description: 'Savor daily line-caught seafood, artisanal Swahili spices, and romantic beachfront candlelit dinners.',
-      url: '/dining',
-      ctaText: 'Discover oceanfront dining experiences',
-      icon: 'dining',
-    },
-    experiences: {
-      title: 'Zanzibar Experiences',
-      description: 'Embark on ethical Menai Bay dolphin dhow safaris, Stone Town walks, and organic spice farm tours.',
-      url: '/experiences',
-      ctaText: 'Explore curated Zanzibar tours',
-      icon: 'experiences',
-    },
-    safari: {
-      title: 'Tanzania Safari Connections',
-      description: 'Seamless fly-in bush charters from Zanzibar to Serengeti National Park and Ngorongoro Crater.',
-      url: '/safari',
-      ctaText: 'Discover Tanzania safari journeys',
-      icon: 'safari',
-    },
-    contact: {
-      title: 'Concierge & Direct Booking',
-      description: 'Coordinate your customized stay, private transfers, and bespoke itinerary with our team.',
-      url: '/contact',
-      ctaText: 'Contact concierge & reserve directly',
-      icon: 'contact',
-    },
-  };
+  const ui = INTERNAL_LINKS_I18N[currentLang] || INTERNAL_LINKS_I18N.en;
+
+  const allDestinations: Record<string, RelatedLink> = {};
+  LINK_ORDER.forEach((key) => {
+    const copy = ui.links[key];
+    allDestinations[key] = {
+      title: copy.title,
+      description: copy.description,
+      url: `/${key}`,
+      ctaText: copy.cta,
+      icon: key,
+    };
+  });
 
   // Filter out current page and select 3 highly relevant internal links
   const linksToDisplay: RelatedLink[] = Object.keys(allDestinations)
@@ -82,10 +64,10 @@ export const InternalLinkingSection: React.FC<InternalLinkingSectionProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
         <div className="text-center max-w-2xl mx-auto mb-10">
           <span className="text-xs font-mono tracking-[0.25em] uppercase text-[#A07E54] block mb-2">
-            EXPLORE MORE OF ZANZIRANGI HOUSE
+            {ui.eyebrow}
           </span>
           <h2 className="font-serif text-2xl sm:text-3xl text-[#1C1B1A]">
-            Complete Your Zanzibar & Tanzania Journey
+            {ui.heading}
           </h2>
         </div>
 

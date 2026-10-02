@@ -177,21 +177,21 @@ export const AdminRoomsManager: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-[#2C2B28] gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-adm-line gap-4">
         <div>
           <div className="flex items-center space-x-2">
-            <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-[#C4A27A]">
+            <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-adm-accent">
               VILLA
             </span>
             <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase bg-emerald-950/60 border border-emerald-700/60 text-emerald-300">
               LIVE
             </span>
           </div>
-          <h1 className="font-serif text-2xl sm:text-3xl text-[#FAF8F5] tracking-wide mt-1">
+          <h1 className="font-serif text-2xl sm:text-3xl text-adm-text tracking-wide mt-1">
             Villas
           </h1>
-          <p className="text-xs text-[#8E8B85] mt-0.5">
-            Kelola data kamar dan villa, harga, fasilitas, dan foto.
+          <p className="text-xs text-adm-muted mt-0.5">
+            Manage rooms and villas, pricing, amenities, and photos.
           </p>
         </div>
 
@@ -216,7 +216,7 @@ export const AdminRoomsManager: React.FC = () => {
           <button
             onClick={handleOpenAddModal}
             id="add-villa-btn"
-            className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-lg bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-xs font-mono uppercase tracking-widest font-bold shadow-lg transition-all cursor-pointer"
+            className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-lg bg-adm-accent-fill hover:bg-adm-accent-hover text-adm-on-accent text-xs font-mono uppercase tracking-widest font-bold shadow-lg transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Add Villa</span>
@@ -225,15 +225,15 @@ export const AdminRoomsManager: React.FC = () => {
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#181716] p-3 rounded-xl border border-[#2C2B28]">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-adm-panel p-3 rounded-xl border border-adm-line">
         <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#8E8B85]" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-adm-muted" />
           <input
             type="text"
             placeholder="Search villas by name, number..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+            className="w-full pl-9 pr-3 py-1.5 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
           />
         </div>
 
@@ -244,8 +244,8 @@ export const AdminRoomsManager: React.FC = () => {
               onClick={() => setStatusFilter(st)}
               className={`px-3 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer ${
                 statusFilter === st
-                  ? 'bg-[#B8966C] text-[#141413] font-bold'
-                  : 'text-[#D8CCB8] hover:bg-[#22211F]'
+                  ? 'bg-adm-accent-fill text-adm-on-accent font-bold'
+                  : 'text-adm-text-2 hover:bg-adm-raised'
               }`}
             >
               {st}
@@ -257,21 +257,21 @@ export const AdminRoomsManager: React.FC = () => {
       {/* Villas Table / Cards Grid */}
       {isLoading ? (
         <div className="py-24 text-center">
-          <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin text-[#C4A27A]" />
-          <p className="font-mono text-xs uppercase tracking-widest text-[#D8CCB8]">Loading Villas...</p>
+          <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin text-adm-accent" />
+          <p className="font-mono text-xs uppercase tracking-widest text-adm-text-2">Loading Villas...</p>
         </div>
       ) : filteredVillas.length === 0 ? (
-        <div className="py-16 text-center bg-[#181716] rounded-xl border border-[#2C2B28]">
-          <BedDouble className="w-10 h-10 mx-auto mb-2 text-[#8E8B85]" />
-          <p className="text-sm font-serif text-[#FAF8F5]">No villas found</p>
-          <p className="text-xs text-[#8E8B85] mt-1">Try adjusting your search or filters.</p>
+        <div className="py-16 text-center bg-adm-panel rounded-xl border border-adm-line">
+          <BedDouble className="w-10 h-10 mx-auto mb-2 text-adm-muted" />
+          <p className="text-sm font-serif text-adm-text">No villas found</p>
+          <p className="text-xs text-adm-muted mt-1">Try adjusting your search or filters.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filteredVillas.map((villa) => (
             <div
               key={villa.id}
-              className="bg-[#181716] rounded-xl border border-[#2C2B28] overflow-hidden flex flex-col justify-between hover:border-[#3E3C38] transition-all"
+              className="bg-adm-panel rounded-xl border border-adm-line overflow-hidden flex flex-col justify-between hover:border-adm-line-strong transition-all"
             >
               <div>
                 {/* Image Banner */}
@@ -281,15 +281,15 @@ export const AdminRoomsManager: React.FC = () => {
                     alt={villa.name}
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#181716] via-transparent to-black/30" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-adm-panel via-transparent to-black/30" />
 
                   {/* Top Badges */}
                   <div className="absolute top-3 left-3 flex items-center space-x-2">
-                    <span className="px-2 py-0.5 rounded bg-black/60 backdrop-blur-sm text-[10px] font-mono uppercase tracking-wider text-[#C4A27A] border border-white/10">
+                    <span className="px-2 py-0.5 rounded bg-black/60 backdrop-blur-sm text-[10px] font-mono uppercase tracking-wider text-adm-accent border border-white/10">
                       {villa.roomNumber}
                     </span>
                     {villa.featured && (
-                      <span className="px-2 py-0.5 rounded bg-[#B8966C] text-[#141413] text-[9px] font-mono uppercase font-bold">
+                      <span className="px-2 py-0.5 rounded bg-adm-accent-fill text-adm-on-accent text-[9px] font-mono uppercase font-bold">
                         Featured
                       </span>
                     )}
@@ -310,35 +310,35 @@ export const AdminRoomsManager: React.FC = () => {
 
                   {/* Price Tag Overlay */}
                   <div className="absolute bottom-3 right-3">
-                    <span className="font-serif text-lg text-[#FAF8F5] font-bold">
+                    <span className="font-serif text-lg text-adm-text font-bold">
                       {villa.pricePerNight}
                     </span>
-                    <span className="text-[10px] font-mono text-[#D8CCB8] ml-1">/ night</span>
+                    <span className="text-[10px] font-mono text-adm-text-2 ml-1">/ night</span>
                   </div>
                 </div>
 
                 {/* Content Details */}
                 <div className="p-4 space-y-2">
-                  <h3 className="font-serif text-lg text-[#FAF8F5] font-light leading-snug">
+                  <h3 className="font-serif text-lg text-adm-text font-light leading-snug">
                     {villa.name}
                   </h3>
-                  <p className="text-[11px] text-[#C4A27A] font-mono uppercase tracking-wider truncate">
+                  <p className="text-[11px] text-adm-accent font-mono uppercase tracking-wider truncate">
                     {villa.type}
                   </p>
-                  <p className="text-xs text-[#8E8B85] line-clamp-2 leading-relaxed">
+                  <p className="text-xs text-adm-muted line-clamp-2 leading-relaxed">
                     {villa.shortDescription || villa.description}
                   </p>
 
-                  <div className="pt-2 flex items-center space-x-4 text-xs font-mono text-[#D8CCB8]">
+                  <div className="pt-2 flex items-center space-x-4 text-xs font-mono text-adm-text-2">
                     <span className="flex items-center space-x-1">
-                      <Users className="w-3.5 h-3.5 text-[#C4A27A]" />
+                      <Users className="w-3.5 h-3.5 text-adm-accent" />
                       <span>{villa.capacity} Guests</span>
                     </span>
                     <span className="flex items-center space-x-1">
-                      <Maximize className="w-3.5 h-3.5 text-[#C4A27A]" />
+                      <Maximize className="w-3.5 h-3.5 text-adm-accent" />
                       <span>{villa.size}</span>
                     </span>
-                    <span className="text-[10px] text-[#8E8B85]">
+                    <span className="text-[10px] text-adm-muted">
                       {villa.amenities?.length || 0} Amenities
                     </span>
                   </div>
@@ -346,10 +346,10 @@ export const AdminRoomsManager: React.FC = () => {
               </div>
 
               {/* Action Buttons Bar */}
-              <div className="p-3 bg-[#141413] border-t border-[#2C2B28] flex items-center justify-between">
+              <div className="p-3 bg-adm-bg border-t border-adm-line flex items-center justify-between">
                 <button
                   onClick={() => handleToggleStatus(villa)}
-                  className="text-xs font-mono text-[#8E8B85] hover:text-[#FAF8F5] flex items-center space-x-1 cursor-pointer"
+                  className="text-xs font-mono text-adm-muted hover:text-adm-text flex items-center space-x-1 cursor-pointer"
                 >
                   {villa.status === 'published' ? (
                     <>
@@ -368,14 +368,14 @@ export const AdminRoomsManager: React.FC = () => {
                   <button
                     onClick={() => handleDuplicateVilla(villa)}
                     title="Duplicate villa"
-                    className="p-1.5 rounded bg-[#1C1B1A] hover:bg-[#2C2B28] text-[#D8CCB8] cursor-pointer"
+                    className="p-1.5 rounded bg-adm-surface hover:bg-adm-line text-adm-text-2 cursor-pointer"
                   >
                     <Copy className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => handleOpenEditModal(villa)}
                     title="Edit villa"
-                    className="inline-flex items-center space-x-1 px-3 py-1.5 rounded bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-xs font-mono uppercase font-bold cursor-pointer"
+                    className="inline-flex items-center space-x-1 px-3 py-1.5 rounded bg-adm-accent-fill hover:bg-adm-accent-hover text-adm-on-accent text-xs font-mono uppercase font-bold cursor-pointer"
                   >
                     <Edit2 className="w-3 h-3" />
                     <span>Edit</span>
@@ -397,20 +397,20 @@ export const AdminRoomsManager: React.FC = () => {
       {/* Edit / Create Villa Modal */}
       {isModalOpen && editingVilla && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-[#181716] border border-[#2C2B28] rounded-2xl w-full max-w-3xl my-8 max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+          <div className="bg-adm-panel border border-adm-line rounded-2xl w-full max-w-3xl my-8 max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
             {/* Modal Header */}
-            <div className="p-4 sm:p-5 border-b border-[#2C2B28] flex items-center justify-between bg-[#1C1B1A]">
+            <div className="p-4 sm:p-5 border-b border-adm-line flex items-center justify-between bg-adm-surface">
               <div>
-                <span className="text-[10px] font-mono tracking-widest text-[#C4A27A] uppercase">
+                <span className="text-[10px] font-mono tracking-widest text-adm-accent uppercase">
                   VILLA EDITOR
                 </span>
-                <h2 className="font-serif text-xl text-[#FAF8F5]">
+                <h2 className="font-serif text-xl text-adm-text">
                   {editingVilla.name || 'New Villa / Suite'}
                 </h2>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="p-2 text-[#8E8B85] hover:text-[#FAF8F5] cursor-pointer"
+                className="p-2 text-adm-muted hover:text-adm-text cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -421,7 +421,7 @@ export const AdminRoomsManager: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Villa Name */}
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Villa Name *
                   </label>
                   <input
@@ -430,13 +430,13 @@ export const AdminRoomsManager: React.FC = () => {
                     value={editingVilla.name || ''}
                     onChange={(e) => setEditingVilla({ ...editingVilla, name: e.target.value })}
                     placeholder="e.g. Sultan Oceanfront Villa"
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-serif text-sm text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-serif text-sm text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 {/* Room Number / Identifier */}
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Room Number / Badge
                   </label>
                   <input
@@ -446,13 +446,13 @@ export const AdminRoomsManager: React.FC = () => {
                       setEditingVilla({ ...editingVilla, roomNumber: e.target.value })
                     }
                     placeholder="e.g. VILLA 01"
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 {/* Villa Subtitle / Category Type */}
                 <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Villa Category / Architectural Type
                   </label>
                   <input
@@ -460,13 +460,13 @@ export const AdminRoomsManager: React.FC = () => {
                     value={editingVilla.type || ''}
                     onChange={(e) => setEditingVilla({ ...editingVilla, type: e.target.value })}
                     placeholder="e.g. Master Ocean Villa with Private Plunge Pool"
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 {/* Pricing: Regular Price & Promotional Price */}
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Price Per Night
                   </label>
                   <input
@@ -476,12 +476,12 @@ export const AdminRoomsManager: React.FC = () => {
                       setEditingVilla({ ...editingVilla, pricePerNight: e.target.value })
                     }
                     placeholder="e.g. $480"
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Promotional Price (Optional)
                   </label>
                   <input
@@ -491,13 +491,13 @@ export const AdminRoomsManager: React.FC = () => {
                       setEditingVilla({ ...editingVilla, promotionalPrice: e.target.value })
                     }
                     placeholder="e.g. $420"
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 {/* Capacity & Size */}
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Max Guest Capacity
                   </label>
                   <input
@@ -508,12 +508,12 @@ export const AdminRoomsManager: React.FC = () => {
                     onChange={(e) =>
                       setEditingVilla({ ...editingVilla, capacity: parseInt(e.target.value) || 2 })
                     }
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Floor Size
                   </label>
                   <input
@@ -521,13 +521,13 @@ export const AdminRoomsManager: React.FC = () => {
                     value={editingVilla.size || ''}
                     onChange={(e) => setEditingVilla({ ...editingVilla, size: e.target.value })}
                     placeholder="e.g. 95 m² (1,022 sq ft)"
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 {/* Bed & Bathroom */}
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Bed Configuration
                   </label>
                   <input
@@ -535,12 +535,12 @@ export const AdminRoomsManager: React.FC = () => {
                     value={editingVilla.bed || ''}
                     onChange={(e) => setEditingVilla({ ...editingVilla, bed: e.target.value })}
                     placeholder="e.g. Handcrafted King Four-Poster Bed"
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Bathroom Details
                   </label>
                   <input
@@ -548,13 +548,13 @@ export const AdminRoomsManager: React.FC = () => {
                     value={editingVilla.bathroom || ''}
                     onChange={(e) => setEditingVilla({ ...editingVilla, bathroom: e.target.value })}
                     placeholder="e.g. En-suite Stone Wet Room & Outdoor Rain Shower"
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 {/* Ocean View Description */}
                 <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     View Description
                   </label>
                   <input
@@ -562,13 +562,13 @@ export const AdminRoomsManager: React.FC = () => {
                     value={editingVilla.view || ''}
                     onChange={(e) => setEditingVilla({ ...editingVilla, view: e.target.value })}
                     placeholder="e.g. Direct Panoramic Indian Ocean & Sunset"
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 {/* Short Description */}
                 <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Short Description (Card Teaser)
                   </label>
                   <textarea
@@ -578,13 +578,13 @@ export const AdminRoomsManager: React.FC = () => {
                       setEditingVilla({ ...editingVilla, shortDescription: e.target.value })
                     }
                     placeholder="Perched directly above the coral cliff with uninterrupted ocean vistas..."
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 {/* Long Description */}
                 <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Full Narrative Description
                   </label>
                   <textarea
@@ -594,13 +594,13 @@ export const AdminRoomsManager: React.FC = () => {
                       setEditingVilla({ ...editingVilla, description: e.target.value })
                     }
                     placeholder="The Sultan Oceanfront Villa represents the pinnacle of barefoot luxury..."
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs text-[#FAF8F5] focus:border-[#C4A27A] outline-none leading-relaxed"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs text-adm-text focus:border-adm-accent outline-none leading-relaxed"
                   />
                 </div>
 
                 {/* Cover Hero Image URL */}
                 <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Cover Hero Photography URL *
                   </label>
                   <input
@@ -610,13 +610,13 @@ export const AdminRoomsManager: React.FC = () => {
                     onChange={(e) =>
                       setEditingVilla({ ...editingVilla, heroImage: e.target.value })
                     }
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 {/* Gallery Photos Repeater */}
                 <div className="sm:col-span-2 space-y-2">
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8]">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2">
                     Villa Image Gallery ({editingVilla.images?.length || 0} photos)
                   </label>
                   <div className="flex items-center space-x-2">
@@ -625,7 +625,7 @@ export const AdminRoomsManager: React.FC = () => {
                       placeholder="Add photo URL to gallery..."
                       value={newImageUrl}
                       onChange={(e) => setNewImageUrl(e.target.value)}
-                      className="flex-1 px-3 py-1.5 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] outline-none"
+                      className="flex-1 px-3 py-1.5 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text outline-none"
                     />
                     <button
                       type="button"
@@ -637,7 +637,7 @@ export const AdminRoomsManager: React.FC = () => {
                         });
                         setNewImageUrl('');
                       }}
-                      className="px-3 py-1.5 bg-[#2C2B28] hover:bg-[#B8966C] text-[#FAF8F5] hover:text-[#141413] rounded text-xs font-mono uppercase"
+                      className="px-3 py-1.5 bg-adm-line hover:bg-adm-accent-hover text-adm-text hover:text-adm-on-accent rounded text-xs font-mono uppercase"
                     >
                       Add Photo
                     </button>
@@ -664,7 +664,7 @@ export const AdminRoomsManager: React.FC = () => {
 
                 {/* Amenities Repeater */}
                 <div className="sm:col-span-2 space-y-2">
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8]">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2">
                     Villa Amenities ({editingVilla.amenities?.length || 0} items)
                   </label>
                   <div className="flex items-center space-x-2">
@@ -673,7 +673,7 @@ export const AdminRoomsManager: React.FC = () => {
                       placeholder="e.g. Private Ocean Plunge Pool"
                       value={newAmenityText}
                       onChange={(e) => setNewAmenityText(e.target.value)}
-                      className="flex-1 px-3 py-1.5 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] outline-none"
+                      className="flex-1 px-3 py-1.5 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text outline-none"
                     />
                     <button
                       type="button"
@@ -685,7 +685,7 @@ export const AdminRoomsManager: React.FC = () => {
                         });
                         setNewAmenityText('');
                       }}
-                      className="px-3 py-1.5 bg-[#2C2B28] hover:bg-[#B8966C] text-[#FAF8F5] hover:text-[#141413] rounded text-xs font-mono uppercase"
+                      className="px-3 py-1.5 bg-adm-line hover:bg-adm-accent-hover text-adm-text hover:text-adm-on-accent rounded text-xs font-mono uppercase"
                     >
                       Add Amenity
                     </button>
@@ -695,7 +695,7 @@ export const AdminRoomsManager: React.FC = () => {
                     {editingVilla.amenities?.map((amenity, idx) => (
                       <span
                         key={idx}
-                        className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-[#1C1B1A] border border-[#2C2B28] text-xs font-mono text-[#D8CCB8]"
+                        className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-adm-surface border border-adm-line text-xs font-mono text-adm-text-2"
                       >
                         <span>{amenity}</span>
                         <button
@@ -704,7 +704,7 @@ export const AdminRoomsManager: React.FC = () => {
                             const updated = editingVilla.amenities?.filter((_, i) => i !== idx);
                             setEditingVilla({ ...editingVilla, amenities: updated });
                           }}
-                          className="text-[#8E8B85] hover:text-red-400"
+                          className="text-adm-muted hover:text-red-400"
                         >
                           <X className="w-3 h-3" />
                         </button>
@@ -715,26 +715,26 @@ export const AdminRoomsManager: React.FC = () => {
 
                 {/* Featured & Status Checkboxes */}
                 <div className="sm:col-span-2 pt-2 flex items-center space-x-6">
-                  <label className="flex items-center space-x-2 text-xs font-mono text-[#FAF8F5] cursor-pointer">
+                  <label className="flex items-center space-x-2 text-xs font-mono text-adm-text cursor-pointer">
                     <input
                       type="checkbox"
                       checked={editingVilla.featured || false}
                       onChange={(e) =>
                         setEditingVilla({ ...editingVilla, featured: e.target.checked })
                       }
-                      className="rounded border-[#2C2B28] text-[#C4A27A] focus:ring-0"
+                      className="rounded border-adm-line text-adm-accent focus:ring-0"
                     />
                     <span>Highlight as Featured on Homepage</span>
                   </label>
 
-                  <label className="flex items-center space-x-2 text-xs font-mono text-[#FAF8F5] cursor-pointer">
+                  <label className="flex items-center space-x-2 text-xs font-mono text-adm-text cursor-pointer">
                     <input
                       type="checkbox"
                       checked={editingVilla.availability !== false}
                       onChange={(e) =>
                         setEditingVilla({ ...editingVilla, availability: e.target.checked })
                       }
-                      className="rounded border-[#2C2B28] text-[#C4A27A] focus:ring-0"
+                      className="rounded border-adm-line text-adm-accent focus:ring-0"
                     />
                     <span>Available for Booking</span>
                   </label>
@@ -742,17 +742,17 @@ export const AdminRoomsManager: React.FC = () => {
               </div>
 
               {/* Modal Action Buttons */}
-              <div className="pt-4 border-t border-[#2C2B28] flex items-center justify-end space-x-3">
+              <div className="pt-4 border-t border-adm-line flex items-center justify-end space-x-3">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-lg bg-[#242321] text-xs font-mono uppercase tracking-wider text-[#D8CCB8] hover:bg-[#2C2B28] cursor-pointer"
+                  className="px-4 py-2 rounded-lg bg-adm-raised text-xs font-mono uppercase tracking-wider text-adm-text-2 hover:bg-adm-line cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="inline-flex items-center space-x-2 px-5 py-2 rounded-lg bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-xs font-mono uppercase tracking-widest font-bold shadow-lg cursor-pointer"
+                  className="inline-flex items-center space-x-2 px-5 py-2 rounded-lg bg-adm-accent-fill hover:bg-adm-accent-hover text-adm-on-accent text-xs font-mono uppercase tracking-widest font-bold shadow-lg cursor-pointer"
                 >
                   <Save className="w-4 h-4" />
                   <span>Save Villa</span>

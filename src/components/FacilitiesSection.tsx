@@ -3,13 +3,15 @@ import { Sparkles, ArrowRight } from 'lucide-react';
 import { Language, Facility } from '../types';
 import { getLocalizedFacilities } from '../data/facilitiesTranslations';
 import { TRANSLATIONS } from '../data/translations';
+import { HomeSectionContent, cmsText } from '../data/homeSectionsCms';
 
 interface FacilitiesSectionProps {
   currentLang: Language;
   facilities?: Facility[];
+  cmsContent?: HomeSectionContent;
 }
 
-export const FacilitiesSection: React.FC<FacilitiesSectionProps> = ({ currentLang, facilities: customFacilities }) => {
+export const FacilitiesSection: React.FC<FacilitiesSectionProps> = ({ currentLang, facilities: customFacilities, cmsContent }) => {
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
   const facilities = getLocalizedFacilities(currentLang, customFacilities || undefined);
   const [activeFacilityId, setActiveFacilityId] = useState(facilities[0]?.id || 'pool');
@@ -28,7 +30,7 @@ export const FacilitiesSection: React.FC<FacilitiesSectionProps> = ({ currentLan
     zh: '庄园尊享典藏设施与管家礼遇',
   };
 
-  const eyebrow = eyebrows[currentLang] || eyebrows.en;
+  const eyebrow = cmsText(cmsContent?.eyebrow, eyebrows[currentLang] || eyebrows.en);
 
   return (
     <section id="facilities" className="pt-6 sm:pt-10 md:pt-14 pb-8 sm:pb-12 md:pb-16 bg-[#141413] text-[#FAF8F5]">
@@ -43,10 +45,10 @@ export const FacilitiesSection: React.FC<FacilitiesSectionProps> = ({ currentLan
             id="facilities-heading"
             className="font-serif text-3xl sm:text-4xl md:text-5xl font-light tracking-[0.05em] uppercase text-[#FAF8F5] mb-4"
           >
-            {t.facilities.heading}
+            {cmsText(cmsContent?.heading, t.facilities.heading)}
           </h2>
           <p className="text-[#D8CCB8]/80 text-sm sm:text-base leading-relaxed">
-            {t.facilities.subhead}
+            {cmsText(cmsContent?.subhead, t.facilities.subhead)}
           </p>
         </div>
 

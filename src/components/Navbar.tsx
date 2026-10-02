@@ -5,11 +5,15 @@ import { TRANSLATIONS } from '../data/translations';
 import { useTheme } from '../context/ThemeContext';
 import logoImg from '../assets/zanzirangi-logo-new.jpeg';
 
+import { GlobalContentModel } from '../services/contentApi';
+import { localizeUnlessEdited } from '../data/homeSectionsCms';
+
 interface NavbarProps {
   currentLang: Language;
   onSelectLang: (lang: Language) => void;
   onOpenBooking: (villaId?: string) => void;
   onNavigate?: (url: string) => void;
+  dynamicGlobal?: GlobalContentModel | null;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -17,6 +21,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectLang,
   onOpenBooking,
   onNavigate,
+  dynamicGlobal,
 }) => {
   const { theme, toggleTheme } = useTheme();
   const [isScrolled, setIsScrolled] = useState(false);
@@ -50,14 +55,58 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
   }, [mobileMenuOpen]);
 
-  const navLinks = [
-    { label: t.nav.stay || 'VILLAS', href: '/villas' },
-    { label: t.nav.dining || 'DINING', href: '/dining' },
-    { label: t.nav.experiences || 'EXPERIENCES', href: '/experiences' },
-    { label: 'SAFARI', href: '/safari' },
-    { label: t.nav.about || 'ABOUT', href: '/about' },
-    { label: 'CONTACT', href: '/contact' },
+  const contactLabels: Record<Language, string> = {
+    en: 'CONTACT',
+    pl: 'KONTAKT',
+    ar: 'اتصل بنا',
+    zh: '联系我们',
+    fr: 'CONTACT',
+    sw: 'MAWASILIANO',
+    es: 'CONTACTO',
+    it: 'CONTATTI',
+  };
+
+  const tEn = TRANSLATIONS.en;
+
+  // Built-in menu (also the per-language source for CMS labels that are still the English default).
+  const builtInNav: { href: string; en: string; label: string }[] = [
+    { href: '/villas', en: tEn.nav.stay || 'STAY', label: t.nav.stay || 'VILLAS' },
+    { href: '/dining', en: tEn.nav.dining || 'DINING', label: t.nav.dining || 'DINING' },
+    { href: '/experiences', en: tEn.nav.experiences || 'EXPERIENCES', label: t.nav.experiences || 'EXPERIENCES' },
+    { href: '/safari', en: 'SAFARI', label: 'SAFARI' },
+    { href: '/about', en: tEn.nav.about || 'ABOUT', label: t.nav.about || 'ABOUT' },
+    { href: '/contact', en: contactLabels.en, label: contactLabels[currentLang] || contactLabels.en },
   ];
+
+  const localizeNavLabel = (label: string, href: string): string => {
+    const builtIn = builtInNav.find((b) => b.href === href);
+    if (!builtIn) return label;
+    const isDefault = label.trim().toUpperCase() === builtIn.en.toUpperCase();
+    return localizeUnlessEdited(isDefault ? builtIn.en : label, undefined, builtIn.en, builtIn.label);
+  };
+
+  // Menu items come from Admin → Navigation & Footer (labels translated via Admin → Translations).
+  const cmsNavLinks = (Array.isArray(dynamicGlobal?.navLinks) ? dynamicGlobal!.navLinks : [])
+    .filter((link) => link && link.visible !== false && link.label && link.href)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map((link) => ({ label: localizeNavLabel(link.label, link.href), href: link.href }));
+
+  const navLinks =
+    cmsNavLinks.length > 0 ? cmsNavLinks : builtInNav.map(({ label, href }) => ({ label, href }));
+
+  // "Plan Your Stay" button label (desktop, mobile bar and mobile overlay). Always opens the booking modal.
+  const builtInCta = t.nav.planStay || t.nav.bookStay || 'PLAN YOUR STAY';
+  const ctaLabel = localizeUnlessEdited(
+    dynamicGlobal?.ctaPlanStayLabel?.trim() || undefined,
+    'PLAN YOUR STAY',
+    tEn.nav.planStay || tEn.nav.bookStay,
+    builtInCta
+  );
+
+  // Brand name next to the logo: first word on the top line, the rest below (e.g. ZANZIRANGI / HOUSE).
+  const brandName = dynamicGlobal?.brandName?.trim() || 'Zanzirangi House';
+  const [brandTop, ...brandRest] = brandName.split(/\s+/);
+  const brandBottom = brandRest.join(' ');
 
   const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     if (onNavigate && href.startsWith('/')) {
@@ -118,7 +167,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <img
               src={logoImg}
-              alt="Zanzirangi House Logo"
+              alt={`${brandName} Logo`}
               className={`${
                 isScrolled ? 'w-8 h-8 sm:w-9 sm:h-9' : 'w-8 h-8 sm:w-11 sm:h-11'
               } rounded-full object-cover border border-[#C4A27A]/50 shadow-md group-hover:scale-105 group-hover:border-[#C4A27A] transition-all duration-300 flex-shrink-0`}
@@ -129,15 +178,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                   isScrolled ? 'text-xs sm:text-base md:text-lg' : 'text-sm sm:text-lg md:text-xl'
                 }`}
               >
-                ZANZIRANGI
+                {brandTop}
               </span>
-              <span
-                className={`font-serif tracking-[0.34em] sm:tracking-[0.4em] text-[#C4A27A] uppercase transition-all duration-300 font-light ${
-                  isScrolled ? 'text-[9px] sm:text-[11px] md:text-xs' : 'text-[10px] sm:text-xs md:text-sm'
-                }`}
-              >
-                HOUSE
-              </span>
+              {brandBottom && (
+                <span
+                  className={`font-serif tracking-[0.34em] sm:tracking-[0.4em] text-[#C4A27A] uppercase transition-all duration-300 font-light ${
+                    isScrolled ? 'text-[9px] sm:text-[11px] md:text-xs' : 'text-[10px] sm:text-xs md:text-sm'
+                  }`}
+                >
+                  {brandBottom}
+                </span>
+              )}
             </div>
           </a>
 
@@ -146,9 +197,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             id="desktop-nav-links"
             className="hidden xl:flex items-center space-x-4 2xl:space-x-7 text-[11px] 2xl:text-[12px] tracking-[0.14em] 2xl:tracking-[0.18em] uppercase font-medium text-[#FAF8F5]/90 flex-shrink"
           >
-            {navLinks.map((link) => (
+            {navLinks.map((link, idx) => (
               <a
-                key={link.href}
+                key={`${link.href}-${idx}`}
                 href={link.href}
                 onClick={(e) => handleNavClick(e, link.href)}
                 className="transition-colors duration-200 hover:text-[#C4A27A] relative py-1 whitespace-nowrap after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-0 after:h-[1px] after:bg-[#C4A27A] hover:after:w-full after:transition-all after:duration-300"
@@ -230,7 +281,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="flex items-center space-x-2 px-4 2xl:px-5 py-2.5 bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-[11px] 2xl:text-xs tracking-[0.16em] uppercase font-semibold rounded transition-all duration-300 shadow-md hover:shadow-lg transform active:scale-95 whitespace-nowrap cursor-pointer"
             >
               <Calendar className="w-3.5 h-3.5" />
-              <span>{t.nav.planStay || t.nav.bookStay || 'PLAN YOUR STAY'}</span>
+              <span>{ctaLabel}</span>
             </button>
           </div>
 
@@ -242,7 +293,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => onOpenBooking()}
               className="px-2.5 sm:px-3 py-1.5 bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-[10px] sm:text-[11px] font-semibold tracking-wider uppercase rounded whitespace-nowrap shadow-sm transition-colors cursor-pointer"
             >
-              {t.nav.planStay || t.nav.bookStay || 'PLAN YOUR STAY'}
+              {ctaLabel}
             </button>
 
             {/* Quick Language Dropdown on Mobile/Tablet placed to the left of the hamburger (garis 3) */}
@@ -320,16 +371,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <img
                 src={logoImg}
-                alt="Zanzirangi House Logo"
+                alt={`${brandName} Logo`}
                 className="w-8 h-8 rounded-full object-cover border border-[#C4A27A]/50 shadow-md flex-shrink-0"
               />
               <div className="flex flex-col text-left leading-tight">
                 <span className="font-serif tracking-[0.16em] text-sm text-[#FAF8F5] uppercase font-medium">
-                  ZANZIRANGI
+                  {brandTop}
                 </span>
-                <span className="font-serif tracking-[0.34em] text-[10px] text-[#C4A27A] uppercase font-light">
-                  HOUSE
-                </span>
+                {brandBottom && (
+                  <span className="font-serif tracking-[0.34em] text-[10px] text-[#C4A27A] uppercase font-light">
+                    {brandBottom}
+                  </span>
+                )}
               </div>
             </a>
 
@@ -345,9 +398,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Menu Links Content */}
           <div className="flex-1 flex flex-col justify-center items-center py-8 px-6 space-y-6 text-center">
-            {navLinks.map((link) => (
+            {navLinks.map((link, idx) => (
               <a
-                key={link.href}
+                key={`${link.href}-${idx}`}
                 href={link.href}
                 onClick={(e) => handleNavClick(e, link.href)}
                 className="font-serif text-2xl tracking-[0.18em] text-[#FAF8F5] hover:text-[#C4A27A] transition-colors py-1"
@@ -405,7 +458,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }}
               className="w-full py-3.5 bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-xs sm:text-sm tracking-[0.2em] uppercase font-semibold rounded-lg text-center shadow-xl active:scale-[0.98] transition-all cursor-pointer"
             >
-              {t.nav.planStay || t.nav.bookStay || 'PLAN YOUR STAY'}
+              {ctaLabel}
             </button>
           </div>
         </div>

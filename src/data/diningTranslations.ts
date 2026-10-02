@@ -1,5 +1,6 @@
 import { Language, DiningCategory } from '../types';
 import { DINING_CATEGORIES } from './dining';
+import { localizeUnlessEdited } from './homeSectionsCms';
 
 export interface DiningCategoryLocalization {
   name: string;
@@ -902,20 +903,51 @@ export const DINING_TRANSLATIONS: Record<Language, Record<string, DiningCategory
   },
 };
 
-export function getLocalizedDining(lang: Language): DiningCategory[] {
+type DiningDish = DiningCategory['signatureDishes'][number];
+
+/**
+ * Dishes are matched by position against the built-in dishes of the same category.
+ * Extra CMS dish fields (price, dietary, visible, ...) are passed through untouched.
+ * An explicitly empty CMS list stays empty (the admin removed every dish); only a missing list falls back.
+ */
+const localizeDishes = (
+  cmsDishes: DiningDish[] | undefined,
+  seedDishes: DiningDish[] | undefined,
+  enDishes: DiningDish[] | undefined,
+  locDishes: DiningDish[] | undefined
+): DiningDish[] => {
+  const localized = locDishes && locDishes.length > 0 ? locDishes : undefined;
+  if (!cmsDishes) return localized || seedDishes || [];
+  return cmsDishes.map((dish, i) => ({
+    ...dish,
+    name: localizeUnlessEdited(dish.name, seedDishes?.[i]?.name, enDishes?.[i]?.name, localized?.[i]?.name),
+    description: localizeUnlessEdited(
+      dish.description,
+      seedDishes?.[i]?.description,
+      enDishes?.[i]?.description,
+      localized?.[i]?.description
+    ),
+  }));
+};
+
+export function getLocalizedDining(lang: Language, baseCategories: DiningCategory[] = DINING_CATEGORIES): DiningCategory[] {
   const translations = DINING_TRANSLATIONS[lang] || DINING_TRANSLATIONS.en;
 
-  return DINING_CATEGORIES.map((cat) => {
+  return baseCategories.map((cat) => {
     const loc = translations[cat.id];
     if (!loc) return cat;
+    const seed = DINING_CATEGORIES.find((c) => c.id === cat.id);
+    const en = DINING_TRANSLATIONS.en[cat.id];
+    const pick = (field: 'name' | 'tabLabel' | 'subtitle' | 'description') =>
+      localizeUnlessEdited(cat[field], seed?.[field], en?.[field], loc[field]);
 
     return {
       ...cat,
-      name: loc.name || cat.name,
-      tabLabel: loc.tabLabel || cat.tabLabel,
-      subtitle: loc.subtitle || cat.subtitle,
-      description: loc.description || cat.description,
-      signatureDishes: loc.signatureDishes && loc.signatureDishes.length > 0 ? loc.signatureDishes : cat.signatureDishes,
+      name: pick('name'),
+      tabLabel: pick('tabLabel'),
+      subtitle: pick('subtitle'),
+      description: pick('description'),
+      signatureDishes: localizeDishes(cat.signatureDishes, seed?.signatureDishes, en?.signatureDishes, loc.signatureDishes),
     };
   });
 }

@@ -12,7 +12,9 @@ function zanzirangiApiPlugin(): Plugin {
   return {
     name: 'zanzirangi-api-middleware',
     configureServer(server) {
-      getDatabaseAdapter().connect();
+      getDatabaseAdapter()
+        .connect()
+        .catch((err) => console.error('[DATABASE] Dev server could not connect:', err.message));
       server.middlewares.use('/api', apiApp);
       server.middlewares.use('/uploads', express.static(getMediaStorage().getStoragePath()));
     },
@@ -21,7 +23,7 @@ function zanzirangiApiPlugin(): Plugin {
 
 export default defineConfig(() => {
   return {
-    base: './',
+    base: '/',
     plugins: [react(), tailwindcss(), zanzirangiApiPlugin()],
     resolve: {
       alias: {

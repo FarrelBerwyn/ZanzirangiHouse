@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "hostinger-mysql": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@benborla29/mcp-server-mysql"
+      ],
+      "env": {
+        "MYSQL_HOST": "srv982.hstgr.io",
+        "MYSQL_PORT": "3306",
+        "MYSQL_USER": "u170555096_admindatabase",
+        "MYSQL_PASS": "Zanzirangi123#",
+        "MYSQL_DB": "u170555096_Zanzirangi",
+        "ALLOW_INSERT_OPERATION": "true",
+        "ALLOW_UPDATE_OPERATION": "true",
+        "ALLOW_DELETE_OPERATION": "true"
+      }
+    }
+  }
+}

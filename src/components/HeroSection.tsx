@@ -122,6 +122,69 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
     zh: '向下滚动探索庄园',
   };
 
+  const heroUi: Record<
+    Language,
+    { prevSlide: string; nextSlide: string; goToSlide: (n: number) => string; openMaps: string; regionTag: string }
+  > = {
+    en: {
+      prevSlide: 'Previous slide',
+      nextSlide: 'Next slide',
+      goToSlide: (n) => `Go to slide ${n}`,
+      openMaps: 'Open Zanzirangi House in Google Maps',
+      regionTag: 'Indian Ocean Lagoon • Menai Bay',
+    },
+    pl: {
+      prevSlide: 'Poprzedni slajd',
+      nextSlide: 'Następny slajd',
+      goToSlide: (n) => `Przejdź do slajdu ${n}`,
+      openMaps: 'Otwórz Zanzirangi House w Mapach Google',
+      regionTag: 'Laguna Oceanu Indyjskiego • Menai Bay',
+    },
+    ar: {
+      prevSlide: 'الشريحة السابقة',
+      nextSlide: 'الشريحة التالية',
+      goToSlide: (n) => `الانتقال إلى الشريحة ${n}`,
+      openMaps: 'افتح Zanzirangi House في خرائط Google',
+      regionTag: 'بحيرة المحيط الهندي • خليج ميناي',
+    },
+    zh: {
+      prevSlide: '上一张',
+      nextSlide: '下一张',
+      goToSlide: (n) => `前往第 ${n} 张`,
+      openMaps: '在 Google 地图中打开 Zanzirangi House',
+      regionTag: '印度洋泻湖 • 梅奈湾',
+    },
+    fr: {
+      prevSlide: 'Diapositive précédente',
+      nextSlide: 'Diapositive suivante',
+      goToSlide: (n) => `Aller à la diapositive ${n}`,
+      openMaps: 'Ouvrir Zanzirangi House dans Google Maps',
+      regionTag: "Lagon de l'océan Indien • Menai Bay",
+    },
+    sw: {
+      prevSlide: 'Picha iliyotangulia',
+      nextSlide: 'Picha inayofuata',
+      goToSlide: (n) => `Nenda kwenye picha ya ${n}`,
+      openMaps: 'Fungua Zanzirangi House kwenye Ramani za Google',
+      regionTag: 'Hori ya Bahari ya Hindi • Ghuba ya Menai',
+    },
+    es: {
+      prevSlide: 'Diapositiva anterior',
+      nextSlide: 'Diapositiva siguiente',
+      goToSlide: (n) => `Ir a la diapositiva ${n}`,
+      openMaps: 'Abrir Zanzirangi House en Google Maps',
+      regionTag: 'Laguna del océano Índico • Menai Bay',
+    },
+    it: {
+      prevSlide: 'Slide precedente',
+      nextSlide: 'Slide successiva',
+      goToSlide: (n) => `Vai alla slide ${n}`,
+      openMaps: 'Apri Zanzirangi House su Google Maps',
+      regionTag: 'Laguna dell’Oceano Indiano • Menai Bay',
+    },
+  };
+  const ui = heroUi[currentLang] || heroUi.en;
+
   const GOOGLE_MAPS_URL =
     'https://www.google.com/maps/place/Zanzirangi+House/@-6.2345748,39.528593,17z/data=!3m1!4b1!4m6!3m5!1s0x185d3d007c81b231:0xd21c4f44e083553a!8m2!3d-6.2345748!4d39.5311679!16s%2Fg%2F11yyhxw2xf?entry=ttu&g_ep=EgoyMDI2MDkyMi4wIKXMDSoASAFQAw%3D%3D';
 
@@ -136,7 +199,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
     : null;
 
   const subtitleNarrative = currentSlide?.description || dynamicHero?.description || dynamicHero?.subtitle || t.hero.subtitle || 'Stay, explore and experience the island — with Tanzania beyond.';
-  const posterImage = currentSlide?.heroImage || dynamicHero?.heroImage || 'https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=2400&q=90';
+  // Older server builds return slide images only as `imageUrl`.
+  const posterImage = currentSlide?.heroImage || (currentSlide as any)?.imageUrl || dynamicHero?.heroImage || 'https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=2400&q=90';
   
   // Authentic video footage used for all hero slides
   const currentVideoUrl = currentSlide?.videoUrl || heroVideo;
@@ -191,7 +255,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             href={GOOGLE_MAPS_URL}
             target="_blank"
             rel="noopener noreferrer"
-            title="Open Zanzirangi House in Google Maps"
+            title={ui.openMaps}
             initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.6, delay: 0.15 }}
@@ -265,14 +329,14 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
         <div className="absolute inset-y-0 left-0 right-0 z-20 flex items-center justify-between px-2 sm:px-8 pointer-events-none">
           <button
             onClick={handlePrevSlide}
-            aria-label="Previous slide"
+            aria-label={ui.prevSlide}
             className="pointer-events-auto p-2 sm:p-3 rounded-full bg-black/30 hover:bg-black/60 border border-white/10 hover:border-[#C4A27A] text-white/70 hover:text-white transition-all backdrop-blur-sm cursor-pointer shadow-lg active:scale-95"
           >
             <ChevronLeft className="w-4 h-4 sm:w-6 sm:h-6" />
           </button>
           <button
             onClick={handleNextSlide}
-            aria-label="Next slide"
+            aria-label={ui.nextSlide}
             className="pointer-events-auto p-2 sm:p-3 rounded-full bg-black/30 hover:bg-black/60 border border-white/10 hover:border-[#C4A27A] text-white/70 hover:text-white transition-all backdrop-blur-sm cursor-pointer shadow-lg active:scale-95"
           >
             <ChevronRight className="w-4 h-4 sm:w-6 sm:h-6" />
@@ -292,7 +356,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           href={GOOGLE_MAPS_URL}
           target="_blank"
           rel="noopener noreferrer"
-          title="Open Zanzirangi House in Google Maps"
+          title={ui.openMaps}
           className="hidden sm:flex items-center space-x-2 text-[11px] font-mono tracking-widest text-[#D8CCB8]/70 hover:text-[#FAF8F5] transition-colors uppercase z-10 cursor-pointer"
         >
           <Compass className="w-3.5 h-3.5 text-[#C4A27A] flex-shrink-0" />
@@ -307,7 +371,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 <button
                   key={slide.id}
                   onClick={() => setActiveSlideIndex(idx)}
-                  aria-label={`Go to slide ${idx + 1}`}
+                  aria-label={ui.goToSlide(idx + 1)}
                   className={`transition-all rounded-full cursor-pointer ${
                     activeSlideIndex === idx
                       ? 'w-6 h-1.5 bg-[#C4A27A]'
@@ -332,7 +396,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
         {/* Right: Region tag */}
         <div className="hidden sm:block text-right text-[11px] font-mono tracking-widest text-[#D8CCB8]/70 uppercase z-10 ml-auto">
-          <span>Indian Ocean Lagoon • Menai Bay</span>
+          <span>{ui.regionTag}</span>
         </div>
       </motion.div>
     </section>

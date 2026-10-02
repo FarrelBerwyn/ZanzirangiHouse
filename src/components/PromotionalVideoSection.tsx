@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Play, Pause, Film, Volume2, VolumeX, Sparkles, X } from 'lucide-react';
 import { Language } from '../types';
 import { TRANSLATIONS } from '../data/translations';
+import { HomeSectionContent, cmsText } from '../data/homeSectionsCms';
 
 interface PromotionalVideoSectionProps {
   currentLang: Language;
@@ -16,11 +17,13 @@ interface PromotionalVideoSectionProps {
       time: string;
     }>;
   };
+  cmsContent?: HomeSectionContent;
 }
 
 export const PromotionalVideoSection: React.FC<PromotionalVideoSectionProps> = ({
   currentLang,
   dynamicVideo,
+  cmsContent,
 }) => {
   const t = TRANSLATIONS[currentLang];
   const [isPlaying, setIsPlaying] = useState(false);
@@ -251,8 +254,19 @@ export const PromotionalVideoSection: React.FC<PromotionalVideoSectionProps> = (
     },
   ];
 
-  const storylineScenes = (dynamicVideo?.scenes && dynamicVideo.scenes.length > 0)
-    ? dynamicVideo.scenes
+  // CMS scenes only carry partial fields (e.g. description); layer them over the built-in
+  // scenes by position so titles, images and timings never render blank.
+  const cmsScenes = dynamicVideo?.scenes || [];
+  const storylineScenes = cmsScenes.length > 0
+    ? cmsScenes.map((scene, idx) => {
+        const base = defaultScenes[idx] || defaultScenes[defaultScenes.length - 1];
+        return {
+          title: scene.title || base.title,
+          description: scene.description || base.description,
+          image: scene.image || base.image,
+          time: scene.time || base.time,
+        };
+      })
     : defaultScenes;
 
   const currentScene = storylineScenes[activeSceneIndex] || storylineScenes[0];
@@ -265,16 +279,16 @@ export const PromotionalVideoSection: React.FC<PromotionalVideoSectionProps> = (
           <div>
             <div className="inline-flex items-center space-x-2 text-[11px] tracking-[0.3em] uppercase text-[#C4A27A] font-medium mb-3">
               <Film className="w-3.5 h-3.5" />
-              <span>{ui.eyebrow}</span>
+              <span>{cmsText(cmsContent?.eyebrow, ui.eyebrow)}</span>
             </div>
             <h2
               id="film-heading"
               className="font-serif text-3xl sm:text-4xl md:text-5xl font-light tracking-[0.05em] uppercase text-[#FAF8F5]"
             >
-              {t.video.heading}
+              {cmsText(cmsContent?.heading, t.video.heading)}
             </h2>
             <p className="text-[#D8CCB8]/80 text-sm sm:text-base mt-2 max-w-xl">
-              {t.video.subhead}
+              {cmsText(cmsContent?.subhead, t.video.subhead)}
             </p>
           </div>
 

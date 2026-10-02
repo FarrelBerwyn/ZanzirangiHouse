@@ -8,6 +8,17 @@ interface SurroundingsSectionProps {
   currentLang: Language;
 }
 
+const PROXIMITY_EYEBROW: Record<Language, string> = {
+  en: 'Destination Proximity',
+  pl: 'Atrakcje w Pobliżu',
+  ar: 'وجهات قريبة',
+  zh: '周边目的地',
+  fr: 'Destinations à Proximité',
+  sw: 'Vivutio vya Karibu',
+  es: 'Destinos Cercanos',
+  it: 'Destinazioni Vicine',
+};
+
 export const SurroundingsSection: React.FC<SurroundingsSectionProps> = ({
   currentLang,
 }) => {
@@ -20,7 +31,7 @@ export const SurroundingsSection: React.FC<SurroundingsSectionProps> = ({
         <div className="max-w-3xl mb-16">
           <div className="inline-flex items-center space-x-2 text-[11px] tracking-[0.3em] uppercase text-[#A07E54] font-medium mb-3">
             <Navigation className="w-3.5 h-3.5" />
-            <span>Destination Proximity</span>
+            <span>{PROXIMITY_EYEBROW[currentLang] || PROXIMITY_EYEBROW.en}</span>
           </div>
           <h2
             id="surroundings-heading"

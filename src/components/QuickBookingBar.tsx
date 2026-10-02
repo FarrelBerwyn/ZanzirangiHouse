@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { Language } from '../types';
 import { TRANSLATIONS } from '../data/translations';
 import { VILLAS_DATA } from '../data/villas';
+import { HomeSectionContent, cmsText } from '../data/homeSectionsCms';
 
 interface QuickBookingBarProps {
   currentLang: Language;
@@ -13,13 +14,27 @@ interface QuickBookingBarProps {
     guests: number;
     villaId: string;
   }) => void;
+  cmsContent?: HomeSectionContent;
+  villas?: { id: string; name: string; roomNumber?: string }[];
 }
 
 export const QuickBookingBar: React.FC<QuickBookingBarProps> = ({
   currentLang,
   onCheckAvailability,
+  cmsContent,
+  villas,
 }) => {
   const t = TRANSLATIONS[currentLang];
+  const villaOptions = villas && villas.length > 0 ? villas : VILLAS_DATA;
+  const qb = {
+    title: cmsText(cmsContent?.title, t.quickBooking.title || 'Plan Your Stay'),
+    checkIn: cmsText(cmsContent?.checkInLabel, t.quickBooking.checkIn),
+    checkOut: cmsText(cmsContent?.checkOutLabel, t.quickBooking.checkOut),
+    guests: cmsText(cmsContent?.guestsLabel, t.quickBooking.guests),
+    villaChoice: cmsText(cmsContent?.villaLabel, t.quickBooking.villaChoice),
+    allVillas: cmsText(cmsContent?.allVillasLabel, t.quickBooking.allVillas),
+    checkAvailability: cmsText(cmsContent?.buttonLabel, t.quickBooking.checkAvailability),
+  };
 
   // Default dates: today + 14 days, checkout + 19 days
   const today = new Date();
@@ -46,7 +61,7 @@ export const QuickBookingBar: React.FC<QuickBookingBarProps> = ({
     });
   };
 
-  const selectedVillaObj = VILLAS_DATA.find((v) => v.id === selectedVillaId);
+  const selectedVillaObj = villaOptions.find((v) => v.id === selectedVillaId);
 
   const toggleLabels: Record<Language, { close: string; checkDates: string }> = {
     en: { close: 'Close', checkDates: 'Check Dates' },
@@ -90,7 +105,7 @@ export const QuickBookingBar: React.FC<QuickBookingBarProps> = ({
             </div>
             <div className="flex flex-col min-w-0">
               <span className="text-[10px] tracking-[0.2em] uppercase text-[#C4A27A] font-semibold">
-                {t.quickBooking.title || 'Plan Your Stay'}
+                {qb.title}
               </span>
               <span className="text-xs text-[#FAF8F5] font-medium truncate mt-0.5">
                 {checkIn} → {checkOut} • {guests} {t.quickBooking.guestsCount}
@@ -130,7 +145,7 @@ export const QuickBookingBar: React.FC<QuickBookingBarProps> = ({
               className="flex items-center space-x-1.5 text-[10px] tracking-[0.2em] uppercase text-[#D8CCB8]/80 font-medium mb-1.5"
             >
               <Calendar className="w-3.5 h-3.5 text-[#C4A27A]" />
-              <span>{t.quickBooking.checkIn}</span>
+              <span>{qb.checkIn}</span>
             </label>
             <input
               id="booking-check-in"
@@ -149,7 +164,7 @@ export const QuickBookingBar: React.FC<QuickBookingBarProps> = ({
               className="flex items-center space-x-1.5 text-[10px] tracking-[0.2em] uppercase text-[#D8CCB8]/80 font-medium mb-1.5"
             >
               <Calendar className="w-3.5 h-3.5 text-[#C4A27A]" />
-              <span>{t.quickBooking.checkOut}</span>
+              <span>{qb.checkOut}</span>
             </label>
             <input
               id="booking-check-out"
@@ -168,7 +183,7 @@ export const QuickBookingBar: React.FC<QuickBookingBarProps> = ({
               className="flex items-center space-x-1.5 text-[10px] tracking-[0.2em] uppercase text-[#D8CCB8]/80 font-medium mb-1.5"
             >
               <Users className="w-3.5 h-3.5 text-[#C4A27A]" />
-              <span>{t.quickBooking.guests}</span>
+              <span>{qb.guests}</span>
             </label>
             <select
               id="booking-guests-count"
@@ -191,7 +206,7 @@ export const QuickBookingBar: React.FC<QuickBookingBarProps> = ({
               className="flex items-center space-x-1.5 text-[10px] tracking-[0.2em] uppercase text-[#D8CCB8]/80 font-medium mb-1.5"
             >
               <Home className="w-3.5 h-3.5 text-[#C4A27A]" />
-              <span>{t.quickBooking.villaChoice}</span>
+              <span>{qb.villaChoice}</span>
             </label>
             <select
               id="booking-villa-select"
@@ -200,11 +215,11 @@ export const QuickBookingBar: React.FC<QuickBookingBarProps> = ({
               className="w-full bg-transparent text-[#FAF8F5] text-sm font-medium focus:outline-none cursor-pointer truncate"
             >
               <option value="" className="bg-[#1C1B1A] text-[#FAF8F5]">
-                {t.quickBooking.allVillas}
+                {qb.allVillas}
               </option>
-              {VILLAS_DATA.map((v) => (
+              {villaOptions.map((v) => (
                 <option key={v.id} value={v.id} className="bg-[#1C1B1A] text-[#FAF8F5]">
-                  {v.roomNumber} - {v.name}
+                  {v.roomNumber ? `${v.roomNumber} - ` : ''}{v.name}
                 </option>
               ))}
             </select>
@@ -217,7 +232,7 @@ export const QuickBookingBar: React.FC<QuickBookingBarProps> = ({
               type="submit"
               className="w-full py-3.5 px-4 bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-xs font-semibold tracking-[0.16em] uppercase rounded flex items-center justify-center space-x-2 transition-all duration-300 shadow-md hover:shadow-lg active:scale-95"
             >
-              <span>{t.quickBooking.checkAvailability}</span>
+              <span>{qb.checkAvailability}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

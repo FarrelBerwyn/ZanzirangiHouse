@@ -1,3 +1,5 @@
+> **Superseded (2026-10-01):** the authoritative procedure is [docs/DEPLOYMENT.md](DEPLOYMENT.md) with the CI/CD pipeline in [docs/CICD.md](CICD.md). This file is kept for history; parts are outdated. Do not copy infrastructure identifiers from it.
+
 # Zanzirangi House — Hostinger Production Deployment Profile
 
 **Project:** Zanzirangi House Luxury Villas Retreat  

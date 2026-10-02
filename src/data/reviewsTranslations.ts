@@ -1,5 +1,6 @@
 import { Language, Review } from '../types';
 import { REVIEWS_DATA } from './reviews';
+import { localizeUnlessEdited } from './homeSectionsCms';
 
 export interface LocalizedReview {
   country: string;
@@ -393,13 +394,17 @@ export function getLocalizedReviews(lang: Language, baseReviews: Review[] = REVI
   return baseReviews.map((rev) => {
     const loc = dict[rev.id];
     if (!loc) return rev;
+    const seed = REVIEWS_DATA.find((r) => r.id === rev.id);
+    const en = REVIEWS_LOCALIZED_DATA.en[rev.id];
+    const pick = (field: 'country' | 'stayDate' | 'villaStayed' | 'title' | 'reviewText') =>
+      localizeUnlessEdited(rev[field], seed?.[field], en?.[field], loc[field]);
     return {
       ...rev,
-      country: loc.country,
-      stayDate: loc.stayDate,
-      villaStayed: loc.villaStayed,
-      title: loc.title,
-      reviewText: loc.reviewText,
+      country: pick('country'),
+      stayDate: pick('stayDate'),
+      villaStayed: pick('villaStayed'),
+      title: pick('title'),
+      reviewText: pick('reviewText'),
     };
   });
 }

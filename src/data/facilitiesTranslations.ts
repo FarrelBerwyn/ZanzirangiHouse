@@ -1,5 +1,6 @@
 import { Language, Facility } from '../types';
 import { FACILITIES_DATA } from './facilities';
+import { localizeUnlessEdited } from './homeSectionsCms';
 
 export interface FacilityLocalization {
   title: string;
@@ -545,14 +546,18 @@ export function getLocalizedFacilities(lang: Language, baseFacilities: Facility[
   return baseFacilities.map((fac) => {
     const loc = translations[fac.id];
     if (!loc) return fac;
+    const seed = FACILITIES_DATA.find((f) => f.id === fac.id);
+    const en = FACILITIES_TRANSLATIONS.en[fac.id];
+    const pick = (field: 'title' | 'category' | 'description' | 'hours' | 'highlight') =>
+      localizeUnlessEdited(fac[field] as string, seed?.[field] as string, en?.[field], loc[field]);
 
     return {
       ...fac,
-      title: loc.title || fac.title,
-      category: loc.category || fac.category,
-      description: loc.description || fac.description,
-      hours: loc.hours || fac.hours,
-      highlight: loc.highlight || fac.highlight,
+      title: pick('title'),
+      category: pick('category'),
+      description: pick('description'),
+      hours: pick('hours'),
+      highlight: pick('highlight'),
     };
   });
 }

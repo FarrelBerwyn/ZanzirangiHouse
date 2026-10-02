@@ -1,4 +1,17 @@
-import { DatabaseAdapter, UserRecord, AuditLogRecord } from './adapter.ts';
+import {
+  DatabaseAdapter,
+  UserRecord,
+  AuditLogRecord,
+  PageContentRecord,
+  ChauffeurConfigRecord,
+  WhyStayConfigRecord,
+  DiningConfigRecord,
+  DiningCategoryRecord,
+  ExperienceRecord,
+  SafariDestinationRecord,
+  GlobalContentRecord,
+  ContentTranslationRecord,
+} from './adapter.ts';
 import {
   getDatabase,
   saveDatabase,
@@ -206,6 +219,16 @@ export class JsonDatabaseAdapter implements DatabaseAdapter {
     return facility;
   }
 
+  async deleteFacility(id: string, userEmail: string): Promise<boolean> {
+    const db = getDatabase();
+    const before = (db.facilities || []).length;
+    db.facilities = (db.facilities || []).filter((f) => f.id !== id);
+    if (db.facilities.length === before) return false;
+    db.auditLog.push({ action: 'FACILITY_DELETED', userEmail, timestamp: new Date().toISOString(), details: `Removed facility ${id}` });
+    saveDatabase(db);
+    return true;
+  }
+
   // --- Testimonials ---
   async getTestimonials(): Promise<Review[]> {
     const db = getDatabase();
@@ -390,9 +413,12 @@ export class JsonDatabaseAdapter implements DatabaseAdapter {
       email: u.email,
       name: u.name,
       role: u.role,
+      status: u.status || 'active',
+      permissions: u.permissions || [],
+      tokenVersion: u.tokenVersion ?? 1,
       passwordHash: u.passwordHash,
       createdAt: u.createdAt,
-      lastLogin: u.lastLogin,
+      lastLogin: u.lastLogin ?? undefined,
     };
   }
 
@@ -407,9 +433,208 @@ export class JsonDatabaseAdapter implements DatabaseAdapter {
     saveDatabase(db);
   }
 
+  async findUserById(id: string): Promise<UserRecord | null> {
+    const db = getDatabase();
+    return db.users.find((u) => u.id === id) || null;
+  }
+
   async listUsers(): Promise<Omit<UserRecord, 'passwordHash'>[]> {
     const db = getDatabase();
     return db.users.map(({ passwordHash, ...safe }) => safe);
+  }
+
+  async createUser(user: UserRecord): Promise<UserRecord> {
+    const db = getDatabase();
+    db.users.push(user);
+    saveDatabase(db);
+    return user;
+  }
+
+  async updateUser(id: string, data: Partial<UserRecord>): Promise<UserRecord> {
+    const db = getDatabase();
+    const idx = db.users.findIndex((u) => u.id === id);
+    if (idx < 0) throw new Error(`User with ID ${id} not found.`);
+    const current = db.users[idx];
+    // Only profile/access fields are editable here (never email, password hash or token version).
+    const next = {
+      ...current,
+      name: data.name ?? current.name,
+      role: data.role ?? current.role,
+      status: (data.status as 'active' | 'disabled' | undefined) ?? current.status,
+      permissions: data.permissions ?? current.permissions,
+    };
+    const accessChanged =
+      next.role !== current.role ||
+      next.status !== current.status ||
+      JSON.stringify(next.permissions || []) !== JSON.stringify(current.permissions || []);
+    next.tokenVersion = (current.tokenVersion ?? 1) + (accessChanged ? 1 : 0);
+    db.users[idx] = next;
+    saveDatabase(db);
+    return next as UserRecord;
+  }
+
+  async disableUser(id: string): Promise<void> {
+    const db = getDatabase();
+    const idx = db.users.findIndex((u) => u.id === id);
+    if (idx >= 0) {
+      db.users[idx].status = 'disabled';
+      db.users[idx].tokenVersion = (db.users[idx].tokenVersion ?? 1) + 1;
+      saveDatabase(db);
+    }
+  }
+
+  async enableUser(id: string): Promise<void> {
+    const db = getDatabase();
+    const idx = db.users.findIndex((u) => u.id === id);
+    if (idx >= 0) {
+      db.users[idx].status = 'active';
+      db.users[idx].tokenVersion = (db.users[idx].tokenVersion ?? 1) + 1;
+      saveDatabase(db);
+    }
+  }
+
+  async resetPassword(id: string, newPasswordHash: string): Promise<void> {
+    const db = getDatabase();
+    const idx = db.users.findIndex((u) => u.id === id);
+    if (idx >= 0) {
+      db.users[idx].passwordHash = newPasswordHash;
+      db.users[idx].tokenVersion = (db.users[idx].tokenVersion ?? 1) + 1;
+      saveDatabase(db);
+    }
+  }
+
+  async getActiveUserCount(): Promise<number> {
+    const db = getDatabase();
+    return (db.users || []).filter((u) => u.status !== 'disabled').length;
+  }
+
+  async updateLastLogin(id: string): Promise<void> {
+    const db = getDatabase();
+    const u = db.users.find((x) => x.id === id);
+    if (u) {
+      u.lastLogin = new Date().toISOString();
+      saveDatabase(db);
+    }
+  }
+
+  async revokeUserSessions(id: string): Promise<void> {
+    const db = getDatabase();
+    const u = db.users.find((x) => x.id === id);
+    if (u) {
+      u.tokenVersion = (u.tokenVersion ?? 1) + 1;
+      saveDatabase(db);
+    }
+  }
+
+  // --- Extended CMS Coverage Fallbacks ---
+  async getPageContent(id: string): Promise<PageContentRecord | null> {
+    return null;
+  }
+  async getAllPages(): Promise<PageContentRecord[]> {
+    return [];
+  }
+  async updatePageContent(id: string, data: Partial<PageContentRecord>, userEmail: string): Promise<PageContentRecord> {
+    return { id, slug: id, title: id, ...data };
+  }
+
+  async getChauffeurConfig(): Promise<ChauffeurConfigRecord> {
+    return {
+      eyebrow: 'VIP CHAUFFEUR & TRANSFERS',
+      heading: "ARRIVE. RELAX. WE'LL TAKE CARE OF THE REST.",
+      subhead: 'From the moment your flight touches down in Zanzibar...',
+      routeLabel: "ABEID AMANI KARUME INT'L (ZNZ) → ZANZIRANGI HOUSE",
+      routeTitle: 'Private Coastal Chauffeur Service',
+      vehicleImage: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1600&q=85',
+      specsEyebrow: 'TRANSFER SPECIFICATIONS',
+      cardTitle: 'Private Sanctuary Chauffeur',
+      airportTitle: 'AIRPORT TRANSFER',
+      airportDesc: 'Direct tarmac welcome and luggage assistance upon arrival.',
+      shuttleTitle: 'PRIVATE SHUTTLE',
+      shuttleDesc: 'Exclusive vehicles reserved solely for your traveling party.',
+      vehicleTypeTitle: 'VEHICLE TYPE',
+      vehicleTypeDesc: 'Executive SUV / Luxury Van (Details available on request)',
+      passengerLuggageTitle: 'PASSENGER & LUGGAGE',
+      passengerLuggageDesc: 'Tailored to group size (Details available on request)',
+      amenitiesNote: 'Complimentary chilled mineral water, cool hand towels, and high-speed in-car Wi-Fi provided for every transfer.',
+      ctaRequestLabel: 'REQUEST AIRPORT TRANSFER',
+      ctaAddBookingLabel: 'ADD TO BOOKING',
+    };
+  }
+  async updateChauffeurConfig(data: Partial<ChauffeurConfigRecord>, userEmail: string): Promise<ChauffeurConfigRecord> {
+    return { ...await this.getChauffeurConfig(), ...data };
+  }
+
+  async getWhyStayConfig(): Promise<WhyStayConfigRecord> {
+    return {
+      eyebrow: 'THE SANCTUARY DIFFERENCE',
+      heading: 'WHY ZANZIRANGI HOUSE',
+      subhead: 'Four guiding values define every moment at our retreat.',
+      pillars: [],
+    };
+  }
+  async updateWhyStayConfig(data: Partial<WhyStayConfigRecord>, userEmail: string): Promise<WhyStayConfigRecord> {
+    return { ...await this.getWhyStayConfig(), ...data };
+  }
+
+  async getDiningConfig(): Promise<DiningConfigRecord> {
+    return {
+      eyebrow: 'Gastronomic Soul',
+      heading: 'TASTE ZANZIBAR',
+      subhead: '"Fresh ingredients, island flavours and authentic Tanzanian hospitality."',
+      intro: 'Centuries of Swahili, Omani, and Indian Ocean sea trade come together at our tables.',
+      gardenEyebrow: 'Culinary Storytelling',
+      gardenBadge: 'Estate Garden',
+      gardenTitle: 'FROM OUR GARDEN TO YOUR TABLE',
+      gardenDesc: 'Tucked within the grounds of Zanzirangi House is our private botanical garden...',
+      tagZeroMiles: '🌱 Zero Food Miles',
+      tagSpices: '🌶 Hand-Picked Daily Spices',
+      tagSeafood: '🐟 Sustainable Coastal Seafood',
+      moments: [],
+    };
+  }
+  async updateDiningConfig(data: Partial<DiningConfigRecord>, userEmail: string): Promise<DiningConfigRecord> {
+    return { ...await this.getDiningConfig(), ...data };
+  }
+  async getDiningCategories(): Promise<DiningCategoryRecord[]> {
+    return [];
+  }
+  async saveDiningCategory(category: DiningCategoryRecord, userEmail: string): Promise<DiningCategoryRecord> {
+    return category;
+  }
+  async deleteDiningCategory(id: string, userEmail: string): Promise<boolean> {
+    return true;
+  }
+
+  async getExperiences(): Promise<ExperienceRecord[]> {
+    return [];
+  }
+  async saveExperience(item: ExperienceRecord, userEmail: string): Promise<ExperienceRecord> {
+    return item;
+  }
+  async deleteExperience(id: string, userEmail: string): Promise<boolean> {
+    return true;
+  }
+
+  async getSafariDestinations(): Promise<SafariDestinationRecord[]> {
+    return [];
+  }
+  async saveSafariDestination(item: SafariDestinationRecord, userEmail: string): Promise<SafariDestinationRecord> {
+    return item;
+  }
+  async deleteSafariDestination(id: string, userEmail: string): Promise<boolean> {
+    return true;
+  }
+
+  async getGlobalContent(): Promise<GlobalContentRecord> {
+    return {
+      brandName: 'Zanzirangi House',
+      navLinks: [],
+      ctaPlanStayLabel: 'PLAN YOUR STAY',
+      ctaPlanStayLink: '#stay',
+    };
+  }
+  async updateGlobalContent(data: Partial<GlobalContentRecord>, userEmail: string): Promise<GlobalContentRecord> {
+    return { ...await this.getGlobalContent(), ...data };
   }
 
   // --- Audit Logs ---
@@ -452,4 +677,28 @@ export class JsonDatabaseAdapter implements DatabaseAdapter {
       })),
     };
   }
-}
+
+  // --- Content Translations ---
+  async getContentTranslations(lang: string): Promise<ContentTranslationRecord[]> {
+    const db: any = getDatabase();
+    return (db.contentTranslations?.[lang] || []) as ContentTranslationRecord[];
+  }
+
+  async saveContentTranslations(lang: string, entries: ContentTranslationRecord[], userEmail: string): Promise<number> {
+    const db: any = getDatabase();
+    db.contentTranslations = db.contentTranslations || {};
+    const list: ContentTranslationRecord[] = db.contentTranslations[lang] || [];
+    for (const e of entries) {
+      const i = list.findIndex((x) => x.entity === e.entity && x.path === e.path);
+      if (!e.value || !e.value.trim()) {
+        if (i >= 0) list.splice(i, 1);
+        continue;
+      }
+      const record = { ...e, updatedAt: new Date().toISOString(), updatedBy: userEmail };
+      if (i >= 0) list[i] = record;
+      else list.push(record);
+    }
+    db.contentTranslations[lang] = list;
+    saveDatabase(db);
+    return entries.length;
+  }}

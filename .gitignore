@@ -9,6 +9,8 @@ coverage/
 uploads/
 backups/
 *.zip
+# Deployment stamp — written only into deploy/* branch commits by .github/workflows/deploy.yml
+release.json
 
 # Local JSON DB (contains user password hashes)
 server/data/db.json

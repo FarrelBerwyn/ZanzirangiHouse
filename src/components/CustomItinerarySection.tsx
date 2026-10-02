@@ -6,18 +6,45 @@ import {
   ITINERARY_UI_TRANSLATIONS,
 } from '../data/itineraryTranslations';
 import { ScrollFadeContainer } from './ScrollFadeContainer';
+import { HomeSectionContent, cmsList, cmsText } from '../data/homeSectionsCms';
 
 interface CustomItinerarySectionProps {
   currentLang: Language;
   onOpenSupportChat?: (query?: string) => void;
+  cmsContent?: HomeSectionContent;
 }
 
 export const CustomItinerarySection: React.FC<CustomItinerarySectionProps> = ({
   currentLang,
   onOpenSupportChat,
+  cmsContent,
 }) => {
-  const ui = ITINERARY_UI_TRANSLATIONS[currentLang] || ITINERARY_UI_TRANSLATIONS.en;
-  const itinerary = getLocalizedSampleItinerary(currentLang);
+  const baseUi = ITINERARY_UI_TRANSLATIONS[currentLang] || ITINERARY_UI_TRANSLATIONS.en;
+  const ui = {
+    ...baseUi,
+    eyebrow: cmsText(cmsContent?.eyebrow, baseUi.eyebrow),
+    heading: cmsText(cmsContent?.heading, baseUi.heading),
+    badge: cmsText(cmsContent?.badge, baseUi.badge),
+    subhead: cmsText(cmsContent?.subhead, baseUi.subhead),
+    customizeCta: cmsText(cmsContent?.customizeCta, baseUi.customizeCta),
+  };
+  const builtInItinerary = getLocalizedSampleItinerary(currentLang);
+  const itinerary = cmsList<any>(cmsContent?.days, builtInItinerary).map((day, dayIdx) => {
+    const builtInDay = builtInItinerary[dayIdx] || builtInItinerary[0];
+    return {
+      ...builtInDay,
+      dayNumber: cmsText(day.dayNumber, builtInDay?.dayNumber || `DAY ${String(dayIdx + 1).padStart(2, '0')}`),
+      dayTitle: cmsText(day.dayTitle, builtInDay?.dayTitle || ''),
+      location: cmsText(day.location, builtInDay?.location || ''),
+      activities: cmsList<any>(day.activities, builtInDay?.activities || []).map((act, actIdx) => ({
+        ...act,
+        id: act.id || `act-${dayIdx + 1}-${actIdx + 1}`,
+        time: act.time || '',
+        title: act.title || '',
+        description: act.description || '',
+      })),
+    };
+  });
 
   // Initialize with all activity IDs selected
   const allInitialIds = itinerary.flatMap((day) => day.activities.map((a) => a.id));

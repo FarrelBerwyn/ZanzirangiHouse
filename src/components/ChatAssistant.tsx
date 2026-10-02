@@ -4,7 +4,348 @@ import { Language } from '../types';
 import { CHAT_TRANSLATIONS, ChatQuickPrompt } from '../data/chatTranslations';
 import { ScrollFadeContainer } from './ScrollFadeContainer';
 import { supportApi } from '../services/supportApi';
+import { contentApi } from '../services/contentApi';
+import { DEFAULT_SETTINGS } from '../data/seedDefaults';
 import { SupportActionMetadata } from '../../server/database/supportTypes';
+
+// Copy for the offline (local) bot replies that have no counterpart in CHAT_TRANSLATIONS,
+// plus the action button labels and staff/avatar labels used by this widget.
+interface ChatLocalCopy {
+  replies: {
+    serengeti: string;
+    ngorongoro: string;
+    kilimanjaro: string;
+    tarangire: string;
+    itinerary: string;
+    reservation: string;
+    safari: string;
+    concierge: string;
+  };
+  actions: {
+    viewSafariDestinations: string;
+    exploreNgorongoro: string;
+    planKilimanjaro: string;
+    viewTarangire: string;
+    bookWithConcierge: string;
+    exploreStoneTown: string;
+    discoverMnemba: string;
+    viewSpiceJourney: string;
+    sunsetDhowDetails: string;
+    checkVillaFeatures: string;
+    exploreDolphins: string;
+    viewSunsetSailing: string;
+    viewWellness: string;
+    discoverIslandTours: string;
+    exploreFamilyVillas: string;
+    planHoneymoon: string;
+    exploreMarine: string;
+    viewPrivateVillas: string;
+    viewTransfer: string;
+    tasteDiningGarden: string;
+    planStay: string;
+  };
+  conciergeStaff: string;
+  avatarAlt: string;
+}
+
+const CHAT_LOCAL_I18N: Record<Language, ChatLocalCopy> = {
+  en: {
+    replies: {
+      serengeti: 'Serengeti National Park is an extraordinary safari experience. Zanzirangi House arranges direct chartered fly-in safaris from Zanzibar airport (approx. 1h 45m) with luxury partner tented camps overlooking migration corridors.',
+      ngorongoro: 'Ngorongoro Crater offers Africa’s densest predator populations inside a UNESCO volcanic caldera. We organize chartered fly-in packages combining your beach retreat with panoramic crater floor game drives.',
+      kilimanjaro: 'Mount Kilimanjaro expeditions and scenic fly-over safaris are arranged through our certified mainland mountain guide partners. We can curate pre-climb acclimatization stays or relaxing post-climb beach recovery.',
+      tarangire: 'Tarangire National Park is celebrated for iconic baobab trees and vast elephant herds along the Tarangire River. We arrange chartered flight itineraries directly from Zanzibar.',
+      itinerary: 'I would be delighted to personalize your multi-day Tanzania journey! Our team will harmonize your island villa stay with your chosen excursions and mainland safari flights.',
+      reservation: 'Thank you for your reservation inquiry! Our on-site concierge team is reviewing your requested dates and villa preferences. We will confirm availability and bespoke rates directly with you.',
+      safari: 'We organize chartered fly-in safaris directly from Zanzibar to Serengeti, Ngorongoro Crater, and Tarangire with luxury partner camps. Would you like to view our safari destinations?',
+      concierge: 'Jambo! I am right here to help you arrange your custom stay and private services. Tell me your preferred dates, party size, or experiences and I will tailor everything to your rhythm.',
+    },
+    actions: {
+      viewSafariDestinations: 'View Safari Destinations',
+      exploreNgorongoro: 'Explore Ngorongoro',
+      planKilimanjaro: 'Plan Safari & Kilimanjaro',
+      viewTarangire: 'View Tarangire Safaris',
+      bookWithConcierge: 'Book Dates with Concierge',
+      exploreStoneTown: 'Explore Stone Town',
+      discoverMnemba: 'Discover Mnemba',
+      viewSpiceJourney: 'View Spice Journey',
+      sunsetDhowDetails: 'Sunset Dhow Details',
+      checkVillaFeatures: 'Check Villa Features',
+      exploreDolphins: 'Explore Dolphin Safaris',
+      viewSunsetSailing: 'View Sunset Sailing',
+      viewWellness: 'View Wellness & Spa',
+      discoverIslandTours: 'Discover Island Tours',
+      exploreFamilyVillas: 'Explore Family Villas',
+      planHoneymoon: 'Plan Honeymoon Escape',
+      exploreMarine: 'Explore Marine Safaris',
+      viewPrivateVillas: 'View Private Villas',
+      viewTransfer: 'View Transfer Details',
+      tasteDiningGarden: 'Taste Dining & Garden Menu',
+      planStay: 'Plan Your Stay',
+    },
+    conciergeStaff: 'Concierge Staff',
+    avatarAlt: 'Juma - Zanzirangi House Customer Support',
+  },
+  pl: {
+    replies: {
+      serengeti: 'Park Narodowy Serengeti to niezwykłe przeżycie safari. Zanzirangi House organizuje bezpośrednie loty czarterowe na safari z lotniska na Zanzibarze (ok. 1 godz. 45 min) z noclegiem w luksusowych obozach namiotowych naszych partnerów, z widokiem na szlaki wielkiej migracji.',
+      ngorongoro: 'Krater Ngorongoro, kaldera wulkaniczna wpisana na listę UNESCO, skrywa największe zagęszczenie drapieżników w Afryce. Organizujemy pakiety z lotami czarterowymi, łączące wypoczynek na plaży z panoramicznymi safari na dnie krateru.',
+      kilimanjaro: 'Wyprawy na Kilimandżaro oraz widokowe przeloty nad górą organizujemy z certyfikowanymi przewodnikami górskimi z kontynentu. Możemy zaplanować pobyt aklimatyzacyjny przed wspinaczką lub relaksującą regenerację na plaży po zejściu.',
+      tarangire: 'Park Narodowy Tarangire słynie z majestatycznych baobabów i ogromnych stad słoni nad rzeką Tarangire. Organizujemy plany podróży z lotami czarterowymi bezpośrednio z Zanzibaru.',
+      itinerary: 'Z przyjemnością przygotuję dla Ciebie wielodniową podróż po Tanzanii! Nasz zespół połączy pobyt w willi na wyspie z wybranymi wycieczkami i lotami na safari na kontynencie.',
+      reservation: 'Dziękujemy za zapytanie o rezerwację! Nasz zespół konsjerżów na miejscu weryfikuje wybrane terminy i preferencje dotyczące willi. Potwierdzimy dostępność i indywidualne stawki bezpośrednio z Tobą.',
+      safari: 'Organizujemy safari z lotami czarterowymi bezpośrednio z Zanzibaru do Serengeti, krateru Ngorongoro i Tarangire, z noclegami w luksusowych obozach partnerskich. Czy chcesz zobaczyć nasze kierunki safari?',
+      concierge: 'Jambo! Jestem tutaj, aby pomóc Ci zaplanować wymarzony pobyt i prywatne usługi. Podaj preferowane terminy, liczbę gości lub interesujące Cię atrakcje, a wszystko dopasuję do Twojego rytmu.',
+    },
+    actions: {
+      viewSafariDestinations: 'Zobacz kierunki safari',
+      exploreNgorongoro: 'Odkryj Ngorongoro',
+      planKilimanjaro: 'Zaplanuj safari i Kilimandżaro',
+      viewTarangire: 'Zobacz safari w Tarangire',
+      bookWithConcierge: 'Ustal terminy z konsjerżem',
+      exploreStoneTown: 'Odkryj Stone Town',
+      discoverMnemba: 'Odkryj Mnemba',
+      viewSpiceJourney: 'Zobacz szlak przypraw',
+      sunsetDhowDetails: 'Szczegóły rejsu dhow',
+      checkVillaFeatures: 'Zobacz udogodnienia willi',
+      exploreDolphins: 'Odkryj safari z delfinami',
+      viewSunsetSailing: 'Rejsy o zachodzie słońca',
+      viewWellness: 'Zobacz spa i wellness',
+      discoverIslandTours: 'Odkryj wycieczki po wyspie',
+      exploreFamilyVillas: 'Odkryj wille rodzinne',
+      planHoneymoon: 'Zaplanuj podróż poślubną',
+      exploreMarine: 'Odkryj safari morskie',
+      viewPrivateVillas: 'Zobacz prywatne wille',
+      viewTransfer: 'Szczegóły transferu',
+      tasteDiningGarden: 'Odkryj menu i ogród',
+      planStay: 'Zaplanuj pobyt',
+    },
+    conciergeStaff: 'Zespół konsjerżów',
+    avatarAlt: 'Juma – obsługa klienta Zanzirangi House',
+  },
+  ar: {
+    replies: {
+      serengeti: 'منتزه سيرينغيتي الوطني تجربة سفاري استثنائية. يرتب Zanzirangi House رحلات سفاري جوية مستأجرة مباشرة من مطار زنجبار (حوالي ساعة و45 دقيقة) مع الإقامة في مخيمات فاخرة لشركائنا تطل على ممرات الهجرة الكبرى.',
+      ngorongoro: 'تضم فوهة نغورونغورو أكثف تجمعات للحيوانات المفترسة في أفريقيا داخل كالديرا بركانية مدرجة على قائمة اليونسكو. ننظم باقات طيران مستأجرة تجمع بين ملاذكم الشاطئي ورحلات سفاري بانورامية في قاع الفوهة.',
+      kilimanjaro: 'نرتب رحلات تسلق جبل كليمنجارو ورحلات الطيران الخلابة فوقه عبر شركائنا المعتمدين من مرشدي الجبال في البر الرئيسي، ويمكننا تنظيم إقامة للتأقلم قبل التسلق أو فترة استجمام مريحة على الشاطئ بعده.',
+      tarangire: 'يشتهر منتزه تارانغيري الوطني بأشجار الباوباب الأيقونية وقطعان الفيلة الضخمة على امتداد نهر تارانغيري. نرتب برامج رحلات جوية مستأجرة مباشرة من زنجبار.',
+      itinerary: 'يسعدني أن أصمم لكم رحلة متعددة الأيام في تنزانيا! سينسق فريقنا إقامتكم في الفيلا على الجزيرة مع الرحلات التي تختارونها ورحلات السفاري الجوية إلى البر الرئيسي.',
+      reservation: 'شكرًا لاستفساركم عن الحجز! يراجع فريق الكونسيرج لدينا التواريخ المطلوبة وتفضيلاتكم للفيلا، وسنؤكد لكم التوفر والأسعار المخصصة مباشرة.',
+      safari: 'ننظم رحلات سفاري جوية مستأجرة مباشرة من زنجبار إلى سيرينغيتي وفوهة نغورونغورو وتارانغيري مع مخيمات شركائنا الفاخرة. هل ترغبون في استعراض وجهات السفاري لدينا؟',
+      concierge: 'جامبو! أنا هنا لمساعدتكم في ترتيب إقامتكم المخصصة وخدماتكم الخاصة. أخبروني بالتواريخ المفضلة وعدد الضيوف أو التجارب التي تودونها، وسأصمم كل شيء وفق إيقاعكم.',
+    },
+    actions: {
+      viewSafariDestinations: 'استعراض وجهات السفاري',
+      exploreNgorongoro: 'استكشاف نغورونغورو',
+      planKilimanjaro: 'خططوا للسفاري وكليمنجارو',
+      viewTarangire: 'استعراض رحلات تارانغيري',
+      bookWithConcierge: 'حدّدوا التواريخ مع الكونسيرج',
+      exploreStoneTown: 'استكشاف المدينة الحجرية',
+      discoverMnemba: 'اكتشاف جزيرة منيمبا',
+      viewSpiceJourney: 'استعراض رحلة التوابل',
+      sunsetDhowDetails: 'تفاصيل رحلة الداو عند الغروب',
+      checkVillaFeatures: 'استعراض مزايا الفيلا',
+      exploreDolphins: 'استكشاف رحلات الدلافين',
+      viewSunsetSailing: 'الإبحار عند الغروب',
+      viewWellness: 'استعراض السبا والعافية',
+      discoverIslandTours: 'اكتشاف جولات الجزيرة',
+      exploreFamilyVillas: 'استكشاف الفلل العائلية',
+      planHoneymoon: 'خططوا لشهر العسل',
+      exploreMarine: 'استكشاف رحلات السفاري البحرية',
+      viewPrivateVillas: 'استعراض الفلل الخاصة',
+      viewTransfer: 'تفاصيل خدمة النقل',
+      tasteDiningGarden: 'استكشاف قائمة الطعام والحديقة',
+      planStay: 'خططوا لإقامتكم',
+    },
+    conciergeStaff: 'فريق الكونسيرج',
+    avatarAlt: 'جمعة - خدمة عملاء Zanzirangi House',
+  },
+  zh: {
+    replies: {
+      serengeti: '塞伦盖蒂国家公园是非凡的猎游体验。Zanzirangi House 可安排从桑给巴尔机场直飞的包机猎游（约 1 小时 45 分钟），入住俯瞰动物大迁徙通道的奢华合作帐篷营地。',
+      ngorongoro: '恩戈罗恩戈罗火山口是联合国教科文组织世界遗产，火山口内拥有非洲最密集的掠食动物群。我们提供包机套餐，将您的海滩度假与火山口底部全景猎游完美结合。',
+      kilimanjaro: '我们与大陆认证登山向导合作，安排乞力马扎罗山登山探险及观光飞行，还可为您定制登山前的适应性住宿，或登山后的海滩休养之旅。',
+      tarangire: '塔兰吉雷国家公园以标志性的猴面包树和塔兰吉雷河畔庞大的象群而闻名。我们可安排从桑给巴尔直飞的包机行程。',
+      itinerary: '非常乐意为您量身定制多日坦桑尼亚之旅！我们的团队将把您的海岛别墅住宿与您选择的游览项目及大陆猎游航班完美衔接。',
+      reservation: '感谢您的预订咨询！我们的驻地礼宾团队正在核对您所需的日期与别墅偏好，并将直接与您确认房态及专属价格。',
+      safari: '我们提供从桑给巴尔直飞塞伦盖蒂、恩戈罗恩戈罗火山口和塔兰吉雷的包机猎游，入住奢华合作营地。您想了解我们的猎游目的地吗？',
+      concierge: 'Jambo！我随时为您安排定制住宿与私人服务。请告诉我您偏好的日期、出行人数或想要的体验，我将按照您的节奏为您量身打造一切。',
+    },
+    actions: {
+      viewSafariDestinations: '查看猎游目的地',
+      exploreNgorongoro: '探索恩戈罗恩戈罗',
+      planKilimanjaro: '规划猎游与乞力马扎罗',
+      viewTarangire: '查看塔兰吉雷猎游',
+      bookWithConcierge: '与礼宾确认日期',
+      exploreStoneTown: '探索石头城',
+      discoverMnemba: '发现姆纳巴岛',
+      viewSpiceJourney: '查看香料之旅',
+      sunsetDhowDetails: '日落帆船详情',
+      checkVillaFeatures: '查看别墅设施',
+      exploreDolphins: '探索海豚之旅',
+      viewSunsetSailing: '查看日落航行',
+      viewWellness: '查看水疗与养生',
+      discoverIslandTours: '发现海岛之旅',
+      exploreFamilyVillas: '探索家庭别墅',
+      planHoneymoon: '规划蜜月之旅',
+      exploreMarine: '探索海洋之旅',
+      viewPrivateVillas: '查看私享别墅',
+      viewTransfer: '查看接送详情',
+      tasteDiningGarden: '品味餐饮与花园菜单',
+      planStay: '规划您的入住',
+    },
+    conciergeStaff: '礼宾团队',
+    avatarAlt: '朱马 - Zanzirangi House 客户服务',
+  },
+  fr: {
+    replies: {
+      serengeti: 'Le parc national du Serengeti offre une expérience de safari extraordinaire. Zanzirangi House organise des safaris en vol charter direct depuis l’aéroport de Zanzibar (env. 1 h 45) avec des camps de toile de luxe partenaires surplombant les couloirs de la grande migration.',
+      ngorongoro: 'Le cratère du Ngorongoro, caldeira volcanique classée à l’UNESCO, abrite la plus forte concentration de prédateurs d’Afrique. Nous organisons des forfaits en vol charter associant votre séjour balnéaire à des safaris panoramiques au fond du cratère.',
+      kilimanjaro: 'Les expéditions au Kilimandjaro et les survols panoramiques sont organisés avec nos guides de montagne certifiés sur le continent. Nous pouvons prévoir un séjour d’acclimatation avant l’ascension ou une récupération relaxante à la plage après.',
+      tarangire: 'Le parc national de Tarangire est réputé pour ses baobabs emblématiques et ses immenses troupeaux d’éléphants le long de la rivière Tarangire. Nous organisons des itinéraires en vol charter directement depuis Zanzibar.',
+      itinerary: 'Je serais ravi de personnaliser votre voyage de plusieurs jours en Tanzanie ! Notre équipe harmonisera votre séjour en villa sur l’île avec les excursions de votre choix et vos vols de safari vers le continent.',
+      reservation: 'Merci pour votre demande de réservation ! Notre équipe de conciergerie sur place examine vos dates et vos préférences de villa. Nous vous confirmerons directement la disponibilité et nos tarifs personnalisés.',
+      safari: 'Nous organisons des safaris en vol charter directement depuis Zanzibar vers le Serengeti, le cratère du Ngorongoro et Tarangire, avec des camps de luxe partenaires. Souhaitez-vous découvrir nos destinations de safari ?',
+      concierge: 'Jambo ! Je suis là pour vous aider à organiser votre séjour sur mesure et vos services privés. Indiquez-moi vos dates, le nombre de voyageurs ou les expériences souhaitées, et j’adapterai tout à votre rythme.',
+    },
+    actions: {
+      viewSafariDestinations: 'Voir les destinations safari',
+      exploreNgorongoro: 'Explorer le Ngorongoro',
+      planKilimanjaro: 'Planifier safari & Kilimandjaro',
+      viewTarangire: 'Voir les safaris à Tarangire',
+      bookWithConcierge: 'Fixer les dates avec le concierge',
+      exploreStoneTown: 'Explorer Stone Town',
+      discoverMnemba: 'Découvrir Mnemba',
+      viewSpiceJourney: 'Voir la route des épices',
+      sunsetDhowDetails: 'Détails du dhow au couchant',
+      checkVillaFeatures: 'Voir les atouts des villas',
+      exploreDolphins: 'Explorer les safaris dauphins',
+      viewSunsetSailing: 'Voir les croisières au couchant',
+      viewWellness: 'Voir spa & bien-être',
+      discoverIslandTours: 'Découvrir les excursions sur l’île',
+      exploreFamilyVillas: 'Explorer les villas familiales',
+      planHoneymoon: 'Planifier votre lune de miel',
+      exploreMarine: 'Explorer les safaris marins',
+      viewPrivateVillas: 'Voir les villas privées',
+      viewTransfer: 'Détails du transfert',
+      tasteDiningGarden: 'Découvrir la carte & le jardin',
+      planStay: 'Planifier votre séjour',
+    },
+    conciergeStaff: 'Équipe de conciergerie',
+    avatarAlt: 'Juma - Service client Zanzirangi House',
+  },
+  sw: {
+    replies: {
+      serengeti: 'Hifadhi ya Taifa ya Serengeti ni uzoefu wa kipekee wa safari. Zanzirangi House hupanga safari za ndege za kukodi moja kwa moja kutoka uwanja wa ndege wa Zanzibar (takriban saa 1 na dakika 45) pamoja na kambi za kifahari za mahema za washirika wetu zinazotazama njia za uhamaji wa wanyama.',
+      ngorongoro: 'Kreta ya Ngorongoro ina idadi kubwa zaidi ya wanyama wawindaji barani Afrika ndani ya kasoko ya volkano iliyoorodheshwa na UNESCO. Tunaandaa vifurushi vya ndege za kukodi vinavyounganisha mapumziko yako ufukweni na safari za kuvutia ndani ya kreta.',
+      kilimanjaro: 'Safari za kupanda Mlima Kilimanjaro na ndege za kutazama mandhari huandaliwa kupitia washirika wetu waongozaji wa milima waliothibitishwa wa Tanzania Bara. Tunaweza kupanga ukaaji wa kuzoea hali kabla ya kupanda au mapumziko ya ufukweni baada ya kupanda.',
+      tarangire: 'Hifadhi ya Taifa ya Tarangire inasifika kwa mibuyu yake maarufu na makundi makubwa ya tembo kando ya Mto Tarangire. Tunapanga ratiba za ndege za kukodi moja kwa moja kutoka Zanzibar.',
+      itinerary: 'Nitafurahi sana kukuandalia safari yako ya siku kadhaa Tanzania! Timu yetu itaoanisha ukaaji wako katika villa kisiwani na matembezi uliyochagua pamoja na ndege za safari kwenda Tanzania Bara.',
+      reservation: 'Asante kwa ombi lako la uhifadhi! Timu yetu ya wahudumu inakagua tarehe ulizoomba na mapendeleo yako ya villa. Tutakuthibitishia nafasi na bei maalum moja kwa moja.',
+      safari: 'Tunaandaa safari za ndege za kukodi moja kwa moja kutoka Zanzibar hadi Serengeti, Kreta ya Ngorongoro na Tarangire, pamoja na kambi za kifahari za washirika wetu. Ungependa kutazama vituo vyetu vya safari?',
+      concierge: 'Jambo! Niko hapa kukusaidia kupanga ukaaji wako maalum na huduma binafsi. Niambie tarehe unazopendelea, idadi ya wageni, au uzoefu unaoutaka na nitaandaa kila kitu kulingana na mahitaji yako.',
+    },
+    actions: {
+      viewSafariDestinations: 'Tazama Vituo vya Safari',
+      exploreNgorongoro: 'Gundua Ngorongoro',
+      planKilimanjaro: 'Panga Safari na Kilimanjaro',
+      viewTarangire: 'Tazama Safari za Tarangire',
+      bookWithConcierge: 'Panga Tarehe na Mhudumu',
+      exploreStoneTown: 'Gundua Mji Mkongwe',
+      discoverMnemba: 'Gundua Mnemba',
+      viewSpiceJourney: 'Tazama Ziara ya Viungo',
+      sunsetDhowDetails: 'Maelezo ya Jahazi la Machweo',
+      checkVillaFeatures: 'Tazama Sifa za Villa',
+      exploreDolphins: 'Gundua Safari za Pomboo',
+      viewSunsetSailing: 'Tazama Safari za Machweo',
+      viewWellness: 'Tazama Spa na Afya',
+      discoverIslandTours: 'Gundua Ziara za Kisiwani',
+      exploreFamilyVillas: 'Gundua Villa za Familia',
+      planHoneymoon: 'Panga Fungate Yako',
+      exploreMarine: 'Gundua Safari za Baharini',
+      viewPrivateVillas: 'Tazama Villa Binafsi',
+      viewTransfer: 'Maelezo ya Usafiri',
+      tasteDiningGarden: 'Tazama Menyu ya Chakula na Bustani',
+      planStay: 'Panga Ukaaji Wako',
+    },
+    conciergeStaff: 'Wahudumu wa Hoteli',
+    avatarAlt: 'Juma - Huduma kwa Wateja Zanzirangi House',
+  },
+  es: {
+    replies: {
+      serengeti: 'El Parque Nacional del Serengeti es una experiencia de safari extraordinaria. Zanzirangi House organiza safaris en vuelo chárter directo desde el aeropuerto de Zanzíbar (aprox. 1 h 45 min) con campamentos de lujo asociados con vistas a los corredores de la gran migración.',
+      ngorongoro: 'El cráter del Ngorongoro alberga la mayor densidad de depredadores de África dentro de una caldera volcánica declarada Patrimonio de la UNESCO. Organizamos paquetes con vuelos chárter que combinan su retiro de playa con safaris panorámicos por el fondo del cráter.',
+      kilimanjaro: 'Las expediciones al Kilimanjaro y los vuelos panorámicos se organizan con nuestros guías de montaña certificados del continente. Podemos preparar estancias de aclimatación antes del ascenso o una relajante recuperación en la playa después.',
+      tarangire: 'El Parque Nacional de Tarangire es célebre por sus icónicos baobabs y sus enormes manadas de elefantes a orillas del río Tarangire. Organizamos itinerarios en vuelo chárter directamente desde Zanzíbar.',
+      itinerary: '¡Será un placer personalizar su viaje de varios días por Tanzania! Nuestro equipo armonizará su estancia en la villa de la isla con las excursiones que elija y los vuelos de safari al continente.',
+      reservation: '¡Gracias por su solicitud de reserva! Nuestro equipo de conserjería está revisando las fechas solicitadas y sus preferencias de villa. Le confirmaremos directamente la disponibilidad y las tarifas personalizadas.',
+      safari: 'Organizamos safaris en vuelo chárter directamente desde Zanzíbar al Serengeti, el cráter del Ngorongoro y Tarangire, con campamentos de lujo asociados. ¿Desea ver nuestros destinos de safari?',
+      concierge: '¡Jambo! Estoy aquí para ayudarle a organizar su estancia personalizada y sus servicios privados. Indíqueme sus fechas preferidas, el número de huéspedes o las experiencias que desea y lo adaptaré todo a su ritmo.',
+    },
+    actions: {
+      viewSafariDestinations: 'Ver destinos de safari',
+      exploreNgorongoro: 'Explorar Ngorongoro',
+      planKilimanjaro: 'Planificar safari y Kilimanjaro',
+      viewTarangire: 'Ver safaris en Tarangire',
+      bookWithConcierge: 'Reservar fechas con conserjería',
+      exploreStoneTown: 'Explorar Stone Town',
+      discoverMnemba: 'Descubrir Mnemba',
+      viewSpiceJourney: 'Ver la ruta de las especias',
+      sunsetDhowDetails: 'Detalles del dhow al atardecer',
+      checkVillaFeatures: 'Ver detalles de la villa',
+      exploreDolphins: 'Explorar safaris con delfines',
+      viewSunsetSailing: 'Ver navegación al atardecer',
+      viewWellness: 'Ver spa y bienestar',
+      discoverIslandTours: 'Descubrir excursiones por la isla',
+      exploreFamilyVillas: 'Explorar villas familiares',
+      planHoneymoon: 'Planificar luna de miel',
+      exploreMarine: 'Explorar safaris marinos',
+      viewPrivateVillas: 'Ver villas privadas',
+      viewTransfer: 'Detalles del traslado',
+      tasteDiningGarden: 'Descubrir la carta y el huerto',
+      planStay: 'Planificar su estancia',
+    },
+    conciergeStaff: 'Equipo de conserjería',
+    avatarAlt: 'Juma - Atención al cliente de Zanzirangi House',
+  },
+  it: {
+    replies: {
+      serengeti: 'Il Parco Nazionale del Serengeti è un’esperienza di safari straordinaria. Zanzirangi House organizza safari con voli charter diretti dall’aeroporto di Zanzibar (circa 1 h 45 min) presso lussuosi campi tendati partner affacciati sui corridoi della grande migrazione.',
+      ngorongoro: 'Il cratere di Ngorongoro, caldera vulcanica patrimonio UNESCO, ospita la più alta densità di predatori dell’Africa. Organizziamo pacchetti con voli charter che uniscono il vostro soggiorno al mare a safari panoramici sul fondo del cratere.',
+      kilimanjaro: 'Le spedizioni sul Kilimanjaro e i voli panoramici sono organizzati con le nostre guide alpine certificate del continente. Possiamo pianificare soggiorni di acclimatamento prima della scalata o un rilassante recupero al mare dopo.',
+      tarangire: 'Il Parco Nazionale di Tarangire è celebre per i suoi iconici baobab e le grandi mandrie di elefanti lungo il fiume Tarangire. Organizziamo itinerari con voli charter diretti da Zanzibar.',
+      itinerary: 'Sarò lieto di personalizzare il vostro viaggio di più giorni in Tanzania! Il nostro team armonizzerà il soggiorno in villa sull’isola con le escursioni scelte e i voli safari verso il continente.',
+      reservation: 'Grazie per la vostra richiesta di prenotazione! Il nostro team di concierge sta verificando le date richieste e le preferenze di villa. Vi confermeremo direttamente disponibilità e tariffe personalizzate.',
+      safari: 'Organizziamo safari con voli charter diretti da Zanzibar al Serengeti, al cratere di Ngorongoro e a Tarangire, con lussuosi campi partner. Desiderate scoprire le nostre destinazioni safari?',
+      concierge: 'Jambo! Sono qui per aiutarvi a organizzare il vostro soggiorno su misura e i servizi privati. Indicatemi le date preferite, il numero di ospiti o le esperienze desiderate e adatterò tutto ai vostri ritmi.',
+    },
+    actions: {
+      viewSafariDestinations: 'Vedi destinazioni safari',
+      exploreNgorongoro: 'Esplora Ngorongoro',
+      planKilimanjaro: 'Pianifica safari e Kilimanjaro',
+      viewTarangire: 'Vedi safari a Tarangire',
+      bookWithConcierge: 'Fissa le date con il concierge',
+      exploreStoneTown: 'Esplora Stone Town',
+      discoverMnemba: 'Scopri Mnemba',
+      viewSpiceJourney: 'Vedi il percorso delle spezie',
+      sunsetDhowDetails: 'Dettagli dhow al tramonto',
+      checkVillaFeatures: 'Vedi i servizi della villa',
+      exploreDolphins: 'Esplora i safari con i delfini',
+      viewSunsetSailing: 'Veleggiate al tramonto',
+      viewWellness: 'Vedi spa e benessere',
+      discoverIslandTours: 'Scopri i tour dell’isola',
+      exploreFamilyVillas: 'Esplora le ville per famiglie',
+      planHoneymoon: 'Pianifica la luna di miele',
+      exploreMarine: 'Esplora i safari marini',
+      viewPrivateVillas: 'Vedi le ville private',
+      viewTransfer: 'Dettagli del transfer',
+      tasteDiningGarden: 'Scopri menu e orto',
+      planStay: 'Pianifica il soggiorno',
+    },
+    conciergeStaff: 'Staff concierge',
+    avatarAlt: 'Juma - Assistenza clienti Zanzirangi House',
+  },
+};
 
 interface Message {
   id: string;
@@ -46,12 +387,128 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
 
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [hasUnread, setHasUnread] = useState(true);
+  const [hasUnread, setHasUnread] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversationStatus, setConversationStatus] = useState<string>('AI_ACTIVE');
   const visitorSessionRef = useRef(supportApi.getOrCreateVisitorSession());
 
+  // Dynamic Customer Support Profile & Avatar configured from Admin
+  // Synchronous localStorage cache prevents flash of old avatar/name on page refresh
+  const SUPPORT_PROFILE_STORAGE_KEY = 'zanzirangi_support_profile';
+
+  const [supportAvatar, setSupportAvatar] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(SUPPORT_PROFILE_STORAGE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed?.supportAvatar) return parsed.supportAvatar;
+        }
+      } catch {}
+    }
+    return DEFAULT_SETTINGS.supportAvatar || '/uploads/avatar-1790937078607_1790937078818_0381644b.jpg';
+  });
+
+  const [supportName, setSupportName] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(SUPPORT_PROFILE_STORAGE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed?.supportName) return parsed.supportName;
+        }
+      } catch {}
+    }
+    return DEFAULT_SETTINGS.supportName || 'Elena';
+  });
+
+  const [supportTitle, setSupportTitle] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(SUPPORT_PROFILE_STORAGE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed?.supportTitle) return parsed.supportTitle;
+        }
+      } catch {}
+    }
+    return DEFAULT_SETTINGS.supportTitle || 'Customer Support';
+  });
+
+  const [supportStatus, setSupportStatus] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(SUPPORT_PROFILE_STORAGE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed?.supportStatus) return parsed.supportStatus;
+        }
+      } catch {}
+    }
+    return DEFAULT_SETTINGS.supportStatus || 'Active 24/7';
+  });
+
+  const syncSupportCache = (data: {
+    supportAvatar?: string;
+    supportName?: string;
+    supportTitle?: string;
+    supportStatus?: string;
+  }) => {
+    if (typeof window === 'undefined') return;
+    try {
+      const existing = localStorage.getItem(SUPPORT_PROFILE_STORAGE_KEY);
+      const parsed = existing ? JSON.parse(existing) : {};
+      localStorage.setItem(
+        SUPPORT_PROFILE_STORAGE_KEY,
+        JSON.stringify({ ...parsed, ...data })
+      );
+    } catch {}
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    contentApi
+      .getSettings()
+      .then((s) => {
+        if (!isMounted || !s) return;
+        if (s.supportAvatar) setSupportAvatar(s.supportAvatar);
+        if (s.supportName) setSupportName(s.supportName);
+        if (s.supportTitle) setSupportTitle(s.supportTitle);
+        if (s.supportStatus) setSupportStatus(s.supportStatus);
+
+        syncSupportCache({
+          supportAvatar: s.supportAvatar,
+          supportName: s.supportName,
+          supportTitle: s.supportTitle,
+          supportStatus: s.supportStatus,
+        });
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleProfileUpdated = (e: any) => {
+      if (e.detail?.supportAvatar) setSupportAvatar(e.detail.supportAvatar);
+      if (e.detail?.supportName) setSupportName(e.detail.supportName);
+      if (e.detail?.supportTitle) setSupportTitle(e.detail.supportTitle);
+      if (e.detail?.supportStatus) setSupportStatus(e.detail.supportStatus);
+
+      syncSupportCache({
+        supportAvatar: e.detail?.supportAvatar,
+        supportName: e.detail?.supportName,
+        supportTitle: e.detail?.supportTitle,
+        supportStatus: e.detail?.supportStatus,
+      });
+    };
+    window.addEventListener('zanzirangi-support-profile-updated', handleProfileUpdated);
+    return () => window.removeEventListener('zanzirangi-support-profile-updated', handleProfileUpdated);
+  }, []);
+
   const t = CHAT_TRANSLATIONS[currentLang] || CHAT_TRANSLATIONS.en;
+  const local = CHAT_LOCAL_I18N[currentLang] || CHAT_LOCAL_I18N.en;
   const isRtl = currentLang === 'ar';
 
   const [shuffledPrompts, setShuffledPrompts] = useState<ChatQuickPrompt[]>(() => {
@@ -220,9 +677,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
     // Specific safari destinations
     if (q.includes('serengeti') || q.includes('great migration')) {
       return {
-        text: 'Serengeti National Park is an extraordinary safari experience. Zanzirangi House arranges direct chartered fly-in safaris from Zanzibar airport (approx. 1h 45m) with luxury partner tented camps overlooking migration corridors.',
+        text: local.replies.serengeti,
         action: {
-          label: 'View Safari Destinations',
+          label: local.actions.viewSafariDestinations,
           onClick: () => scrollToSection('tanzania'),
         },
       };
@@ -230,9 +687,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
 
     if (q.includes('ngorongoro') || q.includes('crater')) {
       return {
-        text: 'Ngorongoro Crater offers Africa’s densest predator populations inside a UNESCO volcanic caldera. We organize chartered fly-in packages combining your beach retreat with panoramic crater floor game drives.',
+        text: local.replies.ngorongoro,
         action: {
-          label: 'Explore Ngorongoro',
+          label: local.actions.exploreNgorongoro,
           onClick: () => scrollToSection('tanzania'),
         },
       };
@@ -240,9 +697,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
 
     if (q.includes('kilimanjaro')) {
       return {
-        text: 'Mount Kilimanjaro expeditions and scenic fly-over safaris are arranged through our certified mainland mountain guide partners. We can curate pre-climb acclimatization stays or relaxing post-climb beach recovery.',
+        text: local.replies.kilimanjaro,
         action: {
-          label: 'Plan Safari & Kilimanjaro',
+          label: local.actions.planKilimanjaro,
           onClick: () => scrollToSection('tanzania'),
         },
       };
@@ -250,9 +707,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
 
     if (q.includes('tarangire')) {
       return {
-        text: 'Tarangire National Park is celebrated for iconic baobab trees and vast elephant herds along the Tarangire River. We arrange chartered flight itineraries directly from Zanzibar.',
+        text: local.replies.tarangire,
         action: {
-          label: 'View Tarangire Safaris',
+          label: local.actions.viewTarangire,
           onClick: () => scrollToSection('tanzania'),
         },
       };
@@ -261,9 +718,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
     // Itinerary builder inquiries
     if (q.includes('itinerary') || q.includes('bespoke schedule') || q.includes('journey')) {
       return {
-        text: 'I would be delighted to personalize your multi-day Tanzania journey! Our team will harmonize your island villa stay with your chosen excursions and mainland safari flights.',
+        text: local.replies.itinerary,
         action: {
-          label: 'Book Dates with Concierge',
+          label: local.actions.bookWithConcierge,
           onClick: () => (onOpenBooking ? onOpenBooking() : scrollToSection('stay')),
         },
       };
@@ -272,9 +729,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
     // Specific Experiences
     if (q.includes('dolphin') || q.includes('kizimkazi')) {
       return {
-        text: 'Kizimkazi is world-renowned for resident bottlenose and spinner dolphins in the Menai Bay Conservation Area right off our doorstep. We provide private dawn boat departures with licensed marine conservation guides.',
+        text: t.replies.dolphins,
         action: {
-          label: 'View Experiences',
+          label: currentUi.viewExperiences,
           onClick: () => scrollToSection('experiences'),
         },
       };
@@ -282,9 +739,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
 
     if (q.includes('stone town') || q.includes('heritage')) {
       return {
-        text: 'Stone Town is a UNESCO World Heritage treasure. We arrange private guided cultural walks through winding alleys, the House of Wonders, Old Fort, and the spice market with an expert Swahili historian.',
+        text: t.replies.stonetown,
         action: {
-          label: 'Explore Stone Town',
+          label: local.actions.exploreStoneTown,
           onClick: () => scrollToSection('experiences'),
         },
       };
@@ -292,9 +749,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
 
     if (q.includes('mnemba') || q.includes('snorkeling') || q.includes('diving')) {
       return {
-        text: 'Mnemba Island Atoll is Zanzibar’s crown jewel for coral reef biodiversity. We arrange private motorized dhow charters with full snorkeling gear, marine guides, and secluded sandbank picnics.',
+        text: t.replies.diving,
         action: {
-          label: 'Discover Mnemba',
+          label: local.actions.discoverMnemba,
           onClick: () => scrollToSection('experiences'),
         },
       };
@@ -302,9 +759,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
 
     if (q.includes('spice')) {
       return {
-        text: 'Our Organic Botanical Spice Farm Journey introduces you to cloves, vanilla, nutmeg, and cardamom grown in lush organic plantations, concluded with a fresh coconut tasting and spice-infused lunch.',
+        text: t.replies.stonetown,
         action: {
-          label: 'View Spice Journey',
+          label: local.actions.viewSpiceJourney,
           onClick: () => scrollToSection('experiences'),
         },
       };
@@ -312,9 +769,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
 
     if (q.includes('dhow') || q.includes('sunset')) {
       return {
-        text: 'Nothing rivals a private wooden dhow gliding across the tranquil turquoise Indian Ocean at sunset. Chilled drinks and Swahili canapés are served as the sun dips below the horizon.',
+        text: t.replies.dhow,
         action: {
-          label: 'Sunset Dhow Details',
+          label: local.actions.sunsetDhowDetails,
           onClick: () => scrollToSection('experiences'),
         },
       };
@@ -322,9 +779,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
 
     if (q.includes('reservation') || q.includes('booking') || q.includes('submitted')) {
       return {
-        text: 'Thank you for your reservation inquiry! Our on-site concierge team is reviewing your requested dates and villa preferences. We will confirm availability and bespoke rates directly with you.',
+        text: local.replies.reservation,
         action: {
-          label: 'Check More Rooms',
+          label: currentUi.checkRooms,
           onClick: () => scrollToSection('stay'),
         },
       };
@@ -336,7 +793,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
       return {
         text: t.replies.checkin || 'Standard check-in is from 14:00 (2:00 PM) and check-out is until 11:00 AM. Flexible early check-in or late checkout can be accommodated based on villa availability.',
         action: {
-          label: t.bookAction || 'Book a Villa',
+          label: t.bookAction,
           onClick: () => (onOpenBooking ? onOpenBooking() : scrollToSection('stay')),
         },
       };
@@ -348,7 +805,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
       return {
         text: t.replies.wifi || 'High-speed Starlink satellite Wi-Fi (150+ Mbps) is complimentary across all private villas, gardens, and dining pavilions, ensuring reliable connectivity for streaming or remote work.',
         action: {
-          label: 'Check Villa Features',
+          label: local.actions.checkVillaFeatures,
           onClick: () => scrollToSection('stay'),
         },
       };
@@ -360,7 +817,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
       return {
         text: t.replies.payment || 'We accept major credit cards (Visa, MasterCard, Amex), international bank transfers, and mobile payments. Cancellation terms offer full flexibility up to 14 days prior to arrival.',
         action: {
-          label: t.bookAction || 'Reserve a Villa',
+          label: t.bookAction,
           onClick: () => (onOpenBooking ? onOpenBooking() : scrollToSection('stay')),
         },
       };
@@ -372,7 +829,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
       return {
         text: t.replies.dolphins || 'Kizimkazi is world-famous for resident dolphin pods in the Menai Bay Conservation Area. We organize ethical sunrise dolphin safaris directly from our shore.',
         action: {
-          label: 'Explore Dolphin Safaris',
+          label: local.actions.exploreDolphins,
           onClick: () => scrollToSection('experiences'),
         },
       };
@@ -384,7 +841,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
       return {
         text: t.replies.dhow || 'Glide across the turquoise Indian Ocean aboard a handcrafted wooden dhow while enjoying chilled Champagne and fresh Swahili canapés as the sun sets.',
         action: {
-          label: 'View Sunset Sailing',
+          label: local.actions.viewSunsetSailing,
           onClick: () => scrollToSection('experiences'),
         },
       };
@@ -396,7 +853,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
       return {
         text: t.replies.spa || 'Our in-villa wellness treatments feature cold-pressed Zanzibari coconut oils, clove and cinnamon body scrubs, and soothing deep-tissue massages performed on your private ocean deck.',
         action: {
-          label: 'View Wellness & Spa',
+          label: local.actions.viewWellness,
           onClick: () => scrollToSection('experiences'),
         },
       };
@@ -408,7 +865,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
       return {
         text: t.replies.beachDining || 'We arrange unforgettable candlelit dinners directly on the soft white sands or elevated coral terraces with torchlight and a custom 5-course seafood tasting menu.',
         action: {
-          label: 'Taste Dining Moments',
+          label: currentUi.viewDining,
           onClick: () => scrollToSection('dining'),
         },
       };
@@ -420,7 +877,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
       return {
         text: t.replies.stonetown || 'We organize private cultural journeys with local historians through UNESCO-listed Stone Town and organic spice plantations celebrating vanilla, cloves, and cardamom.',
         action: {
-          label: 'Discover Island Tours',
+          label: local.actions.discoverIslandTours,
           onClick: () => scrollToSection('experiences'),
         },
       };
@@ -432,7 +889,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
       return {
         text: t.replies.family || 'Families are warmly welcomed. We offer interconnecting villa sanctuaries, extra beds, tailored kids menus, and professional babysitting upon request.',
         action: {
-          label: 'Explore Family Villas',
+          label: local.actions.exploreFamilyVillas,
           onClick: () => scrollToSection('stay'),
         },
       };
@@ -444,7 +901,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
       return {
         text: t.replies.honeymoon || 'For honeymooners, we prepare complimentary chilled Champagne, fresh tropical floral arrangements, a private sunset dhow sail, and a romantic beach dinner under the stars.',
         action: {
-          label: 'Plan Honeymoon Escape',
+          label: local.actions.planHoneymoon,
           onClick: () => (onOpenBooking ? onOpenBooking() : scrollToSection('stay')),
         },
       };
@@ -456,7 +913,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
       return {
         text: t.replies.diving || 'Partnering with certified PADI dive masters, we take you to the pristine reefs of Mnemba Atoll and Kizimkazi to observe sea turtles, manta rays, and vibrant marine life.',
         action: {
-          label: 'Explore Marine Safaris',
+          label: local.actions.exploreMarine,
           onClick: () => scrollToSection('experiences'),
         },
       };
@@ -466,9 +923,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
     const poolKeywords = ['pool', 'plunge', 'swim', 'beach', 'ocean', 'piscine', 'bwawa', 'piscina', 'pantai', 'kolam', 'basen', 'المسبح', 'الشاطئ', '泳池', '沙滩'];
     if (poolKeywords.some((k) => q.includes(k))) {
       return {
-        text: 'Every single one of our 8 luxury sanctuaries features its own private freshwater plunge pool, sun loungers, and direct private pathway access to the pristine shores of the Indian Ocean.',
+        text: t.replies.villas,
         action: {
-          label: 'View Private Villas',
+          label: local.actions.viewPrivateVillas,
           onClick: () => scrollToSection('stay'),
         },
       };
@@ -478,9 +935,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
     const safariKeywords = ['safari', 'wildlife', 'big five', 'fly-in', 'game drive', 'bush', 'serengeti', 'ngorongoro', 'سيرينجيتي', '塞伦盖蒂'];
     if (safariKeywords.some((k) => q.includes(k))) {
       return {
-        text: 'We organize chartered fly-in safaris directly from Zanzibar to Serengeti, Ngorongoro Crater, and Tarangire with luxury partner camps. Would you like to view our safari destinations?',
+        text: local.replies.safari,
         action: {
-          label: 'View Safari Destinations',
+          label: local.actions.viewSafariDestinations,
           onClick: () => scrollToSection('tanzania'),
         },
       };
@@ -497,9 +954,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
     ];
     if (villaKeywords.some((k) => q.includes(k))) {
       return {
-        text: t.botVillaAnswer || 'We feature 8 handcrafted luxury sanctuaries including oceanfront pool villas and secluded garden bungalows. Would you like to check dates and availability?',
+        text: t.replies.villas,
         action: {
-          label: t.actionCheckVillas || 'Check Villa Availability',
+          label: t.checkAvailAction,
           onClick: () => (onOpenBooking ? onOpenBooking() : scrollToSection('stay')),
         },
       };
@@ -518,7 +975,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
       return {
         text: t.replies.transfer || 'We provide private VIP meet-and-greet and chauffeur shuttle transfers from Abeid Amani Karume International Airport (ZNZ) directly to our sanctuary in Kizimkazi.',
         action: {
-          label: 'View Transfer Details',
+          label: local.actions.viewTransfer,
           onClick: () => scrollToSection('shuttle'),
         },
       };
@@ -537,7 +994,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
       return {
         text: t.replies.dining || 'Our gastronomic philosophy embraces organic garden-to-table produce and line-caught seafood with authentic Swahili and fine international dining.',
         action: {
-          label: 'Taste Dining & Garden Menu',
+          label: local.actions.tasteDiningGarden,
           onClick: () => scrollToSection('dining'),
         },
       };
@@ -556,7 +1013,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
       return {
         text: t.replies.excursions || 'We curate 10 signature Zanzibar adventures including wild dolphin cruises in Menai Bay, Mnemba Island snorkeling, Stone Town heritage tours, and sunset dhow sails.',
         action: {
-          label: 'Explore Experiences',
+          label: currentUi.viewExperiences,
           onClick: () => scrollToSection('experiences'),
         },
       };
@@ -565,9 +1022,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
     const conciergeKeywords = ['speak', 'talk', 'concierge', 'host', 'team', 'call', 'arrange', 'help', 'contact'];
     if (conciergeKeywords.some((k) => q.includes(k))) {
       return {
-        text: 'Jambo! I am right here to help you arrange your custom stay and private services. Tell me your preferred dates, party size, or experiences and I will tailor everything to your rhythm.',
+        text: local.replies.concierge,
         action: {
-          label: 'Plan Your Stay',
+          label: local.actions.planStay,
           onClick: () => (onOpenBooking ? onOpenBooking() : scrollToSection('stay')),
         },
       };
@@ -576,7 +1033,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
     return {
       text: t.replies.fallback || 'I am happy to assist with all your questions regarding your stay, dining, island adventures, and Tanzania safaris.',
       action: {
-        label: 'Plan Your Stay',
+        label: local.actions.planStay,
         onClick: () => (onOpenBooking ? onOpenBooking() : scrollToSection('stay')),
       },
     };
@@ -659,7 +1116,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
 
   // Near-real-time polling for admin and system messages
   useEffect(() => {
-    if (!isOpen || !conversationId) return;
+    if (!conversationId) return;
 
     const interval = setInterval(async () => {
       try {
@@ -701,6 +1158,10 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
               }
             }
             if (newOnes.length > 0) {
+              // Trigger badge '1' only when an admin replies while the chat is closed
+              if (!isOpen && newOnes.some((m) => m.sender === 'admin')) {
+                setHasUnread(true);
+              }
               return [...next, ...newOnes];
             }
             return next;
@@ -709,7 +1170,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
       } catch {
         // Silent poll error handling
       }
-    }, 3500);
+    }, isOpen ? 3000 : 7000);
 
     return () => clearInterval(interval);
   }, [isOpen, conversationId]);
@@ -869,24 +1330,18 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
             <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden p-0.5 bg-gradient-to-tr from-[#B8966C] via-[#C4A27A] to-[#FAF8F5] shadow-2xl transform transition-transform duration-300 group-hover:scale-110">
               <div className="w-full h-full rounded-full overflow-hidden bg-[#141413]">
                 <img
-                  src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80"
-                  alt="Juma - Zanzirangi Customer Support Avatar"
+                  src={supportAvatar}
+                  alt={`${supportName} - ${supportTitle}`}
                   className="w-full h-full object-cover"
                 />
               </div>
             </div>
 
-            {/* Active online pulsing green radar signal */}
-            <span className="absolute top-0 right-0 flex h-3.5 w-3.5 sm:h-4 sm:w-4">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-80" />
-              <span className="relative inline-flex rounded-full h-3.5 w-3.5 sm:h-4 sm:w-4 bg-emerald-500 border-2 border-[#141413] shadow-[0_0_8px_#10b981]" />
-            </span>
-
-            {/* Unread Message Dot */}
+            {/* Unread Message Dot - only appears when there is an unread answer from Admin */}
             {hasUnread && !isOpen && (
               <span className="absolute -top-1 -right-1 flex h-4 w-4 z-10">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#B8966C] opacity-75" />
-                <span className="relative inline-flex rounded-full h-4 w-4 bg-[#B8966C] text-[9px] font-bold text-[#141413] flex items-center justify-center">
+                <span className="relative inline-flex rounded-full h-4 w-4 bg-[#B8966C] text-[9px] font-bold text-[#141413] flex items-center justify-center shadow-lg border border-[#141413]">
                   1
                 </span>
               </span>
@@ -900,7 +1355,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
             </span>
             <span className="text-xs font-semibold text-[#FAF8F5] tracking-wide">
-              Juma
+              {supportName}
             </span>
           </div>
 
@@ -908,14 +1363,14 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
           <div className="hidden sm:flex items-center space-x-2 px-4 py-2.5 bg-[#141413]/95 hover:bg-[#1C1B1A] border border-[#C4A27A]/50 rounded-2xl text-[#FAF8F5] shadow-2xl backdrop-blur-md transition-all duration-300 group-hover:border-[#C4A27A]">
             <div className="flex flex-col text-left leading-tight">
               <span className="text-xs font-semibold text-[#FAF8F5] tracking-wide">
-                {t.badgeTitle || 'Customer Support'}
+                {supportTitle || t.badgeTitle || 'Customer Support'}
               </span>
               <span className="text-[10px] text-emerald-400 font-mono tracking-wider flex items-center space-x-1.5 mt-0.5 font-medium">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-80" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                 </span>
-                <span>{t.badgeStatus || 'Online • Juma'}</span>
+                <span>{supportStatus || t.badgeStatus || `Online • ${supportName}`}</span>
               </span>
             </div>
           </div>
@@ -946,8 +1401,8 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
               <div className="relative flex-shrink-0">
                 <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-[#C4A27A] bg-[#2C2B28] shadow-md">
                   <img
-                    src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80"
-                    alt="Juma - Zanzirangi Customer Support"
+                    src={supportAvatar}
+                    alt={`${supportName} - ${supportTitle}`}
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -960,13 +1415,13 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
               <div className="flex flex-col text-left rtl:text-right leading-tight">
                 <div className="flex items-center space-x-1.5 rtl:space-x-reverse">
                   <span className="font-serif font-medium text-base tracking-wider text-[#FAF8F5]">
-                    {t.headerTitle || 'Customer Support'}
+                    {supportTitle || t.headerTitle || 'Customer Support'}
                   </span>
                   <Sparkles className="w-3.5 h-3.5 text-[#C4A27A]" />
                 </div>
                 <span className="text-[11px] text-emerald-400 font-mono tracking-wider flex items-center space-x-1 rtl:space-x-reverse mt-0.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
-                  <span>{currentUi.conciergeRole}</span>
+                  <span>{supportStatus || currentUi.conciergeRole}</span>
                 </span>
               </div>
             </div>
@@ -1008,19 +1463,13 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
                       msg.sender === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'
                     }`}
                   >
-                    {msg.sender === 'bot' && (
+                    {(msg.sender === 'bot' || msg.sender === 'admin') && (
                       <div className="w-6 h-6 rounded-full overflow-hidden border border-[#C4A27A]/60 flex-shrink-0 bg-[#2C2B28] shadow-sm">
                         <img
-                          src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80"
-                          alt="Juma"
+                          src={supportAvatar}
+                          alt={supportName}
                           className="w-full h-full object-cover"
                         />
-                      </div>
-                    )}
-
-                    {msg.sender === 'admin' && (
-                      <div className="w-6 h-6 rounded-full overflow-hidden border border-emerald-500/80 flex-shrink-0 bg-[#2C2B28] shadow-sm flex items-center justify-center text-emerald-400">
-                        <UserCheck className="w-3.5 h-3.5" />
                       </div>
                     )}
 
@@ -1028,17 +1477,9 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
                       className={`p-3.5 rounded-2xl text-xs sm:text-[13px] leading-relaxed ${
                         msg.sender === 'user'
                           ? 'bg-[#B8966C] text-[#141413] font-semibold rounded-br-none shadow-md'
-                          : msg.sender === 'admin'
-                          ? 'bg-[#22211F] text-[#FAF8F5] border border-emerald-600/50 rounded-bl-none shadow'
                           : 'bg-[#1C1B1A] text-[#FAF8F5] border border-[#2C2B28] rounded-bl-none shadow'
                       }`}
                     >
-                      {msg.sender === 'admin' && (
-                        <div className="text-[10px] font-mono text-emerald-400 mb-1 flex items-center space-x-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                          <span>Concierge Staff</span>
-                        </div>
-                      )}
 
                       <p>{msg.text}</p>
 
@@ -1064,8 +1505,8 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
               <div className="flex items-center space-x-2 rtl:space-x-reverse">
                 <div className="w-6 h-6 rounded-full overflow-hidden border border-[#C4A27A]/60 flex-shrink-0 bg-[#2C2B28] shadow-sm">
                   <img
-                    src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80"
-                    alt="Juma"
+                    src={supportAvatar}
+                    alt={supportName}
                     className="w-full h-full object-cover"
                   />
                 </div>

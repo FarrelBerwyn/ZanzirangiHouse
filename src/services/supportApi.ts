@@ -7,6 +7,7 @@ import {
   SupportConversationStatus,
   SupportActionMetadata,
 } from '../../server/database/supportTypes';
+import { authApi } from './authApi';
 
 const API_BASE = '/api/support';
 
@@ -124,11 +125,12 @@ class SupportApiClient {
   // Admin Endpoints
   // -------------------------------------------------------------
   private getAuthHeaders(): HeadersInit {
-    const token = localStorage.getItem('zanzirangi_admin_token');
-    return {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token || ''}`,
-    };
+    // Same token the rest of the CMS uses (authApi -> 'zanzirangi_cms_jwt_token').
+    const token = authApi.getToken();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    // Never send an empty "Bearer " header; the server answers 401 without one.
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
   }
 
   async adminGetConversations(filter?: {
@@ -273,6 +275,65 @@ class SupportApiClient {
     if (!json.success) throw new Error(json.error || 'Failed to fetch analytics');
     return json.data;
   }
+
+  // -------------------------------------------------------------
+  // Web Push & Staff Duty Endpoints
+  // -------------------------------------------------------------
+  async getVapidPublicKey(): Promise<string> {
+    const res = await fetch(`${API_BASE}/push/public-key`);
+    const json = await res.json();
+    if (!json.success) throw new Error('Failed to fetch VAPID key');
+    return json.publicKey;
+  }
+
+  async subscribePush(subscription: any): Promise<boolean> {
+    const res = await fetch(`${API_BASE}/push/subscribe`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ subscription }),
+    });
+    const json = await res.json();
+    return !!json.success;
+  }
+
+  async unsubscribePush(endpoint: string): Promise<boolean> {
+    const res = await fetch(`${API_BASE}/push/unsubscribe`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ endpoint }),
+    });
+    const json = await res.json();
+    return !!json.success;
+  }
+
+  async testPushNotification(): Promise<any> {
+    const res = await fetch(`${API_BASE}/push/test`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+    });
+    return res.json();
+  }
+
+  async getDutyStatus(): Promise<{ staff: any[]; isOnDuty: boolean; hasAgentOnline: boolean }> {
+    const res = await fetch(`${API_BASE}/duty/status`, {
+      headers: this.getAuthHeaders(),
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error('Failed to fetch duty status');
+    return json;
+  }
+
+  async toggleDutyStatus(isOnDuty: boolean): Promise<{ duty: any; staff: any[]; hasAgentOnline: boolean }> {
+    const res = await fetch(`${API_BASE}/duty/toggle`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ isOnDuty }),
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error('Failed to toggle duty status');
+    return json;
+  }
 }
 
 export const supportApi = new SupportApiClient();
+

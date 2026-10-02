@@ -22,7 +22,7 @@ export class ContactRepository {
       whatsapp: settings.whatsapp || '+255 777 890 123',
       email: settings.email || 'info@zanzirangihouse.com',
       reservationEmail: settings.reservationEmail || settings.reservationNotificationEmail || 'reservations@zanzirangihouse.com',
-      address: settings.address || 'Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania',
+      address: settings.address || 'Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania',
       bookingUrl: settings.bookingUrl || 'https://zanzirangihouse.com/#stay',
       instagram: settings.instagram || 'https://instagram.com/zanzirangi.house',
       facebook: settings.facebook || 'https://facebook.com/zanzirangihouse',

@@ -4,23 +4,45 @@ import crypto from 'crypto';
 import { MediaStorageAdapter, UploadResult } from './MediaStorageAdapter.ts';
 import { env } from '../config/env.ts';
 
-const ALLOWED_MIME_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/svg+xml',
-  'image/avif',
-  'video/mp4',
-  'video/webm',
-  'application/pdf',
-]);
+// Allow-list: extension → MIME type. Anything else (svg, html, scripts, archives…) is rejected,
+// because uploads are served from the site's own origin.
+const ALLOWED_TYPES: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.avif': 'image/avif',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.pdf': 'application/pdf',
+};
 
-const FORBIDDEN_EXTENSIONS = new Set([
-  '.php', '.phtml', '.php3', '.php4', '.php5', '.phps',
-  '.js', '.cjs', '.mjs', '.ts',
-  '.sh', '.bash', '.exe', '.bat', '.cmd', '.py', '.pl', '.cgi',
-  '.htaccess', '.env',
-]);
+/** Checks the file's leading bytes so a renamed file can't masquerade as an image/video/pdf. */
+function matchesSignature(buffer: Buffer, mimeType: string): boolean {
+  const hex = buffer.subarray(0, 16).toString('hex');
+  const ascii = buffer.subarray(0, 16).toString('latin1');
+  switch (mimeType) {
+    case 'image/jpeg':
+      return hex.startsWith('ffd8ff');
+    case 'image/png':
+      return hex.startsWith('89504e470d0a1a0a');
+    case 'image/gif':
+      return ascii.startsWith('GIF87a') || ascii.startsWith('GIF89a');
+    case 'image/webp':
+      return ascii.startsWith('RIFF') && ascii.substring(8, 12) === 'WEBP';
+    case 'image/avif':
+      return ascii.substring(4, 8) === 'ftyp' && /avi[fs]/.test(ascii.substring(8, 12));
+    case 'video/mp4':
+      return ascii.substring(4, 8) === 'ftyp';
+    case 'video/webm':
+      return hex.startsWith('1a45dfa3');
+    case 'application/pdf':
+      return ascii.startsWith('%PDF-');
+    default:
+      return false;
+  }
+}
 
 export class LocalMediaStorage implements MediaStorageAdapter {
   private storageDir: string;
@@ -52,16 +74,21 @@ export class LocalMediaStorage implements MediaStorageAdapter {
     this.ensureDirectoryExists();
 
     const ext = path.extname(originalName).toLowerCase();
+    const expectedMime = ALLOWED_TYPES[ext];
 
-    // Security Check: Forbidden extensions
-    if (FORBIDDEN_EXTENSIONS.has(ext)) {
-      throw new Error(`Security Exception: Uploading files with extension '${ext}' is strictly prohibited.`);
+    // Security: extension must be allow-listed and agree with the declared MIME type and file content.
+    if (!expectedMime) {
+      throw new Error(
+        `File type '${ext || 'unknown'}' is not allowed. Allowed: ${Object.keys(ALLOWED_TYPES).join(', ')}.`
+      );
     }
-
-    // Security Check: MIME type validation
-    if (!ALLOWED_MIME_TYPES.has(mimeType)) {
-      throw new Error(`Security Exception: MIME type '${mimeType}' is not permitted.`);
+    if (mimeType && mimeType !== expectedMime) {
+      throw new Error(`File extension '${ext}' does not match its type '${mimeType}'.`);
     }
+    if (!matchesSignature(buffer, expectedMime)) {
+      throw new Error(`The file content is not a valid ${expectedMime} file.`);
+    }
+    mimeType = expectedMime;
 
     // File Size Check
     const maxBytes = env.MAX_UPLOAD_SIZE_MB * 1024 * 1024;

@@ -15,8 +15,20 @@ interface PropertyIntroProps {
   dynamicIntro?: DynamicIntroProps;
 }
 
+const INTRO_IMAGE_ALTS: Record<Language, { architecture: string; poolLounge: string }> = {
+  en: { architecture: 'Zanzirangi House coastal architecture', poolLounge: 'Poolside oceanfront lounge' },
+  pl: { architecture: 'Nadmorska architektura Zanzirangi House', poolLounge: 'Strefa wypoczynku przy basenie z widokiem na ocean' },
+  ar: { architecture: 'العمارة الساحلية في Zanzirangi House', poolLounge: 'استراحة بجانب المسبح مطلة على المحيط' },
+  zh: { architecture: 'Zanzirangi House 海岸建筑', poolLounge: '临海泳池畔休憩区' },
+  fr: { architecture: 'Architecture côtière de Zanzirangi House', poolLounge: "Salon au bord de la piscine face à l'océan" },
+  sw: { architecture: 'Usanifu wa pwani wa Zanzirangi House', poolLounge: 'Sebule ya kando ya bwawa inayotazama bahari' },
+  es: { architecture: 'Arquitectura costera de Zanzirangi House', poolLounge: 'Salón junto a la piscina frente al mar' },
+  it: { architecture: 'Architettura costiera di Zanzirangi House', poolLounge: 'Lounge a bordo piscina fronte oceano' },
+};
+
 export const PropertyIntro: React.FC<PropertyIntroProps> = ({ currentLang, dynamicIntro }) => {
   const introContent = PROPERTY_INTRO_TRANSLATIONS[currentLang] || PROPERTY_INTRO_TRANSLATIONS.en;
+  const imageAlts = INTRO_IMAGE_ALTS[currentLang] || INTRO_IMAGE_ALTS.en;
 
   const eyebrowText = dynamicIntro?.eyebrow || introContent.philosophyTag;
   const headingText = dynamicIntro?.title || introContent.heading;
@@ -58,7 +70,7 @@ export const PropertyIntro: React.FC<PropertyIntroProps> = ({ currentLang, dynam
             <div className="relative aspect-[16/11] rounded-2xl overflow-hidden shadow-2xl">
               <img
                 src="https://images.unsplash.com/photo-1540541338287-41700207dee6?auto=format&fit=crop&w=1600&q=85"
-                alt="Zanzirangi House coastal architecture"
+                alt={imageAlts.architecture}
                 className="w-full h-full object-cover transition-transform duration-1000 ease-out hover:scale-105"
                 loading="lazy"
               />
@@ -95,7 +107,7 @@ export const PropertyIntro: React.FC<PropertyIntroProps> = ({ currentLang, dynam
             <div className="relative aspect-[4/3] rounded-xl overflow-hidden shadow-lg border border-[#E7DFD2]">
               <img
                 src="https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=1200&q=85"
-                alt="Poolside oceanfront lounge"
+                alt={imageAlts.poolLounge}
                 className="w-full h-full object-cover"
                 loading="lazy"
               />

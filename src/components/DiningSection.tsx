@@ -1,21 +1,78 @@
 import React, { useState } from 'react';
 import { UtensilsCrossed, Sparkles, BookOpen, Leaf, Sun, Sunset, Moon, Coffee, HeartHandshake, X } from 'lucide-react';
-import { Language } from '../types';
+import { Language, DiningCategory } from '../types';
 import { getLocalizedDining } from '../data/diningTranslations';
+import { DINING_CATEGORIES } from '../data/dining';
+import { localizeUnlessEdited } from '../data/homeSectionsCms';
 import { TRANSLATIONS } from '../data/translations';
 import { ScrollFadeContainer } from './ScrollFadeContainer';
 import { ScrollReveal, StaggerContainer, StaggerItem } from './ScrollReveal';
 
+import { DiningConfigModel } from '../services/contentApi';
+
 interface DiningSectionProps {
   currentLang: Language;
+  dynamicConfig?: DiningConfigModel | null;
 }
 
-export const DiningSection: React.FC<DiningSectionProps> = ({ currentLang }) => {
+/** A dish as rendered: built-in dishes only have name/description; CMS dishes may add price, dietary and visible. */
+type DishView = DiningCategory['signatureDishes'][number] & { price?: string; dietary?: string; visible?: boolean };
+
+const DEFAULT_GARDEN_IMAGE =
+  'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=1200&q=85';
+
+/** Truncated placeholders the server returns when a column is empty — never shown, always replaced by built-in text. */
+const SERVER_PLACEHOLDERS: Partial<Record<string, string>> = {
+  intro: 'Centuries of Swahili, Omani, and Indian Ocean sea trade come together at our tables.',
+  gardenDesc: 'Tucked within the grounds of Zanzirangi House is our private botanical garden...',
+};
+
+/** English values seeded into the database for untouched fields; other languages show their own translation instead. */
+const SEEDED_ENGLISH: Partial<Record<string, string>> = {
+  heading: 'TASTE ZANZIBAR',
+  subhead: '"Fresh ingredients, island flavours and authentic Tanzanian hospitality."',
+};
+
+export const DiningSection: React.FC<DiningSectionProps> = ({ currentLang, dynamicConfig }) => {
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
   const [activeCategoryIndex, setActiveCategoryIndex] = useState(0);
   const [menuModalOpen, setMenuModalOpen] = useState(false);
 
-  const localizedCategories = getLocalizedDining(currentLang);
+  // CMS categories/dishes win; built-in translations only fill fields still at their English default.
+  // Empty fields of built-in categories are left blank so getLocalizedDining fills them per language.
+  // Dishes are localized before hidden ones are removed so positions still line up with the built-in dishes.
+  const cmsCategories = (dynamicConfig?.categories || []).filter((c) => c && c.visible !== false);
+  const localizedCategories: DiningCategory[] = (
+    cmsCategories.length > 0
+      ? getLocalizedDining(
+          currentLang,
+          [...cmsCategories]
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+            .map((c) => {
+              const seed = DINING_CATEGORIES.find((s) => s.id === c.id);
+              const dishes: DishView[] = (c.signatureDishes || []).map((d) => ({
+                name: d.name || '',
+                description: d.description || '',
+                price: d.price || '',
+                dietary: d.dietary || '',
+                visible: d.visible,
+              }));
+              return {
+                id: c.id,
+                name: c.name || '',
+                tabLabel: c.tabLabel || (seed ? '' : c.name || ''),
+                subtitle: c.subtitle || '',
+                description: c.description || '',
+                image: c.imageUrl || seed?.image || '',
+                signatureDishes: dishes,
+              };
+            })
+        )
+      : getLocalizedDining(currentLang)
+  ).map((cat) => ({
+    ...cat,
+    signatureDishes: (cat.signatureDishes as DishView[]).filter((d) => d.visible !== false),
+  }));
   const currentCategory = localizedCategories[activeCategoryIndex] || localizedCategories[0];
 
   const diningUi: Record<
@@ -48,8 +105,9 @@ export const DiningSection: React.FC<DiningSectionProps> = ({ currentLang }) => 
   > = {
     en: {
       eyebrow: 'Gastronomic Soul',
-      heading: t.dining.heading || 'TASTE ZANZIBAR',
-      subhead: t.dining.subhead || '"Fresh ingredients, island flavours and authentic Tanzanian hospitality."',
+      // Always the English strings: this entry is the baseline used to detect unedited CMS text.
+      heading: TRANSLATIONS.en.dining.heading || 'TASTE ZANZIBAR',
+      subhead: TRANSLATIONS.en.dining.subhead || '"Fresh ingredients, island flavours and authentic Tanzanian hospitality."',
       intro:
         'Centuries of Swahili, Omani, and Indian Ocean sea trade come together at our tables. From line-caught fish brought ashore at sunrise to slow-simmered aromatic curries, dining at Zanzirangi House is an authentic sensory journey.',
       gardenEyebrow: 'Culinary Storytelling',
@@ -520,7 +578,62 @@ export const DiningSection: React.FC<DiningSectionProps> = ({ currentLang }) => 
     },
   };
 
-  const ui = diningUi[currentLang] || diningUi.en;
+  if (dynamicConfig?.visible === false) {
+    return null;
+  }
+
+  const baseUi = diningUi[currentLang] || diningUi.en;
+  type UiTextField = Exclude<keyof typeof baseUi, 'moments'> & string;
+  const isBlank = (value: string | undefined) => !value || !value.trim();
+  // CMS text wins. Built-in per-language text is only used when the CMS value is empty, a server placeholder,
+  // or (for non-English visitors) still equal to the built-in / seeded English default.
+  const cmsUi = (cmsValue: string | undefined, field: UiTextField): string => {
+    if (isBlank(cmsValue) || cmsValue === SERVER_PLACEHOLDERS[field]) return baseUi[field];
+    if (currentLang === 'en') return cmsValue as string;
+    return localizeUnlessEdited(cmsValue, SEEDED_ENGLISH[field], diningUi.en[field], baseUi[field]);
+  };
+  const cmsMomentText = (cmsValue: string | undefined, englishDefault: string | undefined, localized: string | undefined) => {
+    if (isBlank(cmsValue)) return localized || '';
+    if (currentLang === 'en') return cmsValue as string;
+    return localizeUnlessEdited(cmsValue, undefined, englishDefault, localized);
+  };
+  const cmsMoments = (dynamicConfig?.moments || []).filter(
+    (m) => m && (!isBlank(m.title) || !isBlank(m.desc) || !isBlank(m.time))
+  );
+  const ui = {
+    ...baseUi,
+    eyebrow: cmsUi(dynamicConfig?.eyebrow, 'eyebrow'),
+    heading: cmsUi(dynamicConfig?.heading, 'heading'),
+    subhead: cmsUi(dynamicConfig?.subhead, 'subhead'),
+    intro: cmsUi(dynamicConfig?.intro, 'intro'),
+    gardenEyebrow: cmsUi(dynamicConfig?.gardenEyebrow, 'gardenEyebrow'),
+    gardenBadge: cmsUi(dynamicConfig?.gardenBadge, 'gardenBadge'),
+    gardenTitle: cmsUi(dynamicConfig?.gardenTitle, 'gardenTitle'),
+    gardenDesc: cmsUi(dynamicConfig?.gardenDesc, 'gardenDesc'),
+    tagZeroMiles: cmsUi(dynamicConfig?.tagZeroMiles, 'tagZeroMiles'),
+    tagSpices: cmsUi(dynamicConfig?.tagSpices, 'tagSpices'),
+    tagSeafood: cmsUi(dynamicConfig?.tagSeafood, 'tagSeafood'),
+    momentsEyebrow: cmsUi(dynamicConfig?.momentsEyebrow, 'momentsEyebrow'),
+    momentsTitle: cmsUi(dynamicConfig?.momentsTitle, 'momentsTitle'),
+    heritageEyebrow: cmsUi(dynamicConfig?.heritageEyebrow, 'heritageEyebrow'),
+    heritageTitle: cmsUi(dynamicConfig?.heritageTitle, 'heritageTitle'),
+    moments: (cmsMoments.length > 0
+      ? cmsMoments.map((m, i) => ({
+          title: cmsMomentText(m.title, diningUi.en.moments[i]?.title, baseUi.moments[i]?.title),
+          time: cmsMomentText(m.time, diningUi.en.moments[i]?.time, baseUi.moments[i]?.time),
+          desc: cmsMomentText(m.desc, diningUi.en.moments[i]?.desc, baseUi.moments[i]?.desc),
+          image: m.image || '',
+        }))
+      : baseUi.moments.map((m) => ({ ...m, image: '' }))) as Array<{
+      title: string;
+      time: string;
+      desc: string;
+      image: string;
+    }>,
+  };
+  // Optional extras: a second garden paragraph (shown only when set; no built-in translation) and the garden photo.
+  const gardenDesc2 = isBlank(dynamicConfig?.gardenDesc2) ? '' : (dynamicConfig?.gardenDesc2 as string);
+  const gardenImage = isBlank(dynamicConfig?.gardenImage) ? DEFAULT_GARDEN_IMAGE : (dynamicConfig?.gardenImage as string);
 
   const momentIcons = [Coffee, Sun, Sunset, Moon, UtensilsCrossed, HeartHandshake];
 
@@ -555,8 +668,8 @@ export const DiningSection: React.FC<DiningSectionProps> = ({ currentLang }) => 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             <div className="lg:col-span-4 relative aspect-[4/3] rounded-2xl overflow-hidden shadow-md">
               <img
-                src="https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=1200&q=85"
-                alt="Organic spice garden at Zanzirangi House"
+                src={gardenImage}
+                alt={ui.gardenTitle || 'Organic spice garden at Zanzirangi House'}
                 className="w-full h-full object-cover"
                 loading="lazy"
               />
@@ -578,6 +691,12 @@ export const DiningSection: React.FC<DiningSectionProps> = ({ currentLang }) => 
               <p className="text-sm md:text-base text-[#55524B] leading-relaxed">
                 {ui.gardenDesc}
               </p>
+
+              {gardenDesc2 && (
+                <p className="text-sm md:text-base text-[#55524B] leading-relaxed">
+                  {gardenDesc2}
+                </p>
+              )}
 
               <div className="flex flex-wrap gap-2.5 pt-2 text-xs font-mono text-[#8E6B40]">
                 <span className="px-3 py-1 bg-white/70 border border-[#E7DFD2] rounded-full">
@@ -614,6 +733,16 @@ export const DiningSection: React.FC<DiningSectionProps> = ({ currentLang }) => 
                   className="bg-[#FAF8F5] border border-[#E7DFD2] rounded-2xl p-7 sm:p-8 hover:shadow-xl transition-all duration-300 flex flex-col justify-between group"
                 >
                   <div>
+                    {m.image && (
+                      <div className="relative aspect-[16/10] rounded-xl overflow-hidden mb-5 -mt-1">
+                        <img
+                          src={m.image}
+                          alt={m.title}
+                          className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                          loading="lazy"
+                        />
+                      </div>
+                    )}
                     <div className="flex items-center justify-between mb-4">
                       <div className="w-10 h-10 rounded-xl bg-[#F4EFE6] text-[#A07E54] group-hover:bg-[#1C1B1A] group-hover:text-[#C4A27A] flex items-center justify-center transition-colors">
                         <Icon className="w-4 h-4" />
@@ -703,7 +832,7 @@ export const DiningSection: React.FC<DiningSectionProps> = ({ currentLang }) => 
                   <span>{ui.featuredDishes}</span>
                 </span>
 
-                {currentCategory.signatureDishes.slice(0, 3).map((dish, i) => (
+                {(currentCategory?.signatureDishes || []).slice(0, 3).map((dish, i) => (
                   <div key={i} className="space-y-0.5 border-b border-[#2C2B28]/60 pb-2.5">
                     <p className="font-serif text-base font-normal text-[#FAF8F5]">
                       {dish.name}
@@ -759,14 +888,19 @@ export const DiningSection: React.FC<DiningSectionProps> = ({ currentLang }) => 
                   <h4 className="font-serif text-lg font-semibold text-[#A07E54] border-b border-[#E7DFD2]/60 pb-1">
                     {cat.name}
                   </h4>
-                  {cat.signatureDishes.map((dish, idx) => (
+                  {((cat?.signatureDishes || []) as DishView[]).map((dish, idx) => (
                     <div key={idx} className="flex justify-between items-start gap-4">
                       <div>
                         <p className="font-medium text-[#141413]">{dish.name}</p>
                         <p className="text-xs text-[#6B6862]">{dish.description}</p>
+                        {dish.dietary && (
+                          <p className="text-[10px] font-mono uppercase tracking-wider text-[#8E6B40] mt-0.5">
+                            {dish.dietary}
+                          </p>
+                        )}
                       </div>
                       <span className="font-mono text-xs text-[#A07E54] font-semibold whitespace-nowrap">
-                        {ui.aLaCarte}
+                        {dish.price || ui.aLaCarte}
                       </span>
                     </div>
                   ))}

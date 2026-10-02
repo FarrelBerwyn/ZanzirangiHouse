@@ -10,6 +10,7 @@ var __export = (target, all) => {
 
 // server/config/env.ts
 import dotenv from "dotenv";
+import fs2 from "fs";
 import path2 from "path";
 function parseCorsOrigin(val) {
   if (!val || val === "*") return "*";
@@ -17,6 +18,35 @@ function parseCorsOrigin(val) {
     return val.split(",").map((s) => s.trim());
   }
   return val.trim();
+}
+function readJson(file) {
+  try {
+    return JSON.parse(fs2.readFileSync(path2.resolve(process.cwd(), file), "utf8"));
+  } catch {
+    return null;
+  }
+}
+function readReleaseInfo() {
+  const pkg = readJson("package.json");
+  const stamp = readJson("release.json");
+  const str = (v) => typeof v === "string" && v.trim() ? v.trim().slice(0, 64) : null;
+  const deployment = stamp && str(stamp.commit) ? {
+    tag: str(stamp.tag),
+    commit: str(stamp.commit).slice(0, 12),
+    build: str(String(stamp.build ?? "")) || "unknown",
+    environment: str(stamp.environment) || "unknown",
+    deployedAt: str(stamp.deployedAt) || "unknown"
+  } : null;
+  return {
+    version: str(pkg?.version) || process.env.npm_package_version || "unknown",
+    releaseDate: str(pkg?.releaseDate),
+    deployment
+  };
+}
+function defaultProductionMediaPath() {
+  const cwd = process.cwd().replace(/\\/g, "/");
+  const versioned = cwd.match(/^(.*?)\/hbuilds\/versions\/[^/]+/);
+  return versioned ? `${versioned[1]}/zanzirangi-media` : path2.resolve(process.cwd(), "..", "zanzirangi-media");
 }
 function validateEnvironment() {
   if (env.NODE_ENV === "production") {
@@ -42,12 +72,16 @@ function validateEnvironment() {
     console.log(`\u{1F527} Environment loaded [Provider: ${env.DATABASE_PROVIDER}, Host: http://localhost:${env.PORT}]`);
   }
 }
-var nodeEnv, env;
+var isProductionRuntime, nodeEnv, releaseInfo, env;
 var init_env = __esm({
   "server/config/env.ts"() {
-    dotenv.config();
-    dotenv.config({ path: path2.resolve(process.cwd(), ".env.local"), override: true });
+    isProductionRuntime = process.env.NODE_ENV === "production";
+    if (!isProductionRuntime) {
+      dotenv.config({ path: path2.resolve(process.cwd(), ".env.local"), quiet: true });
+    }
+    dotenv.config({ path: path2.resolve(process.cwd(), ".env"), quiet: true });
     nodeEnv = process.env.NODE_ENV || "development";
+    releaseInfo = readReleaseInfo();
     env = {
       NODE_ENV: nodeEnv,
       PORT: parseInt(process.env.PORT || process.env.API_PORT || "3000", 10),
@@ -64,11 +98,16 @@ var init_env = __esm({
       JWT_SECRET: process.env.JWT_SECRET || (nodeEnv === "production" ? "" : "zanzirangi_dev_jwt_secret_2026"),
       JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "7d",
       ADMIN_EMAIL: process.env.ADMIN_EMAIL || "info@zanzirangihouse.com",
-      MEDIA_STORAGE_PATH: process.env.MEDIA_STORAGE_PATH || path2.resolve(process.cwd(), "uploads"),
+      // Production default lives OUTSIDE the deployed app directory so uploads survive redeploys
+      // (each Hostinger build replaces the app directory). Override with MEDIA_STORAGE_PATH.
+      MEDIA_STORAGE_PATH: process.env.MEDIA_STORAGE_PATH || (nodeEnv === "production" ? defaultProductionMediaPath() : path2.resolve(process.cwd(), "uploads")),
       MAX_UPLOAD_SIZE_MB: parseInt(process.env.MAX_UPLOAD_SIZE || process.env.MAX_UPLOAD_SIZE_MB || "25", 10),
       CORS_ORIGIN: parseCorsOrigin(process.env.CORS_ORIGIN || (nodeEnv === "production" ? "https://zanzirangihouse.com" : "http://localhost:3000")),
       LOG_LEVEL: process.env.LOG_LEVEL || (nodeEnv === "production" ? "info" : "debug"),
-      APP_VERSION: process.env.npm_package_version || "1.0.0"
+      APP_VERSION: releaseInfo.version,
+      APP_RELEASE_DATE: releaseInfo.releaseDate,
+      APP_DEPLOYMENT: releaseInfo.deployment,
+      SITE_NOINDEX: process.env.SITE_NOINDEX === "true"
     };
   }
 });
@@ -87,9 +126,9 @@ function getMysqlPool() {
   if (!connectionPool) {
     const host = process.env.DB_HOST || env.MYSQL_HOST || "localhost";
     const port = Number(process.env.DB_PORT || env.MYSQL_PORT || 3306);
-    const user = process.env.DB_USER || env.MYSQL_USER || "u170555096_admindatabase";
+    const user = process.env.DB_USER || env.MYSQL_USER || "";
     const password = process.env.DB_PASSWORD || env.MYSQL_PASSWORD || "";
-    const database = process.env.DB_NAME || env.MYSQL_DATABASE || "u170555096_Zanzirangi";
+    const database = process.env.DB_NAME || env.MYSQL_DATABASE || "";
     const connectionLimit = Number(process.env.MYSQL_CONNECTION_LIMIT || env.MYSQL_CONNECTION_LIMIT || 10);
     connectionPool = mysql.createPool({
       host,
@@ -116,8 +155,8 @@ async function closeMysqlPool() {
 async function testDatabaseConnection() {
   const host = process.env.DB_HOST || env.MYSQL_HOST || "localhost";
   const port = Number(process.env.DB_PORT || env.MYSQL_PORT || 3306);
-  const user = process.env.DB_USER || env.MYSQL_USER || "u170555096_admindatabase";
-  const database = process.env.DB_NAME || env.MYSQL_DATABASE || "u170555096_Zanzirangi";
+  const user = process.env.DB_USER || env.MYSQL_USER || "";
+  const database = process.env.DB_NAME || env.MYSQL_DATABASE || "";
   const steps = [];
   let overallSuccess = true;
   let finalError;
@@ -289,7 +328,7 @@ var init_connection = __esm({
 
 // server/index.ts
 import express2 from "express";
-import fs4 from "fs";
+import fs5 from "fs";
 import path5 from "path";
 import { fileURLToPath as fileURLToPath2 } from "url";
 
@@ -298,6 +337,7 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
+import bcrypt3 from "bcryptjs";
 
 // server/db.ts
 import fs from "fs";
@@ -1061,14 +1101,18 @@ var DEFAULT_SETTINGS = {
   email: "info@zanzirangihouse.com",
   reservationNotificationEmail: "reservations@zanzirangihouse.com",
   reservationEmail: "reservations@zanzirangihouse.com",
-  address: "Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania",
+  address: "Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania",
   instagram: "https://instagram.com/zanzirangi.house",
   facebook: "https://facebook.com/zanzirangihouse",
   youtube: "https://youtube.com/@zanzirangihouse",
   bookingUrl: "https://zanzirangihouse.com/#stay",
   logo: "/src/assets/zanzirangi-logo-new.jpeg",
   favicon: "/favicon.svg",
-  maintenanceMode: false
+  maintenanceMode: false,
+  supportAvatar: "/uploads/avatar-1790937078607_1790937078818_0381644b.jpg",
+  supportName: "Elena",
+  supportTitle: "Customer Support",
+  supportStatus: "Active 24/7"
 };
 
 // server/seedKnowledgeBase.ts
@@ -1267,9 +1311,9 @@ var DEFAULT_HOMEPAGE_CONTENT = {
   },
   contact: {
     phone: "+255 777 890 123",
-    email: "concierge@zanzirangihouse.com",
+    email: "info@zanzirangihouse.com",
     whatsappNumber: "255777890123",
-    address: "Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania",
+    address: "Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania",
     googleMapsUrl: "https://maps.google.com/?q=Kizimkazi+Dimbani+Zanzibar"
   },
   socials: {
@@ -1628,6 +1672,15 @@ var JsonDatabaseAdapter = class {
     saveDatabase(db);
     return facility;
   }
+  async deleteFacility(id, userEmail) {
+    const db = getDatabase();
+    const before = (db.facilities || []).length;
+    db.facilities = (db.facilities || []).filter((f) => f.id !== id);
+    if (db.facilities.length === before) return false;
+    db.auditLog.push({ action: "FACILITY_DELETED", userEmail, timestamp: (/* @__PURE__ */ new Date()).toISOString(), details: `Removed facility ${id}` });
+    saveDatabase(db);
+    return true;
+  }
   // --- Testimonials ---
   async getTestimonials() {
     const db = getDatabase();
@@ -1778,9 +1831,12 @@ var JsonDatabaseAdapter = class {
       email: u.email,
       name: u.name,
       role: u.role,
+      status: u.status || "active",
+      permissions: u.permissions || [],
+      tokenVersion: u.tokenVersion ?? 1,
       passwordHash: u.passwordHash,
       createdAt: u.createdAt,
-      lastLogin: u.lastLogin
+      lastLogin: u.lastLogin ?? void 0
     };
   }
   async saveUser(user) {
@@ -1793,9 +1849,188 @@ var JsonDatabaseAdapter = class {
     }
     saveDatabase(db);
   }
+  async findUserById(id) {
+    const db = getDatabase();
+    return db.users.find((u) => u.id === id) || null;
+  }
   async listUsers() {
     const db = getDatabase();
     return db.users.map(({ passwordHash, ...safe }) => safe);
+  }
+  async createUser(user) {
+    const db = getDatabase();
+    db.users.push(user);
+    saveDatabase(db);
+    return user;
+  }
+  async updateUser(id, data) {
+    const db = getDatabase();
+    const idx = db.users.findIndex((u) => u.id === id);
+    if (idx < 0) throw new Error(`User with ID ${id} not found.`);
+    const current = db.users[idx];
+    const next = {
+      ...current,
+      name: data.name ?? current.name,
+      role: data.role ?? current.role,
+      status: data.status ?? current.status,
+      permissions: data.permissions ?? current.permissions
+    };
+    const accessChanged = next.role !== current.role || next.status !== current.status || JSON.stringify(next.permissions || []) !== JSON.stringify(current.permissions || []);
+    next.tokenVersion = (current.tokenVersion ?? 1) + (accessChanged ? 1 : 0);
+    db.users[idx] = next;
+    saveDatabase(db);
+    return next;
+  }
+  async disableUser(id) {
+    const db = getDatabase();
+    const idx = db.users.findIndex((u) => u.id === id);
+    if (idx >= 0) {
+      db.users[idx].status = "disabled";
+      db.users[idx].tokenVersion = (db.users[idx].tokenVersion ?? 1) + 1;
+      saveDatabase(db);
+    }
+  }
+  async enableUser(id) {
+    const db = getDatabase();
+    const idx = db.users.findIndex((u) => u.id === id);
+    if (idx >= 0) {
+      db.users[idx].status = "active";
+      db.users[idx].tokenVersion = (db.users[idx].tokenVersion ?? 1) + 1;
+      saveDatabase(db);
+    }
+  }
+  async resetPassword(id, newPasswordHash) {
+    const db = getDatabase();
+    const idx = db.users.findIndex((u) => u.id === id);
+    if (idx >= 0) {
+      db.users[idx].passwordHash = newPasswordHash;
+      db.users[idx].tokenVersion = (db.users[idx].tokenVersion ?? 1) + 1;
+      saveDatabase(db);
+    }
+  }
+  async getActiveUserCount() {
+    const db = getDatabase();
+    return (db.users || []).filter((u) => u.status !== "disabled").length;
+  }
+  async updateLastLogin(id) {
+    const db = getDatabase();
+    const u = db.users.find((x) => x.id === id);
+    if (u) {
+      u.lastLogin = (/* @__PURE__ */ new Date()).toISOString();
+      saveDatabase(db);
+    }
+  }
+  async revokeUserSessions(id) {
+    const db = getDatabase();
+    const u = db.users.find((x) => x.id === id);
+    if (u) {
+      u.tokenVersion = (u.tokenVersion ?? 1) + 1;
+      saveDatabase(db);
+    }
+  }
+  // --- Extended CMS Coverage Fallbacks ---
+  async getPageContent(id) {
+    return null;
+  }
+  async getAllPages() {
+    return [];
+  }
+  async updatePageContent(id, data, userEmail) {
+    return { id, slug: id, title: id, ...data };
+  }
+  async getChauffeurConfig() {
+    return {
+      eyebrow: "VIP CHAUFFEUR & TRANSFERS",
+      heading: "ARRIVE. RELAX. WE'LL TAKE CARE OF THE REST.",
+      subhead: "From the moment your flight touches down in Zanzibar...",
+      routeLabel: "ABEID AMANI KARUME INT'L (ZNZ) \u2192 ZANZIRANGI HOUSE",
+      routeTitle: "Private Coastal Chauffeur Service",
+      vehicleImage: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1600&q=85",
+      specsEyebrow: "TRANSFER SPECIFICATIONS",
+      cardTitle: "Private Sanctuary Chauffeur",
+      airportTitle: "AIRPORT TRANSFER",
+      airportDesc: "Direct tarmac welcome and luggage assistance upon arrival.",
+      shuttleTitle: "PRIVATE SHUTTLE",
+      shuttleDesc: "Exclusive vehicles reserved solely for your traveling party.",
+      vehicleTypeTitle: "VEHICLE TYPE",
+      vehicleTypeDesc: "Executive SUV / Luxury Van (Details available on request)",
+      passengerLuggageTitle: "PASSENGER & LUGGAGE",
+      passengerLuggageDesc: "Tailored to group size (Details available on request)",
+      amenitiesNote: "Complimentary chilled mineral water, cool hand towels, and high-speed in-car Wi-Fi provided for every transfer.",
+      ctaRequestLabel: "REQUEST AIRPORT TRANSFER",
+      ctaAddBookingLabel: "ADD TO BOOKING"
+    };
+  }
+  async updateChauffeurConfig(data, userEmail) {
+    return { ...await this.getChauffeurConfig(), ...data };
+  }
+  async getWhyStayConfig() {
+    return {
+      eyebrow: "THE SANCTUARY DIFFERENCE",
+      heading: "WHY ZANZIRANGI HOUSE",
+      subhead: "Four guiding values define every moment at our retreat.",
+      pillars: []
+    };
+  }
+  async updateWhyStayConfig(data, userEmail) {
+    return { ...await this.getWhyStayConfig(), ...data };
+  }
+  async getDiningConfig() {
+    return {
+      eyebrow: "Gastronomic Soul",
+      heading: "TASTE ZANZIBAR",
+      subhead: '"Fresh ingredients, island flavours and authentic Tanzanian hospitality."',
+      intro: "Centuries of Swahili, Omani, and Indian Ocean sea trade come together at our tables.",
+      gardenEyebrow: "Culinary Storytelling",
+      gardenBadge: "Estate Garden",
+      gardenTitle: "FROM OUR GARDEN TO YOUR TABLE",
+      gardenDesc: "Tucked within the grounds of Zanzirangi House is our private botanical garden...",
+      tagZeroMiles: "\u{1F331} Zero Food Miles",
+      tagSpices: "\u{1F336} Hand-Picked Daily Spices",
+      tagSeafood: "\u{1F41F} Sustainable Coastal Seafood",
+      moments: []
+    };
+  }
+  async updateDiningConfig(data, userEmail) {
+    return { ...await this.getDiningConfig(), ...data };
+  }
+  async getDiningCategories() {
+    return [];
+  }
+  async saveDiningCategory(category, userEmail) {
+    return category;
+  }
+  async deleteDiningCategory(id, userEmail) {
+    return true;
+  }
+  async getExperiences() {
+    return [];
+  }
+  async saveExperience(item, userEmail) {
+    return item;
+  }
+  async deleteExperience(id, userEmail) {
+    return true;
+  }
+  async getSafariDestinations() {
+    return [];
+  }
+  async saveSafariDestination(item, userEmail) {
+    return item;
+  }
+  async deleteSafariDestination(id, userEmail) {
+    return true;
+  }
+  async getGlobalContent() {
+    return {
+      brandName: "Zanzirangi House",
+      navLinks: [],
+      ctaPlanStayLabel: "PLAN YOUR STAY",
+      ctaPlanStayLink: "#stay"
+    };
+  }
+  async updateGlobalContent(data, userEmail) {
+    return { ...await this.getGlobalContent(), ...data };
   }
   // --- Audit Logs ---
   async getAuditLogs(limit = 20) {
@@ -1834,14 +2069,120 @@ var JsonDatabaseAdapter = class {
       }))
     };
   }
+  // --- Content Translations ---
+  async getContentTranslations(lang) {
+    const db = getDatabase();
+    return db.contentTranslations?.[lang] || [];
+  }
+  async saveContentTranslations(lang, entries, userEmail) {
+    const db = getDatabase();
+    db.contentTranslations = db.contentTranslations || {};
+    const list = db.contentTranslations[lang] || [];
+    for (const e of entries) {
+      const i = list.findIndex((x) => x.entity === e.entity && x.path === e.path);
+      if (!e.value || !e.value.trim()) {
+        if (i >= 0) list.splice(i, 1);
+        continue;
+      }
+      const record = { ...e, updatedAt: (/* @__PURE__ */ new Date()).toISOString(), updatedBy: userEmail };
+      if (i >= 0) list[i] = record;
+      else list.push(record);
+    }
+    db.contentTranslations[lang] = list;
+    saveDatabase(db);
+    return entries.length;
+  }
 };
 
 // server/database/mysqlAdapter.ts
 init_connection();
 init_env();
+var CHAUFFEUR_COLUMN_FIELDS = [
+  "eyebrow",
+  "heading",
+  "subhead",
+  "routeLabel",
+  "routeTitle",
+  "vehicleImage",
+  "specsEyebrow",
+  "cardTitle",
+  "airportTitle",
+  "airportDesc",
+  "shuttleTitle",
+  "shuttleDesc",
+  "vehicleTypeTitle",
+  "vehicleTypeDesc",
+  "passengerLuggageTitle",
+  "passengerLuggageDesc",
+  "amenitiesNote",
+  "ctaRequestLabel",
+  "ctaAddBookingLabel",
+  "specItems"
+];
+var WHY_STAY_COLUMN_FIELDS = ["eyebrow", "heading", "subhead", "pillars"];
+var DINING_CONFIG_COLUMN_FIELDS = [
+  "eyebrow",
+  "heading",
+  "subhead",
+  "intro",
+  "gardenEyebrow",
+  "gardenBadge",
+  "gardenTitle",
+  "gardenDesc",
+  "tagZeroMiles",
+  "tagSpices",
+  "tagSeafood",
+  "moments"
+];
+var GLOBAL_COLUMN_FIELDS = [
+  "brandName",
+  "navLinks",
+  "ctaPlanStayLabel",
+  "ctaPlanStayLink",
+  "footerTagline",
+  "footerCopyright",
+  "contactPhone",
+  "contactEmail",
+  "contactWhatsapp",
+  "contactAddress",
+  "socials"
+];
+var EXPERIENCE_COLUMN_FIELDS = [
+  "title",
+  "category",
+  "duration",
+  "tag",
+  "priceNote",
+  "shortDescription",
+  "description",
+  "imageUrl",
+  "whatsappMessage",
+  "order",
+  "visible"
+];
+var SAFARI_COLUMN_FIELDS = [
+  "name",
+  "tagline",
+  "region",
+  "flightTimeFromZanzibar",
+  "heroImage",
+  "description",
+  "highlights",
+  "bestFor",
+  "safariType",
+  "order",
+  "visible"
+];
+var DINING_CATEGORY_COLUMN_FIELDS = ["name", "tabLabel", "subtitle", "description", "imageUrl", "signatureDishes", "order", "visible"];
 var MysqlDatabaseAdapter = class {
   constructor() {
     this.provider = "mysql";
+    // --- Extra CMS fields ---
+    // Content tables store their main fields in columns. Any additional editor field (visibility toggles,
+    // extra labels, images…) is kept in an `extras_json` column so saves never silently drop data.
+    this.extrasColumnReady = /* @__PURE__ */ new Set();
+    // --- Content Translations ---
+    this.translationsTableReady = false;
   }
   getPool() {
     return getMysqlPool();
@@ -1852,7 +2193,7 @@ var MysqlDatabaseAdapter = class {
       const conn = await pool.getConnection();
       conn.release();
       const host = process.env.DB_HOST || env.MYSQL_HOST || "localhost";
-      const db = process.env.DB_NAME || env.MYSQL_DATABASE || "u170555096_Zanzirangi";
+      const db = process.env.DB_NAME || env.MYSQL_DATABASE || "";
       console.log(`\u{1F42C} Connected to Hostinger MySQL Database [${db}@${host}]`);
       try {
         const [tables] = await pool.query("SHOW TABLES LIKE 'homepage_config'");
@@ -1892,6 +2233,7 @@ var MysqlDatabaseAdapter = class {
   // --- Homepage ---
   async getHomepage() {
     const pool = this.getPool();
+    await this.ensureExtrasColumn("homepage_config");
     const [cfgRows] = await pool.query("SELECT * FROM homepage_config WHERE id = 1 LIMIT 1");
     const [slideRows] = await pool.query("SELECT * FROM hero_slides ORDER BY sort_order ASC");
     const [secRows] = await pool.query("SELECT * FROM homepage_sections ORDER BY sort_order ASC");
@@ -1932,6 +2274,8 @@ var MysqlDatabaseAdapter = class {
           secondaryCtaText: s.secondary_cta_text,
           secondaryCtaLink: s.secondary_cta_link,
           imageUrl: s.image_url,
+          // The admin editor and HeroSection read/write `heroImage`.
+          heroImage: s.image_url,
           videoUrl: s.video_url,
           alignment: s.alignment || "center",
           overlayOpacity: parseFloat(s.overlay_opacity || "0.4"),
@@ -1946,9 +2290,10 @@ var MysqlDatabaseAdapter = class {
       },
       contact: {
         phone: cfg.contact_phone || "+255 777 890 123",
-        email: cfg.contact_email || "concierge@zanzirangihouse.com",
+        email: cfg.contact_email || "info@zanzirangihouse.com",
         whatsappNumber: cfg.contact_whatsapp || "255777890123",
-        address: cfg.contact_address || "Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania"
+        address: cfg.contact_address || "Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania",
+        googleMapsUrl: this.parseExtras(cfg.extras_json).contactGoogleMapsUrl || void 0
       },
       sections: secRows.map((sec) => ({
         id: sec.id,
@@ -1970,6 +2315,7 @@ var MysqlDatabaseAdapter = class {
   }
   async updateHomepage(data, userEmail) {
     const pool = this.getPool();
+    await this.ensureExtrasColumn("homepage_config");
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
@@ -2014,7 +2360,7 @@ var MysqlDatabaseAdapter = class {
                 s.primaryCtaLink,
                 s.secondaryCtaText,
                 s.secondaryCtaLink,
-                s.imageUrl || s.heroImage || "",
+                s.heroImage || s.imageUrl || "",
                 s.videoUrl,
                 s.alignment || "center",
                 s.overlayOpacity || 0.4,
@@ -2036,6 +2382,12 @@ var MysqlDatabaseAdapter = class {
           "UPDATE homepage_config SET contact_phone = ?, contact_email = ?, contact_whatsapp = ?, contact_address = ? WHERE id = 1",
           [data.contact.phone, data.contact.email, data.contact.whatsappNumber, data.contact.address]
         );
+        if (data.contact.googleMapsUrl !== void 0) {
+          const [extraRows] = await conn.query("SELECT extras_json FROM homepage_config WHERE id = 1");
+          const extras = this.parseExtras(extraRows[0]?.extras_json);
+          extras.contactGoogleMapsUrl = data.contact.googleMapsUrl || void 0;
+          await conn.query("UPDATE homepage_config SET extras_json = ? WHERE id = 1", [JSON.stringify(extras)]);
+        }
       }
       if (data.socials) {
         await conn.query("UPDATE homepage_config SET socials_json = ? WHERE id = 1", [JSON.stringify(data.socials)]);
@@ -2328,6 +2680,15 @@ var MysqlDatabaseAdapter = class {
     });
     return facility;
   }
+  async deleteFacility(id, userEmail) {
+    const pool = this.getPool();
+    const [res] = await pool.query("DELETE FROM facilities WHERE id = ?", [id]);
+    if (res.affectedRows > 0) {
+      await this.addAuditLog({ action: "FACILITY_DELETED", userEmail, details: `Removed facility ${id}` });
+      return true;
+    }
+    return false;
+  }
   // --- Testimonials ---
   async getTestimonials() {
     const pool = this.getPool();
@@ -2559,14 +2920,18 @@ var MysqlDatabaseAdapter = class {
       email: r.email || "info@zanzirangihouse.com",
       reservationNotificationEmail: r.reservation_notification_email || "reservations@zanzirangihouse.com",
       reservationEmail: r.reservation_email || r.reservation_notification_email || "reservations@zanzirangihouse.com",
-      address: r.address || "Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania",
+      address: r.address || "Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania",
       instagram: r.instagram || "https://instagram.com/zanzirangi.house",
       facebook: r.facebook || "https://facebook.com/zanzirangihouse",
       youtube: r.youtube || "https://youtube.com/@zanzirangihouse",
       bookingUrl: r.booking_url || "https://zanzirangihouse.com/#stay",
       logo: r.logo || "/src/assets/zanzirangi-logo-new.jpeg",
       favicon: r.favicon || "/favicon.svg",
-      maintenanceMode: Boolean(r.maintenance_mode)
+      maintenanceMode: Boolean(r.maintenance_mode),
+      supportAvatar: r.support_avatar || "/uploads/avatar-1790937078607_1790937078818_0381644b.jpg",
+      supportName: r.support_name || "Elena",
+      supportTitle: r.support_title || "Customer Support",
+      supportStatus: r.support_status || "Active 24/7"
     };
   }
   async updateSettings(data, userEmail) {
@@ -2577,8 +2942,8 @@ var MysqlDatabaseAdapter = class {
       `INSERT INTO site_settings 
         (id, site_name, tagline, phone, concierge_phone, whatsapp, email, reservation_notification_email, 
          reservation_email, address, instagram, facebook, youtube, booking_url, currency, default_currency, 
-         default_language, logo, favicon, maintenance_mode) 
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
+         default_language, logo, favicon, maintenance_mode, support_avatar, support_name, support_title, support_status) 
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
        ON DUPLICATE KEY UPDATE 
         site_name = VALUES(site_name), tagline = VALUES(tagline), phone = VALUES(phone), 
         concierge_phone = VALUES(concierge_phone), whatsapp = VALUES(whatsapp), email = VALUES(email), 
@@ -2587,7 +2952,9 @@ var MysqlDatabaseAdapter = class {
         instagram = VALUES(instagram), facebook = VALUES(facebook), youtube = VALUES(youtube), 
         booking_url = VALUES(booking_url), currency = VALUES(currency), default_currency = VALUES(default_currency), 
         default_language = VALUES(default_language), logo = VALUES(logo), favicon = VALUES(favicon), 
-        maintenance_mode = VALUES(maintenance_mode)`,
+        maintenance_mode = VALUES(maintenance_mode), support_avatar = VALUES(support_avatar),
+        support_name = VALUES(support_name), support_title = VALUES(support_title),
+        support_status = VALUES(support_status)`,
       [
         merged.siteName || "Zanzirangi House",
         merged.tagline || "",
@@ -2597,7 +2964,7 @@ var MysqlDatabaseAdapter = class {
         merged.email || "info@zanzirangihouse.com",
         merged.reservationNotificationEmail || "reservations@zanzirangihouse.com",
         merged.reservationEmail || merged.reservationNotificationEmail || "reservations@zanzirangihouse.com",
-        merged.address || "Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania",
+        merged.address || "Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania",
         merged.instagram || "https://instagram.com/zanzirangi.house",
         merged.facebook || "https://facebook.com/zanzirangihouse",
         merged.youtube || "https://youtube.com/@zanzirangihouse",
@@ -2607,7 +2974,11 @@ var MysqlDatabaseAdapter = class {
         merged.defaultLanguage || "en",
         merged.logo || "/src/assets/zanzirangi-logo-new.jpeg",
         merged.favicon || "/favicon.svg",
-        merged.maintenanceMode ? 1 : 0
+        merged.maintenanceMode ? 1 : 0,
+        merged.supportAvatar || "/uploads/avatar-1790937078607_1790937078818_0381644b.jpg",
+        merged.supportName || "Elena",
+        merged.supportTitle || "Customer Support",
+        merged.supportStatus || "Active 24/7"
       ]
     );
     await this.addAuditLog({
@@ -2617,7 +2988,7 @@ var MysqlDatabaseAdapter = class {
     });
     return this.getSettings();
   }
-  // --- Users & Auth ---
+  // --- Users & Admin Access Management ---
   async findUserByEmail(email) {
     const pool = this.getPool();
     const [rows] = await pool.query("SELECT * FROM users WHERE LOWER(email) = ? LIMIT 1", [
@@ -2625,11 +2996,48 @@ var MysqlDatabaseAdapter = class {
     ]);
     if (!rows || rows.length === 0) return null;
     const u = rows[0];
+    let perms = [];
+    if (u.permissions) {
+      try {
+        perms = typeof u.permissions === "string" ? JSON.parse(u.permissions) : u.permissions;
+      } catch {
+        perms = [];
+      }
+    }
     return {
       id: u.id,
       email: u.email,
       name: u.name,
       role: u.role,
+      status: u.status || "active",
+      permissions: perms,
+      tokenVersion: u.token_version ?? 1,
+      passwordHash: u.password_hash,
+      createdAt: u.created_at ? new Date(u.created_at).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
+      lastLogin: u.last_login ? new Date(u.last_login).toISOString() : void 0
+    };
+  }
+  async findUserById(id) {
+    const pool = this.getPool();
+    const [rows] = await pool.query("SELECT * FROM users WHERE id = ? LIMIT 1", [id]);
+    if (!rows || rows.length === 0) return null;
+    const u = rows[0];
+    let perms = [];
+    if (u.permissions) {
+      try {
+        perms = typeof u.permissions === "string" ? JSON.parse(u.permissions) : u.permissions;
+      } catch {
+        perms = [];
+      }
+    }
+    return {
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      role: u.role,
+      status: u.status || "active",
+      permissions: perms,
+      tokenVersion: u.token_version ?? 1,
       passwordHash: u.password_hash,
       createdAt: u.created_at ? new Date(u.created_at).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
       lastLogin: u.last_login ? new Date(u.last_login).toISOString() : void 0
@@ -2637,17 +3045,22 @@ var MysqlDatabaseAdapter = class {
   }
   async saveUser(user) {
     const pool = this.getPool();
+    const permsJson = JSON.stringify(user.permissions || []);
     await pool.query(
-      `INSERT INTO users (id, email, name, role, password_hash, created_at, last_login) 
-       VALUES (?, ?, ?, ?, ?, ?, ?) 
+      `INSERT INTO users (id, email, name, role, status, permissions, token_version, password_hash, created_at, last_login) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
        ON DUPLICATE KEY UPDATE 
-        name = VALUES(name), role = VALUES(role), password_hash = VALUES(password_hash), 
-        last_login = VALUES(last_login)`,
+        name = VALUES(name), role = VALUES(role), status = VALUES(status), 
+        permissions = VALUES(permissions), token_version = VALUES(token_version),
+        password_hash = VALUES(password_hash), last_login = VALUES(last_login)`,
       [
         user.id,
-        user.email.toLowerCase(),
+        user.email.toLowerCase().trim(),
         user.name,
         user.role,
+        user.status || "active",
+        permsJson,
+        user.tokenVersion ?? 1,
         user.passwordHash,
         user.createdAt || /* @__PURE__ */ new Date(),
         user.lastLogin || null
@@ -2656,15 +3069,751 @@ var MysqlDatabaseAdapter = class {
   }
   async listUsers() {
     const pool = this.getPool();
-    const [rows] = await pool.query("SELECT id, email, name, role, created_at, last_login FROM users");
-    return rows.map((u) => ({
-      id: u.id,
-      email: u.email,
-      name: u.name,
-      role: u.role,
-      createdAt: u.created_at ? new Date(u.created_at).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
-      lastLogin: u.last_login ? new Date(u.last_login).toISOString() : void 0
+    const [rows] = await pool.query("SELECT id, email, name, role, status, permissions, token_version, created_at, last_login FROM users ORDER BY created_at ASC");
+    return rows.map((u) => {
+      let perms = [];
+      if (u.permissions) {
+        try {
+          perms = typeof u.permissions === "string" ? JSON.parse(u.permissions) : u.permissions;
+        } catch {
+          perms = [];
+        }
+      }
+      return {
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role: u.role,
+        status: u.status || "active",
+        permissions: perms,
+        tokenVersion: u.token_version ?? 1,
+        createdAt: u.created_at ? new Date(u.created_at).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
+        lastLogin: u.last_login ? new Date(u.last_login).toISOString() : void 0
+      };
+    });
+  }
+  async createUser(user) {
+    const pool = this.getPool();
+    const permsJson = JSON.stringify(user.permissions || []);
+    await pool.query(
+      `INSERT INTO users (id, email, name, role, status, permissions, token_version, password_hash, created_at, last_login)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        user.id,
+        user.email.toLowerCase().trim(),
+        user.name,
+        user.role,
+        user.status || "active",
+        permsJson,
+        user.tokenVersion ?? 1,
+        user.passwordHash,
+        user.createdAt || /* @__PURE__ */ new Date(),
+        user.lastLogin || null
+      ]
+    );
+    return user;
+  }
+  async updateUser(id, data) {
+    const pool = this.getPool();
+    const existing = await this.findUserById(id);
+    if (!existing) throw new Error(`User with ID ${id} not found.`);
+    const merged = {
+      ...existing,
+      name: data.name !== void 0 ? data.name : existing.name,
+      role: data.role !== void 0 ? data.role : existing.role,
+      status: data.status !== void 0 ? data.status : existing.status,
+      permissions: data.permissions !== void 0 ? data.permissions : existing.permissions
+    };
+    const accessChanged = merged.role !== existing.role || merged.status !== existing.status || JSON.stringify(merged.permissions || []) !== JSON.stringify(existing.permissions || []);
+    merged.tokenVersion = (existing.tokenVersion ?? 1) + (accessChanged ? 1 : 0);
+    await pool.query(
+      `UPDATE users 
+       SET name = ?, role = ?, status = ?, permissions = ?, token_version = ?
+       WHERE id = ?`,
+      [
+        merged.name,
+        merged.role,
+        merged.status || "active",
+        JSON.stringify(merged.permissions || []),
+        merged.tokenVersion,
+        id
+      ]
+    );
+    return merged;
+  }
+  async disableUser(id) {
+    const pool = this.getPool();
+    await pool.query('UPDATE users SET status = "disabled", token_version = token_version + 1 WHERE id = ?', [id]);
+  }
+  async enableUser(id) {
+    const pool = this.getPool();
+    await pool.query('UPDATE users SET status = "active", token_version = token_version + 1 WHERE id = ?', [id]);
+  }
+  async resetPassword(id, newPasswordHash) {
+    const pool = this.getPool();
+    await pool.query("UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE id = ?", [
+      newPasswordHash,
+      id
+    ]);
+  }
+  async getActiveUserCount() {
+    const pool = this.getPool();
+    const [rows] = await pool.query("SELECT COUNT(*) as activeCount FROM users WHERE COALESCE(status, 'active') <> 'disabled'");
+    return Number(rows[0]?.activeCount || 0);
+  }
+  async updateLastLogin(id) {
+    await this.getPool().query("UPDATE users SET last_login = NOW() WHERE id = ?", [id]);
+  }
+  async revokeUserSessions(id) {
+    await this.getPool().query("UPDATE users SET token_version = token_version + 1 WHERE id = ?", [id]);
+  }
+  // --- Extended CMS Coverage: Pages ---
+  async getPageContent(id) {
+    const pool = this.getPool();
+    const [rows] = await pool.query("SELECT * FROM page_contents WHERE id = ? OR slug = ? LIMIT 1", [id, id]);
+    if (!rows || rows.length === 0) return null;
+    const r = rows[0];
+    let sectionsConfig = [];
+    let contentJson = null;
+    if (r.sections_config) {
+      try {
+        sectionsConfig = typeof r.sections_config === "string" ? JSON.parse(r.sections_config) : r.sections_config;
+      } catch {
+      }
+    }
+    if (r.content_json) {
+      try {
+        contentJson = typeof r.content_json === "string" ? JSON.parse(r.content_json) : r.content_json;
+      } catch {
+      }
+    }
+    return {
+      id: r.id,
+      slug: r.slug,
+      title: r.title,
+      eyebrow: r.eyebrow,
+      heading: r.heading,
+      subheading: r.subheading,
+      description: r.description,
+      heroImage: r.hero_image,
+      sectionsConfig,
+      contentJson,
+      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : void 0,
+      updatedBy: r.updated_by
+    };
+  }
+  async getAllPages() {
+    const pool = this.getPool();
+    const [rows] = await pool.query("SELECT * FROM page_contents ORDER BY id ASC");
+    return rows.map((r) => {
+      let sectionsConfig = [];
+      let contentJson = null;
+      if (r.sections_config) {
+        try {
+          sectionsConfig = typeof r.sections_config === "string" ? JSON.parse(r.sections_config) : r.sections_config;
+        } catch {
+        }
+      }
+      if (r.content_json) {
+        try {
+          contentJson = typeof r.content_json === "string" ? JSON.parse(r.content_json) : r.content_json;
+        } catch {
+        }
+      }
+      return {
+        id: r.id,
+        slug: r.slug,
+        title: r.title,
+        eyebrow: r.eyebrow,
+        heading: r.heading,
+        subheading: r.subheading,
+        description: r.description,
+        heroImage: r.hero_image,
+        sectionsConfig,
+        contentJson,
+        updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : void 0,
+        updatedBy: r.updated_by
+      };
+    });
+  }
+  async updatePageContent(id, data, userEmail) {
+    const pool = this.getPool();
+    const existing = await this.getPageContent(id);
+    if (!existing) throw new Error(`Page '${id}' not found.`);
+    const merged = {
+      ...existing,
+      ...data,
+      id: existing.id,
+      slug: data.slug || existing.slug,
+      updatedBy: userEmail,
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    await pool.query(
+      `UPDATE page_contents 
+       SET title = ?, eyebrow = ?, heading = ?, subheading = ?, description = ?, hero_image = ?, sections_config = ?, content_json = ?, updated_by = ?
+       WHERE id = ?`,
+      [
+        merged.title,
+        merged.eyebrow || null,
+        merged.heading || null,
+        merged.subheading || null,
+        merged.description || null,
+        merged.heroImage || null,
+        JSON.stringify(merged.sectionsConfig || []),
+        merged.contentJson ? JSON.stringify(merged.contentJson) : null,
+        userEmail,
+        // `id` may be a slug (e.g. 'home' for row 'page_home'); always target the resolved row id.
+        existing.id
+      ]
+    );
+    await this.addAuditLog({
+      action: "PAGE_UPDATED",
+      userEmail,
+      details: `Updated page content for ${id} (${merged.title})`
+    });
+    return merged;
+  }
+  // --- Extended CMS Coverage: Chauffeur & Transfers ---
+  async getChauffeurConfig() {
+    const pool = this.getPool();
+    await this.ensureExtrasColumn("chauffeur_config");
+    const [rows] = await pool.query("SELECT * FROM chauffeur_config WHERE id = 1 LIMIT 1");
+    const r = rows[0] || {};
+    let specItems = [];
+    if (r.spec_items_json) {
+      try {
+        specItems = typeof r.spec_items_json === "string" ? JSON.parse(r.spec_items_json) : r.spec_items_json;
+      } catch {
+      }
+    }
+    return {
+      ...this.parseExtras(r.extras_json),
+      id: 1,
+      eyebrow: r.eyebrow || "VIP CHAUFFEUR & TRANSFERS",
+      heading: r.heading || "ARRIVE. RELAX. WE'LL TAKE CARE OF THE REST.",
+      subhead: r.subhead || "From the moment your flight touches down in Zanzibar, our private chauffeur service ensures your transition to Zanzirangi House is completely effortless, serene, and secure.",
+      routeLabel: r.route_label || "ABEID AMANI KARUME INT'L (ZNZ) \u2192 ZANZIRANGI HOUSE",
+      routeTitle: r.route_title || "Private Coastal Chauffeur Service",
+      vehicleImage: r.vehicle_image || "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1600&q=85",
+      specsEyebrow: r.specs_eyebrow || "TRANSFER SPECIFICATIONS",
+      cardTitle: r.card_title || "Private Sanctuary Chauffeur",
+      airportTitle: r.airport_title || "AIRPORT TRANSFER",
+      airportDesc: r.airport_desc || "Direct tarmac welcome and luggage assistance upon arrival.",
+      shuttleTitle: r.shuttle_title || "PRIVATE SHUTTLE",
+      shuttleDesc: r.shuttle_desc || "Exclusive vehicles reserved solely for your traveling party.",
+      vehicleTypeTitle: r.vehicle_type_title || "VEHICLE TYPE",
+      vehicleTypeDesc: r.vehicle_type_desc || "Executive SUV / Luxury Van (Details available on request)",
+      passengerLuggageTitle: r.passenger_luggage_title || "PASSENGER & LUGGAGE",
+      passengerLuggageDesc: r.passenger_luggage_desc || "Tailored to group size (Details available on request)",
+      amenitiesNote: r.amenities_note || "Complimentary chilled mineral water, cool hand towels, and high-speed in-car Wi-Fi provided for every transfer.",
+      ctaRequestLabel: r.cta_request_label || "REQUEST AIRPORT TRANSFER",
+      ctaAddBookingLabel: r.cta_add_booking_label || "ADD TO BOOKING",
+      specItems,
+      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : void 0,
+      updatedBy: r.updated_by
+    };
+  }
+  async updateChauffeurConfig(data, userEmail) {
+    const pool = this.getPool();
+    const current = await this.getChauffeurConfig();
+    const merged = {
+      ...current,
+      ...this.definedOnly(data),
+      updatedBy: userEmail,
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    await pool.query(
+      `UPDATE chauffeur_config 
+       SET eyebrow = ?, heading = ?, subhead = ?, route_label = ?, route_title = ?, vehicle_image = ?,
+           specs_eyebrow = ?, card_title = ?, airport_title = ?, airport_desc = ?, shuttle_title = ?, shuttle_desc = ?,
+           vehicle_type_title = ?, vehicle_type_desc = ?, passenger_luggage_title = ?, passenger_luggage_desc = ?,
+           amenities_note = ?, cta_request_label = ?, cta_add_booking_label = ?, spec_items_json = ?, extras_json = ?, updated_by = ?
+       WHERE id = 1`,
+      [
+        merged.eyebrow,
+        merged.heading,
+        merged.subhead,
+        merged.routeLabel,
+        merged.routeTitle,
+        merged.vehicleImage,
+        merged.specsEyebrow,
+        merged.cardTitle,
+        merged.airportTitle,
+        merged.airportDesc,
+        merged.shuttleTitle,
+        merged.shuttleDesc,
+        merged.vehicleTypeTitle,
+        merged.vehicleTypeDesc,
+        merged.passengerLuggageTitle,
+        merged.passengerLuggageDesc,
+        merged.amenitiesNote,
+        merged.ctaRequestLabel,
+        merged.ctaAddBookingLabel,
+        JSON.stringify(merged.specItems || []),
+        this.collectExtras(merged, CHAUFFEUR_COLUMN_FIELDS),
+        userEmail
+      ]
+    );
+    await this.addAuditLog({
+      action: "TRANSFERS_UPDATED",
+      userEmail,
+      details: "Updated VIP Chauffeur & Transfers configuration"
+    });
+    return merged;
+  }
+  // --- Extended CMS Coverage: Why Stay / Pillars ---
+  async getWhyStayConfig() {
+    const pool = this.getPool();
+    await this.ensureExtrasColumn("why_stay_config");
+    const [rows] = await pool.query("SELECT * FROM why_stay_config WHERE id = 1 LIMIT 1");
+    const r = rows[0] || {};
+    let pillars = [];
+    if (r.pillars_json) {
+      try {
+        pillars = typeof r.pillars_json === "string" ? JSON.parse(r.pillars_json) : r.pillars_json;
+      } catch {
+      }
+    }
+    return {
+      ...this.parseExtras(r.extras_json),
+      id: 1,
+      eyebrow: r.eyebrow || "THE SANCTUARY DIFFERENCE",
+      heading: r.heading || "WHY ZANZIRANGI HOUSE",
+      subhead: r.subhead || "Four guiding values define every moment at our retreat, creating a rare atmosphere of calm, exclusivity, and profound connection to Tanzania.",
+      pillars,
+      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : void 0,
+      updatedBy: r.updated_by
+    };
+  }
+  async updateWhyStayConfig(data, userEmail) {
+    const pool = this.getPool();
+    const current = await this.getWhyStayConfig();
+    const merged = {
+      ...current,
+      ...this.definedOnly(data),
+      updatedBy: userEmail,
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    await pool.query(
+      `UPDATE why_stay_config 
+       SET eyebrow = ?, heading = ?, subhead = ?, pillars_json = ?, extras_json = ?, updated_by = ?
+       WHERE id = 1`,
+      [
+        merged.eyebrow,
+        merged.heading,
+        merged.subhead,
+        JSON.stringify(merged.pillars || []),
+        this.collectExtras(merged, WHY_STAY_COLUMN_FIELDS),
+        userEmail
+      ]
+    );
+    await this.addAuditLog({
+      action: "WHY_STAY_UPDATED",
+      userEmail,
+      details: "Updated Why Stay / Sanctuary Difference configuration"
+    });
+    return merged;
+  }
+  // --- Extended CMS Coverage: Dining ---
+  async getDiningConfig() {
+    const pool = this.getPool();
+    await this.ensureExtrasColumn("dining_config");
+    const [rows] = await pool.query("SELECT * FROM dining_config WHERE id = 1 LIMIT 1");
+    const r = rows[0] || {};
+    let moments = [];
+    if (r.moments_json) {
+      try {
+        moments = typeof r.moments_json === "string" ? JSON.parse(r.moments_json) : r.moments_json;
+      } catch {
+      }
+    }
+    return {
+      ...this.parseExtras(r.extras_json),
+      id: 1,
+      eyebrow: r.eyebrow || "Gastronomic Soul",
+      heading: r.heading || "TASTE ZANZIBAR",
+      subhead: r.subhead || '"Fresh ingredients, island flavours and authentic Tanzanian hospitality."',
+      intro: r.intro || "Centuries of Swahili, Omani, and Indian Ocean sea trade come together at our tables.",
+      gardenEyebrow: r.garden_eyebrow || "Culinary Storytelling",
+      gardenBadge: r.garden_badge || "Estate Garden",
+      gardenTitle: r.garden_title || "FROM OUR GARDEN TO YOUR TABLE",
+      gardenDesc: r.garden_desc || "Tucked within the grounds of Zanzirangi House is our private botanical garden...",
+      tagZeroMiles: r.tag_zero_miles || "\u{1F331} Zero Food Miles",
+      tagSpices: r.tag_spices || "\u{1F336} Hand-Picked Daily Spices",
+      tagSeafood: r.tag_seafood || "\u{1F41F} Sustainable Coastal Seafood",
+      moments,
+      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : void 0,
+      updatedBy: r.updated_by
+    };
+  }
+  async updateDiningConfig(data, userEmail) {
+    const pool = this.getPool();
+    const current = await this.getDiningConfig();
+    const merged = {
+      ...current,
+      ...this.definedOnly(data),
+      updatedBy: userEmail,
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    await pool.query(
+      `UPDATE dining_config 
+       SET eyebrow = ?, heading = ?, subhead = ?, intro = ?, garden_eyebrow = ?, garden_badge = ?, 
+           garden_title = ?, garden_desc = ?, tag_zero_miles = ?, tag_spices = ?, tag_seafood = ?, moments_json = ?, extras_json = ?, updated_by = ?
+       WHERE id = 1`,
+      [
+        merged.eyebrow,
+        merged.heading,
+        merged.subhead,
+        merged.intro,
+        merged.gardenEyebrow,
+        merged.gardenBadge,
+        merged.gardenTitle,
+        merged.gardenDesc,
+        merged.tagZeroMiles,
+        merged.tagSpices,
+        merged.tagSeafood,
+        JSON.stringify(merged.moments || []),
+        this.collectExtras(merged, DINING_CONFIG_COLUMN_FIELDS),
+        userEmail
+      ]
+    );
+    await this.addAuditLog({
+      action: "DINING_CONFIG_UPDATED",
+      userEmail,
+      details: "Updated Dining page narrative and garden story"
+    });
+    return merged;
+  }
+  async getDiningCategories() {
+    const pool = this.getPool();
+    await this.ensureExtrasColumn("dining_categories");
+    const [rows] = await pool.query("SELECT * FROM dining_categories ORDER BY sort_order ASC");
+    return rows.map((r) => {
+      let signatureDishes = [];
+      if (r.dishes_json) {
+        try {
+          signatureDishes = typeof r.dishes_json === "string" ? JSON.parse(r.dishes_json) : r.dishes_json;
+        } catch {
+        }
+      }
+      return {
+        ...this.parseExtras(r.extras_json),
+        id: r.id,
+        name: r.name,
+        tabLabel: r.tab_label,
+        subtitle: r.subtitle,
+        description: r.description,
+        imageUrl: r.image_url,
+        signatureDishes,
+        order: Number(r.sort_order || 0),
+        visible: Boolean(r.visible !== 0 && r.visible !== false)
+      };
+    });
+  }
+  async saveDiningCategory(input, userEmail) {
+    const pool = this.getPool();
+    const existing = (await this.getDiningCategories()).find((c) => c.id === input.id);
+    const category = {
+      name: "",
+      tabLabel: "",
+      description: "",
+      imageUrl: "",
+      signatureDishes: [],
+      order: 0,
+      visible: true,
+      ...existing || {},
+      ...this.definedOnly(input)
+    };
+    if (!category.tabLabel) category.tabLabel = category.name;
+    await pool.query(
+      `INSERT INTO dining_categories (id, name, tab_label, subtitle, description, image_url, dishes_json, sort_order, visible, extras_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE 
+        name = VALUES(name), tab_label = VALUES(tab_label), subtitle = VALUES(subtitle),
+        description = VALUES(description), image_url = VALUES(image_url), dishes_json = VALUES(dishes_json),
+        sort_order = VALUES(sort_order), visible = VALUES(visible), extras_json = VALUES(extras_json)`,
+      [
+        category.id,
+        category.name,
+        category.tabLabel,
+        category.subtitle || null,
+        category.description || "",
+        category.imageUrl || "",
+        JSON.stringify(category.signatureDishes || []),
+        Number(category.order) || 0,
+        category.visible === false ? 0 : 1,
+        this.collectExtras(category, DINING_CATEGORY_COLUMN_FIELDS)
+      ]
+    );
+    await this.addAuditLog({
+      action: "DINING_CATEGORY_SAVED",
+      userEmail,
+      details: `Saved dining category: ${category.name} (${category.id})`
+    });
+    return category;
+  }
+  async deleteDiningCategory(id, userEmail) {
+    const pool = this.getPool();
+    const [result] = await pool.query("DELETE FROM dining_categories WHERE id = ?", [id]);
+    const deleted = result && result.affectedRows > 0;
+    if (deleted) {
+      await this.addAuditLog({
+        action: "DINING_CATEGORY_DELETED",
+        userEmail,
+        details: `Deleted dining category: ${id}`
+      });
+    }
+    return deleted;
+  }
+  // --- Extended CMS Coverage: Experiences ---
+  async getExperiences() {
+    const pool = this.getPool();
+    await this.ensureExtrasColumn("experiences");
+    const [rows] = await pool.query("SELECT * FROM experiences ORDER BY sort_order ASC");
+    return rows.map((r) => ({
+      ...this.parseExtras(r.extras_json),
+      id: r.id,
+      title: r.title,
+      category: r.category,
+      duration: r.duration,
+      tag: r.tag,
+      priceNote: r.price_note,
+      shortDescription: r.short_description,
+      description: r.description,
+      imageUrl: r.image_url,
+      whatsappMessage: r.whatsapp_message,
+      order: Number(r.sort_order || 0),
+      visible: Boolean(r.visible !== 0 && r.visible !== false)
     }));
+  }
+  async saveExperience(input, userEmail) {
+    const pool = this.getPool();
+    const existing = (await this.getExperiences()).find((e) => e.id === input.id);
+    const item = {
+      title: "",
+      category: "cultural",
+      duration: "",
+      tag: "",
+      priceNote: "",
+      shortDescription: "",
+      description: "",
+      imageUrl: "",
+      order: 0,
+      visible: true,
+      ...existing || {},
+      ...this.definedOnly(input)
+    };
+    await pool.query(
+      `INSERT INTO experiences (id, title, category, duration, tag, price_note, short_description, description, image_url, whatsapp_message, sort_order, visible, extras_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE 
+        title = VALUES(title), category = VALUES(category), duration = VALUES(duration),
+        tag = VALUES(tag), price_note = VALUES(price_note), short_description = VALUES(short_description),
+        description = VALUES(description), image_url = VALUES(image_url), whatsapp_message = VALUES(whatsapp_message),
+        sort_order = VALUES(sort_order), visible = VALUES(visible), extras_json = VALUES(extras_json)`,
+      [
+        item.id,
+        item.title,
+        item.category,
+        item.duration,
+        item.tag,
+        item.priceNote,
+        item.shortDescription,
+        item.description,
+        item.imageUrl,
+        item.whatsappMessage || null,
+        Number(item.order) || 0,
+        item.visible === false ? 0 : 1,
+        this.collectExtras(item, EXPERIENCE_COLUMN_FIELDS)
+      ]
+    );
+    await this.addAuditLog({
+      action: "EXPERIENCE_SAVED",
+      userEmail,
+      details: `Saved experience: ${item.title} (${item.id})`
+    });
+    return item;
+  }
+  async deleteExperience(id, userEmail) {
+    const pool = this.getPool();
+    const [result] = await pool.query("DELETE FROM experiences WHERE id = ?", [id]);
+    const deleted = result && result.affectedRows > 0;
+    if (deleted) {
+      await this.addAuditLog({
+        action: "EXPERIENCE_DELETED",
+        userEmail,
+        details: `Deleted experience: ${id}`
+      });
+    }
+    return deleted;
+  }
+  // --- Extended CMS Coverage: Safari Destinations ---
+  async getSafariDestinations() {
+    const pool = this.getPool();
+    await this.ensureExtrasColumn("safari_destinations");
+    const [rows] = await pool.query("SELECT * FROM safari_destinations ORDER BY sort_order ASC");
+    return rows.map((r) => {
+      let highlights = [];
+      if (r.highlights_json) {
+        try {
+          highlights = typeof r.highlights_json === "string" ? JSON.parse(r.highlights_json) : r.highlights_json;
+        } catch {
+        }
+      }
+      return {
+        ...this.parseExtras(r.extras_json),
+        id: r.id,
+        name: r.name,
+        tagline: r.tagline,
+        region: r.region,
+        flightTimeFromZanzibar: r.flight_time,
+        heroImage: r.hero_image,
+        description: r.description,
+        highlights,
+        bestFor: r.best_for,
+        safariType: r.safari_type,
+        order: Number(r.sort_order || 0),
+        visible: Boolean(r.visible !== 0 && r.visible !== false)
+      };
+    });
+  }
+  async saveSafariDestination(input, userEmail) {
+    const pool = this.getPool();
+    const existing = (await this.getSafariDestinations()).find((d) => d.id === input.id);
+    const item = {
+      name: "",
+      tagline: "",
+      region: "",
+      flightTimeFromZanzibar: "",
+      heroImage: "",
+      description: "",
+      highlights: [],
+      bestFor: "",
+      safariType: "",
+      order: 0,
+      visible: true,
+      ...existing || {},
+      ...this.definedOnly(input)
+    };
+    await pool.query(
+      `INSERT INTO safari_destinations (id, name, tagline, region, flight_time, hero_image, description, highlights_json, best_for, safari_type, sort_order, visible, extras_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE 
+        name = VALUES(name), tagline = VALUES(tagline), region = VALUES(region),
+        flight_time = VALUES(flight_time), hero_image = VALUES(hero_image), description = VALUES(description),
+        highlights_json = VALUES(highlights_json), best_for = VALUES(best_for), safari_type = VALUES(safari_type),
+        sort_order = VALUES(sort_order), visible = VALUES(visible), extras_json = VALUES(extras_json)`,
+      [
+        item.id,
+        item.name,
+        item.tagline,
+        item.region,
+        item.flightTimeFromZanzibar,
+        item.heroImage,
+        item.description,
+        JSON.stringify(Array.isArray(item.highlights) ? item.highlights : []),
+        item.bestFor,
+        item.safariType,
+        Number(item.order) || 0,
+        item.visible === false ? 0 : 1,
+        this.collectExtras(item, SAFARI_COLUMN_FIELDS)
+      ]
+    );
+    await this.addAuditLog({
+      action: "SAFARI_DESTINATION_SAVED",
+      userEmail,
+      details: `Saved safari destination: ${item.name} (${item.id})`
+    });
+    return item;
+  }
+  async deleteSafariDestination(id, userEmail) {
+    const pool = this.getPool();
+    const [result] = await pool.query("DELETE FROM safari_destinations WHERE id = ?", [id]);
+    const deleted = result && result.affectedRows > 0;
+    if (deleted) {
+      await this.addAuditLog({
+        action: "SAFARI_DESTINATION_DELETED",
+        userEmail,
+        details: `Deleted safari destination: ${id}`
+      });
+    }
+    return deleted;
+  }
+  // --- Extended CMS Coverage: Global Content ---
+  async getGlobalContent() {
+    const pool = this.getPool();
+    await this.ensureExtrasColumn("global_content");
+    const [rows] = await pool.query("SELECT * FROM global_content WHERE id = 1 LIMIT 1");
+    const r = rows[0] || {};
+    let navLinks = [];
+    let socials = void 0;
+    if (r.nav_links_json) {
+      try {
+        navLinks = typeof r.nav_links_json === "string" ? JSON.parse(r.nav_links_json) : r.nav_links_json;
+      } catch {
+      }
+    }
+    if (r.socials_json) {
+      try {
+        socials = typeof r.socials_json === "string" ? JSON.parse(r.socials_json) : r.socials_json;
+      } catch {
+      }
+    }
+    return {
+      ...this.parseExtras(r.extras_json),
+      id: 1,
+      brandName: r.brand_name || "Zanzirangi House",
+      navLinks,
+      ctaPlanStayLabel: r.cta_plan_stay_label || "PLAN YOUR STAY",
+      ctaPlanStayLink: r.cta_plan_stay_link || "#stay",
+      footerTagline: r.footer_tagline,
+      footerCopyright: r.footer_copyright,
+      contactPhone: r.contact_phone,
+      contactEmail: r.contact_email,
+      contactWhatsapp: r.contact_whatsapp,
+      contactAddress: r.contact_address,
+      socials,
+      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : void 0,
+      updatedBy: r.updated_by
+    };
+  }
+  async updateGlobalContent(data, userEmail) {
+    const pool = this.getPool();
+    const current = await this.getGlobalContent();
+    const merged = {
+      ...current,
+      ...this.definedOnly(data),
+      updatedBy: userEmail,
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    await pool.query(
+      `UPDATE global_content 
+       SET brand_name = ?, nav_links_json = ?, cta_plan_stay_label = ?, cta_plan_stay_link = ?,
+           footer_tagline = ?, footer_copyright = ?, contact_phone = ?, contact_email = ?,
+           contact_whatsapp = ?, contact_address = ?, socials_json = ?, extras_json = ?, updated_by = ?
+       WHERE id = 1`,
+      [
+        merged.brandName,
+        JSON.stringify(merged.navLinks || []),
+        merged.ctaPlanStayLabel,
+        merged.ctaPlanStayLink,
+        merged.footerTagline || null,
+        merged.footerCopyright || null,
+        merged.contactPhone || null,
+        merged.contactEmail || null,
+        merged.contactWhatsapp || null,
+        merged.contactAddress || null,
+        merged.socials ? JSON.stringify(merged.socials) : null,
+        this.collectExtras(merged, GLOBAL_COLUMN_FIELDS),
+        userEmail
+      ]
+    );
+    await this.addAuditLog({
+      action: "GLOBAL_CONTENT_UPDATED",
+      userEmail,
+      details: "Updated global navigation, header CTA, and footer configuration"
+    });
+    return merged;
   }
   // --- Audit Logs ---
   async getAuditLogs(limit = 20) {
@@ -2696,11 +3845,19 @@ var MysqlDatabaseAdapter = class {
     const [facilitiesCount] = await pool.query("SELECT COUNT(*) as total FROM facilities");
     const [testimonialsCount] = await pool.query("SELECT COUNT(*) as total FROM testimonials");
     const [mediaCount] = await pool.query("SELECT COUNT(*) as total FROM media_assets");
+    const [pagesCount] = await pool.query("SELECT COUNT(*) as total FROM page_contents");
+    const [expCount] = await pool.query("SELECT COUNT(*) as total FROM experiences");
+    const [diningCount] = await pool.query("SELECT COUNT(*) as total FROM dining_categories");
+    const [usersCount] = await pool.query('SELECT COUNT(*) as total FROM users WHERE status = "active"');
     const [hpMeta] = await pool.query("SELECT meta_last_updated, meta_updated_by FROM homepage_config WHERE id = 1");
     const recentLogs = await this.getAuditLogs(10);
     const meta = hpMeta[0] || {};
+    const host = env.MYSQL_HOST || "unknown";
     return {
-      status: "Connected",
+      status: "Connected Live",
+      databaseProvider: "mysql",
+      databaseEngine: "Cloud \u2022 MariaDB/MySQL",
+      databaseHost: host,
       lastPublished: meta.meta_last_updated ? new Date(meta.meta_last_updated).toISOString() : null,
       publishedBy: meta.meta_updated_by || null,
       counts: {
@@ -2709,7 +3866,11 @@ var MysqlDatabaseAdapter = class {
         galleryItems: Number(galleryCount[0]?.total || 0),
         facilities: Number(facilitiesCount[0]?.total || 0),
         testimonials: Number(testimonialsCount[0]?.total || 0),
-        mediaAssets: Number(mediaCount[0]?.total || 0)
+        mediaAssets: Number(mediaCount[0]?.total || 0),
+        pagesTotal: Number(pagesCount[0]?.total || 0),
+        experiencesTotal: Number(expCount[0]?.total || 0),
+        diningCategories: Number(diningCount[0]?.total || 0),
+        activeAdmins: Number(usersCount[0]?.total || 0)
       },
       recentUpdates: recentLogs.map((l) => ({
         action: l.action,
@@ -2718,6 +3879,107 @@ var MysqlDatabaseAdapter = class {
         details: l.details
       }))
     };
+  }
+  async ensureExtrasColumn(table) {
+    if (this.extrasColumnReady.has(table)) return;
+    const pool = this.getPool();
+    const [rows] = await pool.query(
+      `SELECT COUNT(*) AS n FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'extras_json'`,
+      [table]
+    );
+    if (!Number(rows[0]?.n)) {
+      await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN extras_json LONGTEXT NULL`);
+      console.log(`[DATABASE] Added extras_json column to ${table}`);
+    }
+    this.extrasColumnReady.add(table);
+  }
+  parseExtras(raw) {
+    if (!raw) return {};
+    try {
+      const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  /** Every field of `record` that has no dedicated column, serialized for extras_json. */
+  collectExtras(record, columnFields) {
+    const skip = /* @__PURE__ */ new Set([...columnFields, "id", "updatedAt", "updatedBy"]);
+    const extras = {};
+    Object.entries(record).forEach(([k, v]) => {
+      if (!skip.has(k) && v !== void 0 && v !== null) extras[k] = v;
+    });
+    return Object.keys(extras).length > 0 ? JSON.stringify(extras) : null;
+  }
+  /** Drops undefined values so partial updates (e.g. `{ visible }`) keep the existing fields. */
+  definedOnly(data) {
+    return Object.fromEntries(Object.entries(data || {}).filter(([, v]) => v !== void 0));
+  }
+  async ensureTranslationsTable() {
+    if (this.translationsTableReady) return;
+    await this.getPool().query(`
+      CREATE TABLE IF NOT EXISTS content_translations (
+        lang VARCHAR(8) NOT NULL,
+        entity VARCHAR(64) NOT NULL,
+        path VARCHAR(255) NOT NULL,
+        value MEDIUMTEXT NOT NULL,
+        source MEDIUMTEXT NULL,
+        updated_by VARCHAR(255) NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (lang, entity, path)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    this.translationsTableReady = true;
+  }
+  async getContentTranslations(lang) {
+    await this.ensureTranslationsTable();
+    const [rows] = await this.getPool().query(
+      "SELECT entity, path, value, source, updated_at, updated_by FROM content_translations WHERE lang = ?",
+      [lang]
+    );
+    return rows.map((r) => ({
+      entity: r.entity,
+      path: r.path,
+      value: r.value,
+      source: r.source ?? void 0,
+      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : void 0,
+      updatedBy: r.updated_by ?? void 0
+    }));
+  }
+  async saveContentTranslations(lang, entries, userEmail) {
+    await this.ensureTranslationsTable();
+    const conn = await this.getPool().getConnection();
+    try {
+      await conn.beginTransaction();
+      const removals = entries.filter((e) => !e.value || !e.value.trim());
+      const upserts = entries.filter((e) => e.value && e.value.trim());
+      for (const e of removals) {
+        await conn.query("DELETE FROM content_translations WHERE lang = ? AND entity = ? AND path = ?", [lang, e.entity, e.path]);
+      }
+      const CHUNK = 200;
+      for (let i = 0; i < upserts.length; i += CHUNK) {
+        const chunk = upserts.slice(i, i + CHUNK);
+        await conn.query(
+          `INSERT INTO content_translations (lang, entity, path, value, source, updated_by)
+           VALUES ${chunk.map(() => "(?, ?, ?, ?, ?, ?)").join(", ")}
+           ON DUPLICATE KEY UPDATE value = VALUES(value), source = VALUES(source), updated_by = VALUES(updated_by)`,
+          chunk.flatMap((e) => [lang, e.entity, e.path, e.value, e.source ?? null, userEmail])
+        );
+      }
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+    await this.addAuditLog({
+      action: "TRANSLATIONS_UPDATED",
+      userEmail,
+      details: `Updated ${entries.length} ${lang.toUpperCase()} translation entries`
+    });
+    return entries.length;
   }
 };
 
@@ -2813,7 +4075,7 @@ var ContactRepository = class {
       whatsapp: settings.whatsapp || "+255 777 890 123",
       email: settings.email || "info@zanzirangihouse.com",
       reservationEmail: settings.reservationEmail || settings.reservationNotificationEmail || "reservations@zanzirangihouse.com",
-      address: settings.address || "Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania",
+      address: settings.address || "Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania",
       bookingUrl: settings.bookingUrl || "https://zanzirangihouse.com/#stay",
       instagram: settings.instagram || "https://instagram.com/zanzirangi.house",
       facebook: settings.facebook || "https://facebook.com/zanzirangihouse",
@@ -2894,8 +4156,29 @@ var UsersRepository = class {
   async findByEmail(email) {
     return getDatabaseAdapter().findUserByEmail(email);
   }
+  async findById(id) {
+    return getDatabaseAdapter().findUserById(id);
+  }
   async save(user) {
     return getDatabaseAdapter().saveUser(user);
+  }
+  async create(user) {
+    return getDatabaseAdapter().createUser(user);
+  }
+  async update(id, data) {
+    return getDatabaseAdapter().updateUser(id, data);
+  }
+  async disable(id) {
+    return getDatabaseAdapter().disableUser(id);
+  }
+  async enable(id) {
+    return getDatabaseAdapter().enableUser(id);
+  }
+  async resetPassword(id, newPasswordHash) {
+    return getDatabaseAdapter().resetPassword(id, newPasswordHash);
+  }
+  async getActiveCount() {
+    return getDatabaseAdapter().getActiveUserCount();
   }
   async list() {
     return getDatabaseAdapter().listUsers();
@@ -3373,8 +4656,305 @@ var SupportRepository = class {
       categories
     };
   }
+  // -------------------------------------------------------------
+  // Web Push Subscriptions
+  // -------------------------------------------------------------
+  async savePushSubscription(data) {
+    const pool = getMysqlPool();
+    const id = `push_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await pool.query(
+      `INSERT INTO support_push_subscriptions (id, user_email, role, endpoint, p256dh, auth, user_agent, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+       ON DUPLICATE KEY UPDATE 
+         user_email = VALUES(user_email),
+         role = VALUES(role),
+         p256dh = VALUES(p256dh),
+         auth = VALUES(auth),
+         user_agent = VALUES(user_agent),
+         updated_at = NOW()`,
+      [id, data.user_email, data.role || "STAFF", data.endpoint, data.p256dh, data.auth, data.user_agent || null]
+    );
+    return {
+      id,
+      user_email: data.user_email,
+      role: data.role || "STAFF",
+      endpoint: data.endpoint,
+      p256dh: data.p256dh,
+      auth: data.auth,
+      user_agent: data.user_agent,
+      created_at: (/* @__PURE__ */ new Date()).toISOString(),
+      updated_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  async deletePushSubscription(endpoint) {
+    const pool = getMysqlPool();
+    await pool.query("DELETE FROM support_push_subscriptions WHERE endpoint = ?", [endpoint]);
+  }
+  async getPushSubscriptions(role) {
+    const pool = getMysqlPool();
+    let query = "SELECT * FROM support_push_subscriptions";
+    const params = [];
+    if (role && role !== "ALL") {
+      query += ' WHERE role = ? OR role = "SUPER_ADMIN"';
+      params.push(role);
+    }
+    const [rows] = await pool.query(query, params);
+    return rows.map((r) => ({
+      id: r.id,
+      user_email: r.user_email,
+      role: r.role,
+      endpoint: r.endpoint,
+      p256dh: r.p256dh,
+      auth: r.auth,
+      user_agent: r.user_agent,
+      created_at: toIso(r.created_at),
+      updated_at: toIso(r.updated_at)
+    }));
+  }
+  // -------------------------------------------------------------
+  // Staff Duty Tracking (On Duty / Off Duty)
+  // -------------------------------------------------------------
+  async getStaffDutyList() {
+    const pool = getMysqlPool();
+    const [rows] = await pool.query("SELECT * FROM support_staff_duty ORDER BY is_on_duty DESC, name ASC");
+    return rows.map((r) => ({
+      id: r.id,
+      user_email: r.user_email,
+      name: r.name,
+      role: r.role,
+      is_on_duty: Boolean(r.is_on_duty),
+      last_active_at: toIso(r.last_active_at),
+      updated_at: toIso(r.updated_at)
+    }));
+  }
+  async getOnDutyStaff() {
+    const pool = getMysqlPool();
+    const [rows] = await pool.query("SELECT * FROM support_staff_duty WHERE is_on_duty = TRUE");
+    return rows.map((r) => ({
+      id: r.id,
+      user_email: r.user_email,
+      name: r.name,
+      role: r.role,
+      is_on_duty: true,
+      last_active_at: toIso(r.last_active_at),
+      updated_at: toIso(r.updated_at)
+    }));
+  }
+  async updateStaffDuty(email, isOnDuty, name, role = "STAFF") {
+    const pool = getMysqlPool();
+    const displayName = name || email.split("@")[0];
+    const id = `duty_${Buffer.from(email).toString("hex").slice(0, 16)}`;
+    await pool.query(
+      `INSERT INTO support_staff_duty (id, user_email, name, role, is_on_duty, last_active_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+       ON DUPLICATE KEY UPDATE
+         is_on_duty = VALUES(is_on_duty),
+         name = IF(VALUES(name) != '', VALUES(name), name),
+         role = IF(VALUES(role) != '', VALUES(role), role),
+         last_active_at = NOW(),
+         updated_at = NOW()`,
+      [id, email, displayName, role, isOnDuty]
+    );
+    return {
+      id,
+      user_email: email,
+      name: displayName,
+      role,
+      is_on_duty: isOnDuty,
+      last_active_at: (/* @__PURE__ */ new Date()).toISOString(),
+      updated_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  // -------------------------------------------------------------
+  // Support Escalation Queue (Multi-Tier Escalation)
+  // -------------------------------------------------------------
+  async createEscalationQueueItem(conversationId, visitorMessage) {
+    const pool = getMysqlPool();
+    const id = `esc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await pool.query(
+      `INSERT INTO support_escalation_queue 
+       (id, conversation_id, visitor_message, triggered_at, reminder_2m_sent, reminder_5m_sent, reminder_10m_sent, resolved_at)
+       VALUES (?, ?, ?, NOW(), FALSE, FALSE, FALSE, NULL)`,
+      [id, conversationId, visitorMessage]
+    );
+    return {
+      id,
+      conversation_id: conversationId,
+      visitor_message: visitorMessage,
+      triggered_at: (/* @__PURE__ */ new Date()).toISOString(),
+      reminder_2m_sent: false,
+      reminder_5m_sent: false,
+      reminder_10m_sent: false,
+      resolved_at: null
+    };
+  }
+  async resolveEscalationQueueItem(conversationId) {
+    const pool = getMysqlPool();
+    await pool.query(
+      `UPDATE support_escalation_queue 
+       SET resolved_at = NOW() 
+       WHERE conversation_id = ? AND resolved_at IS NULL`,
+      [conversationId]
+    );
+  }
+  async getPendingEscalations() {
+    const pool = getMysqlPool();
+    const [rows] = await pool.query(
+      `SELECT * FROM support_escalation_queue 
+       WHERE resolved_at IS NULL 
+       ORDER BY triggered_at ASC`
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      conversation_id: r.conversation_id,
+      visitor_message: r.visitor_message,
+      triggered_at: toIso(r.triggered_at),
+      reminder_2m_sent: Boolean(r.reminder_2m_sent),
+      reminder_5m_sent: Boolean(r.reminder_5m_sent),
+      reminder_10m_sent: Boolean(r.reminder_10m_sent),
+      resolved_at: r.resolved_at ? toIso(r.resolved_at) : null
+    }));
+  }
+  async updateEscalationReminders(id, fields) {
+    const pool = getMysqlPool();
+    const sets = [];
+    const vals = [];
+    if (fields.reminder_2m_sent !== void 0) {
+      sets.push("reminder_2m_sent = ?");
+      vals.push(fields.reminder_2m_sent);
+    }
+    if (fields.reminder_5m_sent !== void 0) {
+      sets.push("reminder_5m_sent = ?");
+      vals.push(fields.reminder_5m_sent);
+    }
+    if (fields.reminder_10m_sent !== void 0) {
+      sets.push("reminder_10m_sent = ?");
+      vals.push(fields.reminder_10m_sent);
+    }
+    if (sets.length > 0) {
+      vals.push(id);
+      await pool.query(`UPDATE support_escalation_queue SET ${sets.join(", ")} WHERE id = ?`, vals);
+    }
+  }
 };
 var supportRepository = new SupportRepository();
+
+// server/database/repositories/pageContentsRepository.ts
+var PageContentsRepository = class {
+  async getById(id) {
+    return getDatabaseAdapter().getPageContent(id);
+  }
+  async getAll() {
+    return getDatabaseAdapter().getAllPages();
+  }
+  async update(id, data, userEmail) {
+    return getDatabaseAdapter().updatePageContent(id, data, userEmail);
+  }
+};
+var pageContentsRepository = new PageContentsRepository();
+
+// server/database/repositories/chauffeurRepository.ts
+var ChauffeurRepository = class {
+  async get() {
+    return getDatabaseAdapter().getChauffeurConfig();
+  }
+  async update(data, userEmail) {
+    return getDatabaseAdapter().updateChauffeurConfig(data, userEmail);
+  }
+};
+var chauffeurRepository = new ChauffeurRepository();
+
+// server/database/repositories/whyStayRepository.ts
+var WhyStayRepository = class {
+  async get() {
+    return getDatabaseAdapter().getWhyStayConfig();
+  }
+  async update(data, userEmail) {
+    return getDatabaseAdapter().updateWhyStayConfig(data, userEmail);
+  }
+};
+var whyStayRepository = new WhyStayRepository();
+
+// server/database/repositories/diningRepository.ts
+var DiningRepository = class {
+  async getConfig() {
+    return getDatabaseAdapter().getDiningConfig();
+  }
+  async updateConfig(data, userEmail) {
+    return getDatabaseAdapter().updateDiningConfig(data, userEmail);
+  }
+  async getCategories() {
+    return getDatabaseAdapter().getDiningCategories();
+  }
+  async saveCategory(category, userEmail) {
+    return getDatabaseAdapter().saveDiningCategory(category, userEmail);
+  }
+  async deleteCategory(id, userEmail) {
+    return getDatabaseAdapter().deleteDiningCategory(id, userEmail);
+  }
+};
+var diningRepository = new DiningRepository();
+
+// server/database/repositories/experiencesRepository.ts
+var ExperiencesRepository = class {
+  async getAll() {
+    return getDatabaseAdapter().getExperiences();
+  }
+  async save(item, userEmail) {
+    return getDatabaseAdapter().saveExperience(item, userEmail);
+  }
+  async delete(id, userEmail) {
+    return getDatabaseAdapter().deleteExperience(id, userEmail);
+  }
+};
+var experiencesRepository = new ExperiencesRepository();
+
+// server/database/repositories/safariRepository.ts
+var SafariRepository = class {
+  async getAll() {
+    return getDatabaseAdapter().getSafariDestinations();
+  }
+  async save(item, userEmail) {
+    return getDatabaseAdapter().saveSafariDestination(item, userEmail);
+  }
+  async delete(id, userEmail) {
+    return getDatabaseAdapter().deleteSafariDestination(id, userEmail);
+  }
+};
+var safariRepository = new SafariRepository();
+
+// server/database/repositories/globalContentRepository.ts
+var GlobalContentRepository = class {
+  async get() {
+    return getDatabaseAdapter().getGlobalContent();
+  }
+  async update(data, userEmail) {
+    return getDatabaseAdapter().updateGlobalContent(data, userEmail);
+  }
+};
+var globalContentRepository = new GlobalContentRepository();
+
+// server/database/repositories/translationsRepository.ts
+var SUPPORTED_TRANSLATION_LANGS = ["pl", "ar", "zh", "fr", "sw", "es", "it"];
+var TranslationsRepository = class {
+  async getForLanguage(lang) {
+    return getDatabaseAdapter().getContentTranslations(lang);
+  }
+  /** Public shape: { entity: { path: value } } */
+  async getMapForLanguage(lang) {
+    const rows = await this.getForLanguage(lang);
+    const map = {};
+    rows.forEach((r) => {
+      if (!r.value) return;
+      (map[r.entity] = map[r.entity] || {})[r.path] = r.value;
+    });
+    return map;
+  }
+  async save(lang, entries, userEmail) {
+    return getDatabaseAdapter().saveContentTranslations(lang, entries, userEmail);
+  }
+};
+var translationsRepository = new TranslationsRepository();
 
 // server/database/index.ts
 var adapterInstance = null;
@@ -3396,13 +4976,41 @@ function getDatabaseAdapter() {
 import jwt from "jsonwebtoken";
 import bcrypt2 from "bcryptjs";
 init_env();
+var ADMIN_PERMISSIONS = [
+  "dashboard",
+  "pages",
+  "homepage",
+  "villas",
+  "gallery",
+  "videos",
+  "facilities",
+  "testimonials",
+  "dining",
+  "experiences",
+  "safari",
+  "transfers",
+  "contact",
+  "seo",
+  "media",
+  "settings",
+  "support"
+];
+function sanitizePermissions(value) {
+  if (!Array.isArray(value)) return [];
+  const allowed = new Set(ADMIN_PERMISSIONS);
+  return Array.from(new Set(value.filter((p) => typeof p === "string" && allowed.has(p))));
+}
+var DUMMY_PASSWORD_HASH = bcrypt2.hashSync("zanzirangi-timing-equalizer", 12);
 function generateToken(user) {
   return jwt.sign(
     {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role
+      role: user.role,
+      status: user.status,
+      permissions: user.permissions,
+      tokenVersion: user.tokenVersion ?? 1
     },
     env.JWT_SECRET,
     { expiresIn: env.JWT_EXPIRES_IN || "7d" }
@@ -3431,8 +5039,8 @@ async function authenticateAdmin(req, res, next) {
     });
     return;
   }
-  const user = verifyToken(token);
-  if (!user) {
+  const decoded = verifyToken(token);
+  if (!decoded) {
     res.status(401).json({
       success: false,
       error: "Invalid or expired session. Please log in again."
@@ -3440,11 +5048,25 @@ async function authenticateAdmin(req, res, next) {
     return;
   }
   try {
-    const dbUser = await getDatabaseAdapter().findUserByEmail(user.email);
-    if (!dbUser) {
+    const dbUser = await getDatabaseAdapter().findUserByEmail(decoded.email);
+    if (!dbUser || decoded.id && dbUser.id !== decoded.id) {
       res.status(403).json({
         success: false,
         error: "User account is no longer authorized."
+      });
+      return;
+    }
+    if (dbUser.status === "disabled") {
+      res.status(403).json({
+        success: false,
+        error: "Your account has been deactivated. Please contact Superadmin."
+      });
+      return;
+    }
+    if ((decoded.tokenVersion ?? 1) !== (dbUser.tokenVersion ?? 1)) {
+      res.status(401).json({
+        success: false,
+        error: "Session has been invalidated. Please log in again."
       });
       return;
     }
@@ -3452,7 +5074,10 @@ async function authenticateAdmin(req, res, next) {
       id: dbUser.id,
       email: dbUser.email,
       name: dbUser.name,
-      role: dbUser.role
+      role: dbUser.role,
+      status: dbUser.status || "active",
+      permissions: dbUser.permissions || [],
+      tokenVersion: dbUser.tokenVersion ?? 1
     };
     next();
   } catch (err) {
@@ -3460,23 +5085,83 @@ async function authenticateAdmin(req, res, next) {
     res.status(500).json({ success: false, error: "Database verification failed." });
   }
 }
+function requirePermission(permission) {
+  return (req, res, next) => {
+    if (!req.user) {
+      res.status(401).json({ success: false, error: "Authentication required." });
+      return;
+    }
+    if (req.user.role === "superadmin") {
+      next();
+      return;
+    }
+    const userPermissions = Array.isArray(req.user.permissions) ? req.user.permissions : [];
+    if (userPermissions.includes(permission) || userPermissions.includes("all")) {
+      next();
+      return;
+    }
+    res.status(403).json({
+      success: false,
+      error: `Access denied. You do not have permission to manage the '${permission}' module.`
+    });
+  };
+}
+function requireAnyPermission(permissions) {
+  return (req, res, next) => {
+    if (!req.user) {
+      res.status(401).json({ success: false, error: "Authentication required." });
+      return;
+    }
+    const userPermissions = Array.isArray(req.user.permissions) ? req.user.permissions : [];
+    if (req.user.role === "superadmin" || userPermissions.includes("all") || permissions.some((p) => userPermissions.includes(p))) {
+      next();
+      return;
+    }
+    res.status(403).json({
+      success: false,
+      error: `Access denied. Requires one of these permissions: ${permissions.join(", ")}.`
+    });
+  };
+}
+function requireSuperadmin(req, res, next) {
+  if (!req.user) {
+    res.status(401).json({ success: false, error: "Authentication required." });
+    return;
+  }
+  if (req.user.role !== "superadmin") {
+    res.status(403).json({
+      success: false,
+      error: "Superadmin privileges required to access this resource."
+    });
+    return;
+  }
+  next();
+}
 async function loginUser(email, password) {
   const normalizedEmail = email.trim().toLowerCase();
   const user = await getDatabaseAdapter().findUserByEmail(normalizedEmail);
-  if (!user) {
+  const isMatch = await bcrypt2.compare(password, user?.passwordHash || DUMMY_PASSWORD_HASH);
+  if (!user || !isMatch) {
     return { success: false, error: "Invalid email or password." };
   }
-  const isMatch = await bcrypt2.compare(password, user.passwordHash);
-  if (!isMatch) {
-    return { success: false, error: "Invalid email or password." };
+  if (user.status === "disabled") {
+    return { success: false, error: "Your administrator account has been deactivated. Please contact Superadmin." };
   }
   const payload = {
     id: user.id,
     email: user.email,
     name: user.name,
-    role: user.role
+    role: user.role,
+    status: user.status || "active",
+    permissions: user.permissions || [],
+    tokenVersion: user.tokenVersion ?? 1
   };
   const token = generateToken(payload);
+  try {
+    await getDatabaseAdapter().updateLastLogin(user.id);
+  } catch (err) {
+    console.warn("Could not update last login timestamp:", err.message);
+  }
   return {
     success: true,
     user: payload,
@@ -3486,49 +5171,52 @@ async function loginUser(email, password) {
 
 // server/storage/LocalMediaStorage.ts
 init_env();
-import fs2 from "fs";
+import fs3 from "fs";
 import path3 from "path";
 import crypto2 from "crypto";
-var ALLOWED_MIME_TYPES = /* @__PURE__ */ new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/svg+xml",
-  "image/avif",
-  "video/mp4",
-  "video/webm",
-  "application/pdf"
-]);
-var FORBIDDEN_EXTENSIONS = /* @__PURE__ */ new Set([
-  ".php",
-  ".phtml",
-  ".php3",
-  ".php4",
-  ".php5",
-  ".phps",
-  ".js",
-  ".cjs",
-  ".mjs",
-  ".ts",
-  ".sh",
-  ".bash",
-  ".exe",
-  ".bat",
-  ".cmd",
-  ".py",
-  ".pl",
-  ".cgi",
-  ".htaccess",
-  ".env"
-]);
+var ALLOWED_TYPES = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".avif": "image/avif",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+  ".pdf": "application/pdf"
+};
+function matchesSignature(buffer, mimeType) {
+  const hex = buffer.subarray(0, 16).toString("hex");
+  const ascii = buffer.subarray(0, 16).toString("latin1");
+  switch (mimeType) {
+    case "image/jpeg":
+      return hex.startsWith("ffd8ff");
+    case "image/png":
+      return hex.startsWith("89504e470d0a1a0a");
+    case "image/gif":
+      return ascii.startsWith("GIF87a") || ascii.startsWith("GIF89a");
+    case "image/webp":
+      return ascii.startsWith("RIFF") && ascii.substring(8, 12) === "WEBP";
+    case "image/avif":
+      return ascii.substring(4, 8) === "ftyp" && /avi[fs]/.test(ascii.substring(8, 12));
+    case "video/mp4":
+      return ascii.substring(4, 8) === "ftyp";
+    case "video/webm":
+      return hex.startsWith("1a45dfa3");
+    case "application/pdf":
+      return ascii.startsWith("%PDF-");
+    default:
+      return false;
+  }
+}
 var LocalMediaStorage = class {
   constructor(customStorageDir) {
     this.storageDir = customStorageDir || env.MEDIA_STORAGE_PATH || path3.resolve(process.cwd(), "uploads");
     this.ensureDirectoryExists();
   }
   ensureDirectoryExists() {
-    if (!fs2.existsSync(this.storageDir)) {
-      fs2.mkdirSync(this.storageDir, { recursive: true });
+    if (!fs3.existsSync(this.storageDir)) {
+      fs3.mkdirSync(this.storageDir, { recursive: true });
     }
   }
   getStorageDirectory() {
@@ -3540,12 +5228,19 @@ var LocalMediaStorage = class {
   async saveFile(buffer, originalName, mimeType) {
     this.ensureDirectoryExists();
     const ext = path3.extname(originalName).toLowerCase();
-    if (FORBIDDEN_EXTENSIONS.has(ext)) {
-      throw new Error(`Security Exception: Uploading files with extension '${ext}' is strictly prohibited.`);
+    const expectedMime = ALLOWED_TYPES[ext];
+    if (!expectedMime) {
+      throw new Error(
+        `File type '${ext || "unknown"}' is not allowed. Allowed: ${Object.keys(ALLOWED_TYPES).join(", ")}.`
+      );
     }
-    if (!ALLOWED_MIME_TYPES.has(mimeType)) {
-      throw new Error(`Security Exception: MIME type '${mimeType}' is not permitted.`);
+    if (mimeType && mimeType !== expectedMime) {
+      throw new Error(`File extension '${ext}' does not match its type '${mimeType}'.`);
     }
+    if (!matchesSignature(buffer, expectedMime)) {
+      throw new Error(`The file content is not a valid ${expectedMime} file.`);
+    }
+    mimeType = expectedMime;
     const maxBytes = env.MAX_UPLOAD_SIZE_MB * 1024 * 1024;
     if (buffer.length > maxBytes) {
       throw new Error(`File size (${(buffer.length / (1024 * 1024)).toFixed(1)}MB) exceeds maximum limit of ${env.MAX_UPLOAD_SIZE_MB}MB.`);
@@ -3557,7 +5252,7 @@ var LocalMediaStorage = class {
     if (!destinationPath.startsWith(path3.resolve(this.storageDir))) {
       throw new Error("Security Exception: Invalid destination path traversal detected.");
     }
-    await fs2.promises.writeFile(destinationPath, buffer);
+    await fs3.promises.writeFile(destinationPath, buffer);
     return {
       filename: uniqueFilename,
       originalFilename: originalName,
@@ -3573,8 +5268,8 @@ var LocalMediaStorage = class {
     if (!filePath.startsWith(path3.resolve(this.storageDir))) {
       throw new Error("Security Exception: Path traversal attempt prevented.");
     }
-    if (fs2.existsSync(filePath)) {
-      await fs2.promises.unlink(filePath);
+    if (fs3.existsSync(filePath)) {
+      await fs3.promises.unlink(filePath);
       return true;
     }
     return false;
@@ -3582,7 +5277,7 @@ var LocalMediaStorage = class {
   exists(filename) {
     const safeFilename = path3.basename(filename);
     const filePath = path3.resolve(this.storageDir, safeFilename);
-    return fs2.existsSync(filePath);
+    return fs3.existsSync(filePath);
   }
   getUrl(filename) {
     const safeFilename = path3.basename(filename);
@@ -3591,14 +5286,31 @@ var LocalMediaStorage = class {
 };
 
 // server/storage/HostingerMediaStorage.ts
-import fs3 from "fs";
+import fs4 from "fs";
 import path4 from "path";
 init_env();
-var HostingerMediaStorage = class extends LocalMediaStorage {
+var HostingerMediaStorage = class _HostingerMediaStorage extends LocalMediaStorage {
   constructor(customStorageDir) {
-    const hostingerDir = customStorageDir || env.MEDIA_STORAGE_PATH || path4.resolve(process.cwd(), "uploads");
-    super(hostingerDir);
+    super(_HostingerMediaStorage.resolveWritableDirectory(customStorageDir || env.MEDIA_STORAGE_PATH));
     this.enforceDirectorySecurity();
+  }
+  /**
+   * Uses the configured persistent directory (outside the deployed app, so uploads survive
+   * redeploys). If it cannot be created, falls back to ./uploads and says so loudly.
+   */
+  static resolveWritableDirectory(preferred) {
+    try {
+      fs4.mkdirSync(preferred, { recursive: true });
+      fs4.accessSync(preferred, fs4.constants.W_OK);
+      console.log(`[MEDIA] Persistent media storage: ${preferred}`);
+      return preferred;
+    } catch (e) {
+      const fallback = path4.resolve(process.cwd(), "uploads");
+      console.error(
+        `[MEDIA] Cannot use media directory ${preferred} (${e.code || e.message}). Falling back to ${fallback} \u2014 files there are replaced on every redeploy. Set MEDIA_STORAGE_PATH.`
+      );
+      return fallback;
+    }
   }
   /**
    * Drops a protective .htaccess file inside the uploads directory to prevent
@@ -3620,8 +5332,8 @@ var HostingerMediaStorage = class extends LocalMediaStorage {
         "RemoveType .php .phtml .php3 .php4 .php5 .phps",
         ""
       ].join("\n");
-      if (!fs3.existsSync(htaccessPath)) {
-        fs3.writeFileSync(htaccessPath, htaccessContent, "utf-8");
+      if (!fs4.existsSync(htaccessPath)) {
+        fs4.writeFileSync(htaccessPath, htaccessContent, "utf-8");
       }
     } catch (e) {
       console.warn("\u26A0\uFE0F Notice: Could not write protective .htaccess to uploads directory:", e.message);
@@ -3652,46 +5364,111 @@ import { Router } from "express";
 
 // server/services/supportAiEngine.ts
 var HANDOFF_MESSAGES = {
-  en: "I'd be happy to help with that. Let me check this with our concierge team and get back to you.",
-  fr: "Je serais ravi de vous aider. Laissez-moi v\xE9rifier cela aupr\xE8s de notre \xE9quipe de conciergerie et je reviens vers vous.",
-  sw: "Ningefurahi kukusaidia kwa hilo. Ngoja nithibitishe hili na timu yetu ya makaribisho kisha nitakujulisha.",
-  es: "Con gusto le ayudo con eso. Perm\xEDtame consultar con nuestro equipo de conserjer\xEDa y me pondr\xE9 en contacto con usted.",
-  it: "Sar\xF2 lieto di aiutarvi. Permettetemi di verificare con il nostro team concierge e vi ricontatter\xF2 a breve.",
-  pl: "Z przyjemno\u015Bci\u0105 w tym pomog\u0119. Pozw\xF3l, \u017Ce skonsultuj\u0119 to z naszym zespo\u0142em konsjer\u017Ca i wr\xF3c\u0119 do Ciebie z odpowiedzi\u0105.",
-  ar: "\u064A\u0633\u0639\u062F\u0646\u064A \u0645\u0633\u0627\u0639\u062F\u062A\u0643 \u0641\u064A \u0630\u0644\u0643. \u062F\u0639\u0646\u064A \u0623\u062A\u062D\u0642\u0642 \u0645\u0646 \u0647\u0630\u0627 \u0627\u0644\u0623\u0645\u0631 \u0645\u0639 \u0641\u0631\u064A\u0642 \u0627\u0644\u0643\u0648\u0646\u0633\u064A\u0631\u062C \u0648\u0633\u0623\u0639\u0627\u0648\u062F \u0627\u0644\u0631\u062F \u0639\u0644\u064A\u0643.",
-  zh: "\u975E\u5E38\u4E50\u610F\u4E3A\u60A8\u534F\u52A9\u3002\u8BF7\u7A0D\u7B49\uFF0C\u6211\u5C06\u4E0E\u6211\u4EEC\u7684\u79C1\u4EBA\u793C\u5BBE\u7BA1\u5BB6\u56E2\u961F\u786E\u8BA4\u540E\u7ACB\u5373\u5411\u60A8\u7B54\u590D\u3002"
+  id: "Pertanyaan detail Anda telah kami teruskan langsung ke Admin / Tim Concierge Zanzirangi House. Staf kami akan segera membalas pesan Anda di sini secara langsung. Terima kasih atas kesabaran Anda!",
+  en: "Your detailed request has been forwarded directly to our Admin & Concierge team. A staff member will assist you shortly here in the chat. Thank you for your patience!",
+  fr: "Votre demande d\xE9taill\xE9e a \xE9t\xE9 transmise directement \xE0 notre \xE9quipe de conciergerie. Un membre de notre \xE9quipe vous r\xE9pondra sous peu.",
+  sw: "Ombi lako la kina limetumwa moja kwa moja kwa wasimamizi wetu. Mhudumu wetu atakujibu hapa punde si punde.",
+  es: "Su consulta detallada ha sido enviada a nuestro equipo de conserjer\xEDa. Un miembro del personal le responder\xE1 en breve.",
+  it: "La vostra richiesta dettagliata \xE8 stata inoltrata al nostro team concierge. Un nostro collaboratore vi risponder\xE0 a breve.",
+  pl: "Twoje szczeg\xF3\u0142owe zapytanie zosta\u0142o przekazane bezpo\u015Brednio do naszego zespo\u0142u konsjer\u017Ca. Nasz pracownik wkr\xF3tce Ci odpowie.",
+  ar: "\u062A\u0645 \u062A\u0648\u062C\u064A\u0647 \u0627\u0633\u062A\u0641\u0633\u0627\u0631\u0643 \u0627\u0644\u062A\u0641\u0635\u064A\u0644\u064A \u0645\u0628\u0627\u0634\u0631\u0629 \u0625\u0644\u0649 \u0641\u0631\u064A\u0642 \u0627\u0644\u0643\u0648\u0646\u0633\u064A\u0631\u062C \u0648\u0633\u064A\u0642\u0648\u0645 \u0623\u062D\u062F \u0645\u0648\u0638\u0641\u064A\u0646\u0627 \u0628\u0627\u0644\u0631\u062F \u0639\u0644\u064A\u0643 \u0647\u0646\u0627 \u0642\u0631\u064A\u0628\u0627\u064B.",
+  zh: "\u60A8\u7684\u8BE6\u7EC6\u54A8\u8BE2\u5DF2\u76F4\u63A5\u8F6C\u4EA4\u7ED9\u6211\u4EEC\u7684\u79C1\u4EBA\u793C\u5BBE\u7BA1\u5BB6\u56E2\u961F\uFF0C\u5DE5\u4F5C\u4EBA\u5458\u5C06\u5F88\u5FEB\u5728\u6B64\u4E3A\u60A8\u89E3\u7B54\uFF0C\u611F\u8C22\u60A8\u7684\u8010\u5FC3\u7B49\u5F85\uFF01"
 };
 var SupportAiEngine = class {
   /**
    * Evaluates a visitor query through the Support Decision Layer:
-   * 1. Inspect dynamic Knowledge Base (published items)
-   * 2. Inspect deterministic FAQ rules
-   * 3. Detect high-constraint parameters (dates, large groups, discounts) requiring human review
-   * 4. Compute decision: AUTO_ANSWER, SAFE_ANSWER, or HANDOFF_TO_HUMAN
+   * 1. Simple greetings, pleasantries & FAQs -> AUTO_ANSWER immediately by Elena
+   * 2. Detailed questions, custom quotes, discounts, or explicit human requests -> HANDOFF_TO_HUMAN (routed to Admin with email alert)
+   * 3. Seamless Indonesian and multi-language comprehension
    */
   async evaluateQuery(query, lang = "en", _currentPage = "/") {
     const q = query.trim().toLowerCase();
-    const fallbackHandoff = HANDOFF_MESSAGES[lang] || HANDOFF_MESSAGES.en;
-    const hasImmediateDate = /\b(tomorrow|tonight|today|besok|malam ini|demain|ce soir|mañana|domani|jutro|غدا|اليوم|明天|今晚)\b/i.test(q);
-    const hasSpecificLargeGroup = /\b(1[0-9]|[2-9][0-9])\s*(people|guests|persons|orang|personnes|personas|persone|osób|شخص|位|人)\b/i.test(q) || /\b(for|untuk|pour|para|per|dla|li|共)\s*(1[0-9]|[2-9][0-9])\b/i.test(q);
-    if (hasImmediateDate && hasSpecificLargeGroup) {
+    const isIndonesian = lang === "id" || /\b(malam|pagi|siang|sore|halo|hai|bisa|berapa|kamar|kolam|sarapan|makan|pantai|tolong|terima kasih|makasih|siapa|admin|staf|dimana|apakah|tanya|pesan|sewa|harga|villa|jemput|bandara|diskon|promo|rombongan|orang|ada|nginap|menginap)\b/i.test(
+      q
+    );
+    const fallbackHandoff = isIndonesian ? HANDOFF_MESSAGES.id : HANDOFF_MESSAGES[lang] || HANDOFF_MESSAGES.en;
+    const asksForHuman = /\b(admin|staf|staff|human|manusia|orang|manager|manajer|owner|pemilik|hubungi|bicara|talk to|speak to|contact|bantuan langsung|operator|customer care)\b/i.test(
+      q
+    );
+    if (asksForHuman) {
       return {
-        replyText: fallbackHandoff,
-        intent: "large_group_immediate_availability_inquiry",
-        confidence: 0.5,
+        replyText: isIndonesian ? "Tentu! Pesan Anda telah kami teruskan langsung ke Admin Zanzirangi House. Staf kami akan segera merespons Anda di sini dalam hitungan menit." : HANDOFF_MESSAGES[lang] || HANDOFF_MESSAGES.en,
+        intent: "human_concierge_requested",
+        confidence: 0.98,
         knowledge_source: "NONE",
         decision: "HANDOFF_TO_HUMAN",
-        handoffReason: "Visitor requested immediate availability for a large group (10+ guests), requiring human concierge verification."
+        handoffReason: "Visitor explicitly requested to communicate with a human staff member / admin."
       };
     }
-    if (hasSpecificLargeGroup && (q.includes("dinner") || q.includes("candlelight") || q.includes("safari") || q.includes("tour") || q.includes("villa"))) {
+    const hasDiscountInquiry = /\b(diskon|discount|promo|potongan|tawar|nego|best price|special rate)\b/i.test(q);
+    const hasEventInquiry = /\b(wedding|nikah|pernikahan|event|acara|gathering|party|anniversary khusus|charter)\b/i.test(q);
+    const hasImmediateDate = /\b(tomorrow|tonight|today|besok|malam ini|demain|ce soir|mañana|domani|jutro|غدا|اليوم|明天|今晚)\b/i.test(q);
+    const hasSpecificLargeGroup = /\b(1[0-9]|[2-9][0-9])\s*(people|guests|persons|orang|personnes|personas|persone|osób|شخص|位|人)\b/i.test(q) || /\b(for|untuk|pour|para|per|dla|li|共)\s*(1[0-9]|[2-9][0-9])\b/i.test(q);
+    if (hasDiscountInquiry || hasEventInquiry || hasImmediateDate && hasSpecificLargeGroup) {
       return {
-        replyText: fallbackHandoff,
-        intent: "large_group_custom_arrangement",
-        confidence: 0.52,
+        replyText: isIndonesian ? "Untuk permintaan khusus, penawaran harga terbaik, serta ketersediaan rombongan detail, pertanyaan Anda sedang kami teruskan langsung ke Admin / Manajer Reservasi kami untuk dikonfirmasi secepatnya." : fallbackHandoff,
+        intent: "custom_inquiry_handoff",
+        confidence: 0.92,
         knowledge_source: "NONE",
         decision: "HANDOFF_TO_HUMAN",
-        handoffReason: "Large group custom arrangement requires concierge catering and logistics coordination."
+        handoffReason: "Visitor inquired about discounts, events, or specific high-constraint bookings requiring human management approval."
+      };
+    }
+    if (/\b(malam|selamat malam|good evening|soir|bonsoir|buonasera|buenas noches|dobry wieczór|مساء الخير|晚上好)\b/i.test(q)) {
+      return {
+        replyText: isIndonesian ? "Jambo & selamat malam! Senang bisa menyapa Anda di Zanzirangi House. Saya Elena, concierge Anda. Ada yang bisa kami bantu seputar reservasi villa, fasilitas, atau pengalaman safari & wisata di Zanzibar?" : "Jambo and good evening! Welcome to Zanzirangi House. My name is Elena, your private concierge. How may I assist your stay or inquiries in Zanzibar tonight?",
+        action: { label: isIndonesian ? "Lihat Pilihan Villa" : "View Villas", actionType: "SCROLL", target: "stay" },
+        intent: "greeting_evening",
+        confidence: 0.98,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    if (/\b(pagi|selamat pagi|siang|selamat siang|sore|selamat sore|good morning|good afternoon|bonjour|buongiorno|buenos días|dzień dobry|صباح الخير|早上好|下午好)\b/i.test(q)) {
+      return {
+        replyText: isIndonesian ? "Jambo & selamat datang! Saya Elena, concierge pribadi Anda di Zanzirangi House. Ada yang bisa kami bantu hari ini seputar pilihan villa, dining, atau safari di Zanzibar?" : "Jambo and welcome! My name is Elena, your personal concierge at Zanzirangi House. How may I assist you today regarding our luxury villas, dining, or safari experiences?",
+        action: { label: isIndonesian ? "Lihat Pilihan Villa" : "View Villas", actionType: "SCROLL", target: "stay" },
+        intent: "greeting_daytime",
+        confidence: 0.98,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    if (/^(halo|hai|hi|hello|hey|jambo|habari|hola|ciao|salut|cześć|مرحبا|你好)[\s!.?]*$/i.test(q) || /\b(halo elena|hi elena|hello elena|selamat datang)\b/i.test(q)) {
+      return {
+        replyText: isIndonesian ? "Jambo! Halo, senang Anda menghubungi kami di Zanzirangi House. Saya Elena, concierge Anda. Silakan tanyakan apa pun seputar reservasi villa, check-in, antar-jemput bandara, atau pengalaman menarik di Zanzibar!" : "Jambo! Welcome to Zanzirangi House. I am Elena, your personal concierge. Feel free to ask about our private villas, check-in, transfers, dining, or bespoke safari journeys!",
+        action: { label: isIndonesian ? "Eksplorasi Sanctuary" : "Explore Sanctuary", actionType: "SCROLL", target: "itinerary" },
+        intent: "greeting_general",
+        confidence: 0.98,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    if (/\b(terima kasih|makasih|matur suwun|thank you|thanks|asante|merci|grazie|gracias|dzięk|شكرا|谢谢)\b/i.test(q)) {
+      return {
+        replyText: isIndonesian ? "Sama-sama! Dengan senang hati. Jika Anda membutuhkan informasi lebih lanjut atau ingin memesan villa, tim kami selalu siap membantu." : "You are most welcome! It is our pleasure. Please let us know if there is anything else we can arrange for your luxury retreat in Zanzibar.",
+        intent: "polite_thank_you",
+        confidence: 0.96,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    if (/^(ok|oke|okay|baik|siap|noted|siap kak|siap min|roger|alright|fine|yes|ya)[\s!.?]*$/i.test(q)) {
+      return {
+        replyText: isIndonesian ? "Baik, terima kasih! Silakan beri tahu kami kapan pun Anda siap melakukan reservasi atau membutuhkan bantuan lainnya." : "Wonderful! We are right here whenever you need assistance with your booking or stay arrangements. Enjoy your time!",
+        intent: "polite_acknowledgement",
+        confidence: 0.95,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    if (/\b(siapa kamu|kamu siapa|who are you|siapa ini|bot atau|apakah bot|elena itu siapa)\b/i.test(q)) {
+      return {
+        replyText: isIndonesian ? "Saya Elena, Customer Support & Concierge pribadi Anda di Zanzirangi House. Saya siap menjawab pertanyaan Anda seputar sanctuary kami, dan staf admin kami juga selalu terhubung langsung di sini jika Anda membutuhkan bantuan khusus." : "I am Elena, your personal Customer Support & Concierge at Zanzirangi House. I am here to assist with all your questions, and our human admin team is also directly connected here whenever you need specialized assistance.",
+        intent: "faq_identity",
+        confidence: 0.95,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
       };
     }
     try {
@@ -3712,10 +5489,65 @@ var SupportAiEngine = class {
       }
     } catch {
     }
+    const checkinKeywords = ["check-in", "checkin", "check out", "checkout", "horaires", "muda wa kuingia", "horario", "arrived", "departure", "jam masuk", "waktu masuk", "jam berapa masuk", "jam keluar", "wymeldowani", "zameldowani", "\u5165\u4F4F", "\u9000\u623F", "\u0627\u0644\u0648\u0635\u0648\u0644", "\u0627\u0644\u0645\u063A\u0627\u062F\u0631\u0629"];
+    if (checkinKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: isIndonesian ? "Waktu check-in standar kami mulai pukul 14:00 (2:00 siang) dan check-out hingga pukul 11:00 pagi. Early check-in atau late check-out dapat disesuaikan secara fleksibel tergantung ketersediaan villa Anda." : "Standard check-in is from 14:00 (2:00 PM) and check-out is until 11:00 AM. Flexible early check-in or late checkout can be accommodated based on villa availability.",
+        action: { label: isIndonesian ? "Reservasi Villa" : "Book a Villa", actionType: "MODAL", target: "booking_modal" },
+        intent: "faq_checkin_checkout",
+        confidence: 0.94,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const wifiKeywords = ["wifi", "wi-fi", "internet", "speed", "starlink", "network", "koneksi", "sinyal", "connect", "online", "\u0633\u062A\u0627\u0631\u0644\u064A\u0646\u0643", "\u661F\u94FE", "\u65E0\u7EBF"];
+    if (wifiKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: isIndonesian ? "Internet satelit Starlink kecepatan tinggi (150+ Mbps) tersedia gratis tanpa batas di seluruh private villa, taman santuari, dan paviliun restoran kami untuk kenyamanan streaming maupun remote work." : "High-speed Starlink satellite Wi-Fi (150+ Mbps) is complimentary across all private villas, gardens, and dining pavilions, ensuring reliable connectivity for streaming or remote work.",
+        action: { label: isIndonesian ? "Cek Fasilitas Villa" : "Check Villa Features", actionType: "SCROLL", target: "stay" },
+        intent: "faq_starlink_wifi",
+        confidence: 0.95,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const poolKeywords = ["pool", "plunge", "swim", "beach", "ocean", "piscine", "bwawa", "piscina", "pantai", "kolam", "renang", "basen", "\u0627\u0644\u0645\u0633\u0628\u062D", "\u0627\u0644\u0634\u0627\u0637\u0626", "\u6CF3\u6C60", "\u6C99\u6EE9"];
+    if (poolKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: isIndonesian ? "Setiap villa dari 8 private sanctuary kami memiliki kolam renang pribadi (freshwater plunge pool), sun loungers, dan akses jalur pribadi langsung ke pantai Kizimkazi Samudra Hindia yang tenang." : "Every single one of our 8 luxury sanctuaries features its own private freshwater plunge pool, sun loungers, and direct private pathway access to the pristine shores of the Indian Ocean.",
+        action: { label: isIndonesian ? "Lihat Private Villa" : "View Private Villas", actionType: "SCROLL", target: "stay" },
+        intent: "faq_pools_beach",
+        confidence: 0.94,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const transferKeywords = ["airport", "transfer", "location", "where", "car", "distance", "arrive", "driver", "taxi", "shuttle", "jemput", "antar jemput", "bandara", "lokasi", "dimana", "alamat", "jauh", "usafiri", "\u0645\u0637\u0627\u0631", "\u63A5\u9001"];
+    if (transferKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: isIndonesian ? "Zanzirangi House berlokasi di Kizimkazi Dimbani, pesisir selatan Zanzibar. Kami menyediakan layanan antar-jemput VIP chauffeur pribadi dari Bandara Internasional Zanzibar (ZNZ) langsung ke sanctuary (~55 menit perjalanan)." : "We provide private VIP meet-and-greet and chauffeur shuttle transfers from Abeid Amani Karume International Airport (ZNZ) directly to our sanctuary in Kizimkazi (approx. 55 minutes).",
+        action: { label: isIndonesian ? "Detail Layanan Transfer" : "View Transfer Details", actionType: "SCROLL", target: "shuttle" },
+        intent: "faq_transfers",
+        confidence: 0.92,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const diningKeywords = ["din", "food", "restaurant", "chef", "breakfast", "menu", "lunch", "eat", "drink", "makan", "makanan", "sarapan", "restoran", "kuliner", "halal", "seafood", "cuisine", "chakula", "comida", "\u0645\u0637\u0639\u0645", "\u9910\u5385"];
+    if (diningKeywords.some((k) => q.includes(k))) {
+      return {
+        replyText: isIndonesian ? "Filosofi kuliner kami menyajikan hasil bumi organik dari kebun sendiri (garden-to-table) dan hidangan seafood segar tangkapan harian nelayan lokal dengan sentuhan Swahili otentik dan menu internasional mewah." : "Our gastronomic philosophy embraces organic garden-to-table produce and line-caught seafood with authentic Swahili and fine international dining.",
+        action: { label: isIndonesian ? "Lihat Menu & Dining" : "Taste Dining & Garden Menu", actionType: "SCROLL", target: "dining" },
+        intent: "faq_dining",
+        confidence: 0.92,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
     if (q.includes("serengeti") || q.includes("great migration")) {
       return {
-        replyText: "Serengeti National Park is an extraordinary safari experience. Zanzirangi House arranges direct chartered fly-in safaris from Zanzibar airport (approx. 1h 45m) with luxury partner tented camps overlooking migration corridors.",
-        action: { label: "View Safari Destinations", actionType: "SCROLL", target: "tanzania" },
+        replyText: isIndonesian ? "Taman Nasional Serengeti adalah pengalaman safari legendaris. Zanzirangi House mengatur safari terbang carter langsung dari Zanzibar (\xB11 jam 45 menit) dengan akomodasi tenda mewah mitra kami." : "Serengeti National Park is an extraordinary safari experience. Zanzirangi House arranges direct chartered fly-in safaris from Zanzibar airport (approx. 1h 45m) with luxury partner tented camps overlooking migration corridors.",
+        action: { label: isIndonesian ? "Lihat Destinasi Safari" : "View Safari Destinations", actionType: "SCROLL", target: "tanzania" },
         intent: "safari_serengeti",
         confidence: 0.95,
         knowledge_source: "DETERMINISTIC_FAQ",
@@ -3724,8 +5556,8 @@ var SupportAiEngine = class {
     }
     if (q.includes("ngorongoro") || q.includes("crater")) {
       return {
-        replyText: "Ngorongoro Crater offers Africa\u2019s densest predator populations inside a UNESCO volcanic caldera. We organize chartered fly-in packages combining your beach retreat with panoramic crater floor game drives.",
-        action: { label: "Explore Ngorongoro", actionType: "SCROLL", target: "tanzania" },
+        replyText: isIndonesian ? "Kawah Ngorongoro menyimpan populasi predator terpadat di Afrika di dalam kaldera vulkanik UNESCO. Kami menyediakan paket safari terbang kombinasi liburan pantai dan game drive kawah." : "Ngorongoro Crater offers Africa\u2019s densest predator populations inside a UNESCO volcanic caldera. We organize chartered fly-in packages combining your beach retreat with panoramic crater floor game drives.",
+        action: { label: isIndonesian ? "Eksplorasi Ngorongoro" : "Explore Ngorongoro", actionType: "SCROLL", target: "tanzania" },
         intent: "safari_ngorongoro",
         confidence: 0.95,
         knowledge_source: "DETERMINISTIC_FAQ",
@@ -3734,196 +5566,76 @@ var SupportAiEngine = class {
     }
     if (q.includes("kilimanjaro")) {
       return {
-        replyText: "Mount Kilimanjaro expeditions and scenic fly-over safaris are arranged through our certified mainland mountain guide partners. We can curate pre-climb acclimatization stays or relaxing post-climb beach recovery.",
-        action: { label: "Plan Safari & Kilimanjaro", actionType: "SCROLL", target: "tanzania" },
+        replyText: isIndonesian ? "Ekspedisi Gunung Kilimanjaro dan safari penerbangan panorama diatur bersama mitra pemandu gunung resmi kami, lengkap dengan aklimatisasi sebelum pendakian atau istirahat relaksasi setelahnya." : "Mount Kilimanjaro expeditions and scenic fly-over safaris are arranged through our certified mainland mountain guide partners. We can curate pre-climb acclimatization stays or relaxing post-climb beach recovery.",
+        action: { label: isIndonesian ? "Rencanakan Safari & Kilimanjaro" : "Plan Safari & Kilimanjaro", actionType: "SCROLL", target: "tanzania" },
         intent: "safari_kilimanjaro",
         confidence: 0.92,
         knowledge_source: "DETERMINISTIC_FAQ",
         decision: "AUTO_ANSWER"
       };
     }
-    if (q.includes("tarangire")) {
+    const dolphinKeywords = ["dolphin", "lumba", "pomboo", "dauphin", "delfin", "\u062F\u0644\u0627\u0641\u064A\u0646", "\u6D77\u8C5A"];
+    if (dolphinKeywords.some((k) => q.includes(k))) {
       return {
-        replyText: "Tarangire National Park is celebrated for iconic baobab trees and vast elephant herds along the Tarangire River. We arrange chartered flight itineraries directly from Zanzibar.",
-        action: { label: "View Tarangire Safaris", actionType: "SCROLL", target: "tanzania" },
-        intent: "safari_tarangire",
-        confidence: 0.92,
-        knowledge_source: "DETERMINISTIC_FAQ",
-        decision: "AUTO_ANSWER"
-      };
-    }
-    const checkinKeywords = ["check-in", "checkin", "check out", "checkout", "horaires", "muda wa kuingia", "horario", "arrived", "departure", "jam masuk", "waktu masuk", "wymeldowani", "zameldowani", "\u5165\u4F4F", "\u9000\u623F", "\u0627\u0644\u0648\u0635\u0648\u0644", "\u0627\u0644\u0645\u063A\u0627\u062F\u0631\u0629"];
-    if (checkinKeywords.some((k) => q.includes(k))) {
-      return {
-        replyText: "Standard check-in is from 14:00 (2:00 PM) and check-out is until 11:00 AM. Flexible early check-in or late checkout can be accommodated based on villa availability.",
-        action: { label: "Book a Villa", actionType: "MODAL", target: "booking_modal" },
-        intent: "faq_checkin_checkout",
+        replyText: isIndonesian ? "Kizimkazi terkenal di dunia dengan kawanan lumba-lumba di Kawasan Konservasi Menai Bay. Kami mengadakan safari lumba-lumba etis saat matahari terbit langsung dari tepi pantai kami." : "Kizimkazi is world-famous for resident dolphin pods in the Menai Bay Conservation Area. We organize ethical sunrise dolphin safaris directly from our shore.",
+        action: { label: isIndonesian ? "Eksplorasi Safari Lumba-Lumba" : "Explore Dolphin Safaris", actionType: "SCROLL", target: "experiences" },
+        intent: "experience_dolphins",
         confidence: 0.94,
         knowledge_source: "DETERMINISTIC_FAQ",
         decision: "AUTO_ANSWER"
       };
     }
-    const wifiKeywords = ["wifi", "wi-fi", "internet", "speed", "starlink", "network", "connect", "online", "\u0633\u062A\u0627\u0631\u0644\u064A\u0646\u0643", "\u661F\u94FE", "\u65E0\u7EBF"];
-    if (wifiKeywords.some((k) => q.includes(k))) {
-      return {
-        replyText: "High-speed Starlink satellite Wi-Fi (150+ Mbps) is complimentary across all private villas, gardens, and dining pavilions, ensuring reliable connectivity for streaming or remote work.",
-        action: { label: "Check Villa Features", actionType: "SCROLL", target: "stay" },
-        intent: "faq_starlink_wifi",
-        confidence: 0.95,
-        knowledge_source: "DETERMINISTIC_FAQ",
-        decision: "AUTO_ANSWER"
-      };
-    }
-    const paymentKeywords = ["payment", "pay", "cancel", "deposit", "card", "visa", "mastercard", "amex", "paiement", "pago", "malipo", "bayar", "pembayaran", "p\u0142atno\u015B", "anulac", "\u0627\u0644\u062F\u0641\u0639", "\u0625\u0644\u063A\u0627\u0621", "\u4ED8\u6B3E", "\u53D6\u6D88"];
-    if (paymentKeywords.some((k) => q.includes(k))) {
-      return {
-        replyText: "We accept major credit cards (Visa, MasterCard, Amex), international bank transfers, and mobile payments. Cancellation terms offer full flexibility up to 14 days prior to arrival.",
-        action: { label: "Reserve a Villa", actionType: "MODAL", target: "booking_modal" },
-        intent: "faq_payment_cancellation",
-        confidence: 0.9,
-        knowledge_source: "DETERMINISTIC_FAQ",
-        decision: "AUTO_ANSWER"
-      };
-    }
-    const dolphinKeywords = ["dolphin", "pomboo", "dauphin", "delfin", "delfini", "\u062F\u0644\u0627\u0641\u064A\u0646", "\u062F\u0644\u0641\u064A\u0646", "\u6D77\u8C5A"];
-    if (dolphinKeywords.some((k) => q.includes(k))) {
-      return {
-        replyText: "Kizimkazi is world-famous for resident dolphin pods in the Menai Bay Conservation Area. We organize ethical sunrise dolphin safaris directly from our shore.",
-        action: { label: "Explore Dolphin Safaris", actionType: "SCROLL", target: "experiences" },
-        intent: "experience_dolphins",
-        confidence: 0.93,
-        knowledge_source: "DETERMINISTIC_FAQ",
-        decision: "AUTO_ANSWER"
-      };
-    }
-    const dhowKeywords = ["dhow", "jahazi", "dau", "voilier", "velero", "\u0642\u0627\u0631\u0628", "\u0627\u0644\u062F\u0627\u0648", "\u6728\u8239", "\u5E06\u8239"];
+    const dhowKeywords = ["dhow", "sunset", "perahu", "kapal", "jahazi", "layar", "senja", "matahari terbenam", "voilier", "\u0642\u0627\u0631\u0628", "\u0627\u0644\u062F\u0627\u0648", "\u6728\u8239"];
     if (dhowKeywords.some((k) => q.includes(k))) {
       return {
-        replyText: "Glide across the turquoise Indian Ocean aboard a handcrafted wooden dhow while enjoying chilled Champagne and fresh Swahili canap\xE9s as the sun sets.",
-        action: { label: "View Sunset Sailing", actionType: "SCROLL", target: "experiences" },
+        replyText: isIndonesian ? "Nikmati pelayaran magis di atas perahu kayu tradisional Dhow menyusuri Samudra Hindia pirus sambil menikmati Champagne dingin dan canap\xE9 Swahili saat matahari terbenam." : "Glide across the turquoise Indian Ocean aboard a handcrafted wooden dhow while enjoying chilled Champagne and fresh Swahili canap\xE9s as the sun sets.",
+        action: { label: isIndonesian ? "Lihat Sunset Sailing" : "View Sunset Sailing", actionType: "SCROLL", target: "experiences" },
         intent: "experience_sunset_dhow",
         confidence: 0.93,
         knowledge_source: "DETERMINISTIC_FAQ",
         decision: "AUTO_ANSWER"
       };
     }
-    const candleKeywords = ["candle", "candlelight", "chandelles", "romantique", "mishumaa", "vela", "velas", "\u0634\u0645\u0648\u0639", "\u0634\u0645\u0639", "\u70DB\u5149", "\u015Bwiec"];
-    if (candleKeywords.some((k) => q.includes(k))) {
-      return {
-        replyText: "We arrange unforgettable candlelit dinners directly on the soft white sands or elevated coral terraces with torchlight and a custom 5-course seafood tasting menu.",
-        action: { label: "Taste Dining Moments", actionType: "SCROLL", target: "dining" },
-        intent: "dining_candlelight",
-        confidence: 0.88,
-        knowledge_source: "DETERMINISTIC_FAQ",
-        decision: "AUTO_ANSWER"
-      };
-    }
-    const spaKeywords = ["spa", "massage", "masaji", "bien-\xEAtre", "bienestar", "odnowa", "\u062A\u062F\u0644\u064A\u0643", "\u0633\u0628a", "\u6C34\u7597", "\u6309\u6469", "wellness", "therap"];
+    const spaKeywords = ["spa", "massage", "pijat", "masaji", "relaksasi", "bien-\xEAtre", "\u062A\u062F\u0644\u064A\u0643", "\u6C34\u7597", "\u6309\u6469", "wellness"];
     if (spaKeywords.some((k) => q.includes(k))) {
       return {
-        replyText: "Our in-villa wellness treatments feature cold-pressed Zanzibari coconut oils, clove and cinnamon body scrubs, and soothing deep-tissue massages performed on your private ocean deck.",
-        action: { label: "View Wellness & Spa", actionType: "SCROLL", target: "experiences" },
+        replyText: isIndonesian ? "Layanan spa & wellness in-villa kami menggunakan minyak kelapa Zanzibari murni, scrub cengkeh & kayu manis, serta deep-tissue massage yang menenangkan langsung di dek oceanfront pribadi Anda." : "Our in-villa wellness treatments feature cold-pressed Zanzibari coconut oils, clove and cinnamon body scrubs, and soothing deep-tissue massages performed on your private ocean deck.",
+        action: { label: isIndonesian ? "Lihat Layanan Spa" : "View Wellness & Spa", actionType: "SCROLL", target: "experiences" },
         intent: "experience_spa",
         confidence: 0.92,
         knowledge_source: "DETERMINISTIC_FAQ",
         decision: "AUTO_ANSWER"
       };
     }
-    const stonetownKeywords = ["stone town", "spice", "\xE9pices", "viungo", "especias", "spezie", "\u0627\u0644\u062A\u0648\u0627\u0628\u0644", "\u0627\u0644\u0645\u062F\u064A\u0646\u0629 \u0627\u0644\u062D\u062C\u0631\u064A\u0629", "\u77F3\u5934\u57CE", "\u9999\u6599", "przypraw"];
-    if (stonetownKeywords.some((k) => q.includes(k))) {
+    const villaKeywords = ["villa", "rate", "price", "stay", "room", "kamar", "harga", "sewa", "tarif", "tipe", "bungalow", "availab", "chambre", "chumba", "\u0641\u0644\u0644", "\u522B\u5885"];
+    if (villaKeywords.some((k) => q.includes(k))) {
       return {
-        replyText: "We organize private cultural journeys with local historians through UNESCO-listed Stone Town and organic spice plantations celebrating vanilla, cloves, and cardamom.",
-        action: { label: "Discover Island Tours", actionType: "SCROLL", target: "experiences" },
-        intent: "experience_stone_town",
-        confidence: 0.92,
-        knowledge_source: "DETERMINISTIC_FAQ",
-        decision: "AUTO_ANSWER"
-      };
-    }
-    const familyKeywords = ["family", "children", "child", "kid", "famille", "enfant", "familia", "ni\xF1o", "watoto", "bambin", "\u0639\u0627\u0626\u0644", "\u0623\u0637\u0641\u0627\u0644", "\u5BB6\u5EAD", "\u513F\u7AE5", "rodzin"];
-    if (familyKeywords.some((k) => q.includes(k))) {
-      return {
-        replyText: "Families are warmly welcomed. We offer interconnecting villa sanctuaries, extra beds, tailored kids menus, and professional babysitting upon request.",
-        action: { label: "Explore Family Villas", actionType: "SCROLL", target: "stay" },
-        intent: "faq_family_children",
+        replyText: isIndonesian ? "Zanzirangi House menyediakan 8 private pool sanctuary eksklusif termasuk oceanfront villa dan garden sanctuary yang tenang. Apakah Anda ingin mengecek tanggal dan ketersediaan sekarang?" : "We feature 8 handcrafted luxury sanctuaries including oceanfront pool villas and secluded garden bungalows. Would you like to check dates and availability?",
+        action: { label: isIndonesian ? "Cek Ketersediaan Villa" : "Check Villa Availability", actionType: "MODAL", target: "booking_modal" },
+        intent: "faq_villas_rates",
         confidence: 0.9,
         knowledge_source: "DETERMINISTIC_FAQ",
         decision: "AUTO_ANSWER"
       };
     }
-    const honeymoonKeywords = ["honeymoon", "anniversary", "lune de miel", "fungate", "luna de miel", "luna di miele", "\u0639\u0633\u0644", "\u0631\u0648\u0645\u0627\u0646\u0633", "\u871C\u6708", "m\u0142od", "po\u015Blubn"];
-    if (honeymoonKeywords.some((k) => q.includes(k))) {
+    const paymentKeywords = ["payment", "pay", "cancel", "deposit", "card", "visa", "mastercard", "bayar", "pembayaran", "batal", "pembatalan", "kartu kredit", "malipo", "\u0627\u0644\u062F\u0641\u0639"];
+    if (paymentKeywords.some((k) => q.includes(k))) {
       return {
-        replyText: "For honeymooners, we prepare complimentary chilled Champagne, fresh tropical floral arrangements, a private sunset dhow sail, and a romantic beach dinner under the stars.",
-        action: { label: "Plan Honeymoon Escape", actionType: "MODAL", target: "booking_modal" },
-        intent: "faq_honeymoon",
-        confidence: 0.91,
-        knowledge_source: "DETERMINISTIC_FAQ",
-        decision: "AUTO_ANSWER"
-      };
-    }
-    const divingKeywords = ["dive", "diving", "snorkel", "snorkeling", "plong\xE9e", "kuzamia", "buceo", "immersi", "\u063A\u0648\u0635", "\u0633\u0646\u0648\u0631\u0643\u0644", "\u6F5C\u6C34", "\u6D6E\u6F5C", "nurkowan", "reef", "coral"];
-    if (divingKeywords.some((k) => q.includes(k))) {
-      return {
-        replyText: "Partnering with certified PADI dive masters, we take you to the pristine reefs of Mnemba Atoll and Kizimkazi to observe sea turtles, manta rays, and vibrant marine life.",
-        action: { label: "Explore Marine Safaris", actionType: "SCROLL", target: "experiences" },
-        intent: "experience_diving",
-        confidence: 0.92,
-        knowledge_source: "DETERMINISTIC_FAQ",
-        decision: "AUTO_ANSWER"
-      };
-    }
-    const poolKeywords = ["pool", "plunge", "swim", "beach", "ocean", "piscine", "bwawa", "piscina", "pantai", "kolam", "basen", "\u0627\u0644\u0645\u0633\u0628\u062D", "\u0627\u0644\u0634\u0627\u0637\u0626", "\u6CF3\u6C60", "\u6C99\u6EE9"];
-    if (poolKeywords.some((k) => q.includes(k))) {
-      return {
-        replyText: "Every single one of our 8 luxury sanctuaries features its own private freshwater plunge pool, sun loungers, and direct private pathway access to the pristine shores of the Indian Ocean.",
-        action: { label: "View Private Villas", actionType: "SCROLL", target: "stay" },
-        intent: "faq_pools_beach",
-        confidence: 0.89,
-        knowledge_source: "DETERMINISTIC_FAQ",
-        decision: "AUTO_ANSWER"
-      };
-    }
-    const villaKeywords = ["villa", "rate", "price", "stay", "room", "availab", "suite", "bungalow", "prix", "chambre", "bei", "chumba", "precio", "tarifa", "\u0641\u0644\u0644", "\u0641\u064A\u0644\u0627", "\u0633\u0639\u0631", "\u522B\u5885", "\u4EF7\u683C"];
-    if (villaKeywords.some((k) => q.includes(k))) {
-      return {
-        replyText: "We feature 8 handcrafted luxury sanctuaries including oceanfront pool villas and secluded garden bungalows. Would you like to check dates and availability?",
-        action: { label: "Check Villa Availability", actionType: "MODAL", target: "booking_modal" },
-        intent: "faq_villas_rates",
-        confidence: 0.86,
-        knowledge_source: "DETERMINISTIC_FAQ",
-        decision: "AUTO_ANSWER"
-      };
-    }
-    const transferKeywords = ["airport", "transfer", "location", "where", "car", "distance", "arrive", "driver", "taxi", "shuttle", "a\xE9roport", "usafiri", "aeropuerto", "\u0645\u0637\u0627\u0631", "\u63A5\u9001"];
-    if (transferKeywords.some((k) => q.includes(k))) {
-      return {
-        replyText: "We provide private VIP meet-and-greet and chauffeur shuttle transfers from Abeid Amani Karume International Airport (ZNZ) directly to our sanctuary in Kizimkazi (approx. 55 minutes).",
-        action: { label: "View Transfer Details", actionType: "SCROLL", target: "shuttle" },
-        intent: "faq_transfers",
-        confidence: 0.88,
-        knowledge_source: "DETERMINISTIC_FAQ",
-        decision: "AUTO_ANSWER"
-      };
-    }
-    const diningKeywords = ["din", "food", "restaurant", "chef", "breakfast", "menu", "lunch", "eat", "drink", "cuisine", "nourriture", "chakula", "comida", "\u0645\u0637\u0639\u0645", "\u9910\u5385"];
-    if (diningKeywords.some((k) => q.includes(k))) {
-      return {
-        replyText: "Our gastronomic philosophy embraces organic garden-to-table produce and line-caught seafood with authentic Swahili and fine international dining.",
-        action: { label: "Taste Dining & Garden Menu", actionType: "SCROLL", target: "dining" },
-        intent: "faq_dining",
-        confidence: 0.86,
+        replyText: isIndonesian ? "Kami menerima kartu kredit utama (Visa, MasterCard, Amex), transfer bank internasional, dan pembayaran digital. Kebijakan pembatalan fleksibel penuh hingga 14 hari sebelum tanggal kedatangan." : "We accept major credit cards (Visa, MasterCard, Amex), international bank transfers, and mobile payments. Cancellation terms offer full flexibility up to 14 days prior to arrival.",
+        action: { label: isIndonesian ? "Reservasi Sekarang" : "Reserve a Villa", actionType: "MODAL", target: "booking_modal" },
+        intent: "faq_payment_cancellation",
+        confidence: 0.9,
         knowledge_source: "DETERMINISTIC_FAQ",
         decision: "AUTO_ANSWER"
       };
     }
     return {
       replyText: fallbackHandoff,
-      intent: "unrecognized_visitor_inquiry",
-      confidence: 0.4,
+      intent: "detailed_inquiry_handed_to_admin",
+      confidence: 0.45,
       knowledge_source: "NONE",
       decision: "HANDOFF_TO_HUMAN",
-      handoffReason: "Query contains unfamiliar, highly specific, or unverified inquiry requirements."
+      handoffReason: "Query contains detailed, unverified, or specialized requirements forwarded for direct admin response."
     };
   }
   /**
@@ -3948,7 +5660,505 @@ var SupportAiEngine = class {
 };
 var supportAiEngine = new SupportAiEngine();
 
+// server/services/emailService.ts
+import nodemailer from "nodemailer";
+import dotenv2 from "dotenv";
+dotenv2.config();
+var EmailService = class {
+  getTransporter() {
+    const host = process.env.SMTP_HOST || "smtp.hostinger.com";
+    const port = Number(process.env.SMTP_PORT || 465);
+    const secure = process.env.SMTP_SECURE !== "false";
+    const user = process.env.SMTP_USER || "";
+    const pass = process.env.SMTP_PASS || "";
+    if (!user || !pass) {
+      return null;
+    }
+    return nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: {
+        user,
+        pass
+      }
+    });
+  }
+  async getRecipientEmail() {
+    try {
+      const global = await globalContentRepository.get();
+      if (global?.contactEmail) {
+        return global.contactEmail;
+      }
+    } catch {
+    }
+    return process.env.ADMIN_ALERT_EMAIL || process.env.ALERT_NOTIFICATION_EMAIL || process.env.SMTP_USER || "info@zanzirangihouse.com";
+  }
+  /**
+   * Sends an immediate email notification when a guest submits a villa booking inquiry
+   */
+  async sendBookingAlert(payload) {
+    try {
+      const transporter = this.getTransporter();
+      if (!transporter) {
+        console.log("[EMAIL] Hostinger SMTP not configured (SMTP_USER/SMTP_PASS missing). Skipped sending booking alert email.");
+        return false;
+      }
+      const toEmail = await this.getRecipientEmail();
+      const fromEmail = process.env.SMTP_USER || "info@zanzirangihouse.com";
+      const appUrl = process.env.APP_URL || "https://zanzirangihouse.com";
+      const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #FAF8F5; margin: 0; padding: 24px; color: #1C1B1A; }
+    .card { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #E7DFD2; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+    .header { background: #141413; padding: 28px 32px; text-align: center; }
+    .gold-title { color: #A07E54; font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; font-weight: 700; margin-bottom: 6px; }
+    .main-title { color: #FAF8F5; font-size: 22px; font-weight: 300; margin: 0; }
+    .body { padding: 32px; }
+    .badge { display: inline-block; background: #FEF3C7; color: #92400E; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 4px; text-transform: uppercase; margin-bottom: 20px; }
+    .info-table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; }
+    .info-table td { padding: 10px 12px; border-bottom: 1px solid #F4EFE6; font-size: 13px; }
+    .info-table td.label { width: 38%; color: #6B6862; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; }
+    .info-table td.value { color: #141413; font-weight: 500; }
+    .requests-box { background: #F4EFE6; border-left: 3px solid #A07E54; padding: 14px 16px; margin: 20px 0; font-size: 13px; color: #3A3835; font-style: italic; }
+    .btn { display: block; width: fit-content; margin: 28px auto 8px; background: #B8966C; color: #141413; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; text-align: center; }
+    .footer { padding: 20px 32px; text-align: center; font-size: 11px; color: #8F8B84; border-top: 1px solid #F4EFE6; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="gold-title">Zanzirangi House Zanzibar</div>
+      <h1 class="main-title">New Villa Reservation Alert</h1>
+    </div>
+    <div class="body">
+      <div class="badge">Immediate Action Required</div>
+      <p style="font-size: 14px; line-height: 1.6; margin-top: 0;">A guest has just submitted a direct reservation inquiry on <strong>zanzirangihouse.com</strong>:</p>
+      
+      <table class="info-table">
+        <tr>
+          <td class="label">Guest Name</td>
+          <td class="value"><strong>${payload.fullName}</strong></td>
+        </tr>
+        <tr>
+          <td class="label">Guest Email</td>
+          <td class="value"><a href="mailto:${payload.email}" style="color: #A07E54;">${payload.email}</a></td>
+        </tr>
+        <tr>
+          <td class="label">Phone / WhatsApp</td>
+          <td class="value">${payload.phone || "Not provided"}</td>
+        </tr>
+        <tr>
+          <td class="label">Country of Origin</td>
+          <td class="value">${payload.country || "Not specified"}</td>
+        </tr>
+        <tr>
+          <td class="label">Villa Selection</td>
+          <td class="value"><strong>${payload.villaName}</strong> ${payload.roomNumber ? `(${payload.roomNumber})` : ""}</td>
+        </tr>
+        <tr>
+          <td class="label">Stay Dates</td>
+          <td class="value"><strong>${payload.checkIn} \u2192 ${payload.checkOut}</strong></td>
+        </tr>
+        <tr>
+          <td class="label">Party Size</td>
+          <td class="value">${payload.guests} Guests</td>
+        </tr>
+        <tr>
+          <td class="label">Airport Transfer</td>
+          <td class="value">${payload.airportTransfer ? "Yes (Requested)" : "No"}</td>
+        </tr>
+      </table>
+
+      ${payload.specialRequests ? `
+      <div class="label" style="font-size: 11px; font-weight: 700; color: #6B6862; text-transform: uppercase;">Special Requests:</div>
+      <div class="requests-box">"${payload.specialRequests}"</div>
+      ` : ""}
+
+      <a href="${appUrl}/admin/support" class="btn">Open Support Inbox & Reply</a>
+    </div>
+    <div class="footer">
+      Zanzirangi House \u2022 Luxury Private Sanctuary \u2022 Kizimkazi Dimbani, Zanzibar<br>
+      Hostinger Automated Alert Engine
+    </div>
+  </div>
+</body>
+</html>
+      `;
+      await transporter.sendMail({
+        from: `"Zanzirangi House Concierge" <${fromEmail}>`,
+        to: toEmail,
+        subject: `\u{1F3E8} [NEW BOOKING] ${payload.fullName} - ${payload.villaName} (${payload.checkIn} to ${payload.checkOut})`,
+        html: htmlContent
+      });
+      console.log(`[EMAIL] \u2713 Booking alert successfully sent via Hostinger SMTP to ${toEmail}`);
+      return true;
+    } catch (err) {
+      console.error("[EMAIL] Failed to send booking alert email via Hostinger SMTP:", err.message);
+      return false;
+    }
+  }
+  /**
+   * Sends an urgent alert when a live chat visitor requests human concierge support
+   */
+  async sendHumanSupportAlert(payload) {
+    try {
+      const transporter = this.getTransporter();
+      if (!transporter) {
+        console.log("[EMAIL] Hostinger SMTP not configured (SMTP_USER/SMTP_PASS missing). Skipped sending human support alert email.");
+        return false;
+      }
+      const toEmail = await this.getRecipientEmail();
+      const fromEmail = process.env.SMTP_USER || "info@zanzirangihouse.com";
+      const appUrl = process.env.APP_URL || "https://zanzirangihouse.com";
+      const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #FAF8F5; margin: 0; padding: 24px; color: #1C1B1A; }
+    .card { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #E7DFD2; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+    .header { background: #92400E; padding: 24px 32px; text-align: center; }
+    .gold-title { color: #FEF3C7; font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; font-weight: 700; margin-bottom: 6px; }
+    .main-title { color: #ffffff; font-size: 20px; font-weight: 400; margin: 0; }
+    .body { padding: 32px; }
+    .badge { display: inline-block; background: #FEE2E2; color: #991B1B; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 4px; text-transform: uppercase; margin-bottom: 16px; }
+    .message-box { background: #F4EFE6; border-left: 4px solid #B8966C; padding: 16px; border-radius: 4px; margin: 16px 0; font-size: 14px; line-height: 1.5; color: #141413; }
+    .info-list { font-size: 12px; color: #6B6862; margin: 16px 0; }
+    .btn { display: block; width: fit-content; margin: 28px auto 8px; background: #141413; color: #FAF8F5; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; text-align: center; }
+    .footer { padding: 20px 32px; text-align: center; font-size: 11px; color: #8F8B84; border-top: 1px solid #F4EFE6; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="gold-title">Live Chat Concierge Alert</div>
+      <h1 class="main-title">Guest Waiting for Human Support</h1>
+    </div>
+    <div class="body">
+      <div class="badge">URGENT: Visitor Waiting</div>
+      <p style="font-size: 14px; margin-top: 0;">A guest on <strong>zanzirangihouse.com</strong> has requested to speak with a human concierge or asked a question requiring staff intervention:</p>
+      
+      <div class="message-box">
+        <strong>Guest Query:</strong><br>
+        "${payload.lastMessage}"
+      </div>
+
+      <div class="info-list">
+        \u2022 <strong>Visitor ID:</strong> ${payload.visitorId}<br>
+        \u2022 <strong>Language:</strong> ${payload.language.toUpperCase()}<br>
+        \u2022 <strong>Active Page:</strong> ${payload.currentPage || "/"}<br>
+        \u2022 <strong>Handoff Reason:</strong> ${payload.handoffReason || "Guest requested human assistance"}
+      </div>
+
+      <a href="${appUrl}/admin/support" class="btn">Open Inbox & Reply Now</a>
+    </div>
+    <div class="footer">
+      Zanzirangi House Hostinger Alert Dispatcher \u2022 Fast response increases direct booking conversion.
+    </div>
+  </div>
+</body>
+</html>
+      `;
+      await transporter.sendMail({
+        from: `"Zanzirangi House Alert" <${fromEmail}>`,
+        to: toEmail,
+        subject: `\u26A0\uFE0F [ACTION REQUIRED] Guest Needs Human Response on Zanzirangi House`,
+        html: htmlContent
+      });
+      console.log(`[EMAIL] \u2713 Human support alert successfully sent via Hostinger SMTP to ${toEmail}`);
+      return true;
+    } catch (err) {
+      console.error("[EMAIL] Failed to send human support alert email via Hostinger SMTP:", err.message);
+      return false;
+    }
+  }
+  /**
+   * Tests the Hostinger SMTP connection
+   */
+  async testConnection(targetEmail) {
+    try {
+      const transporter = this.getTransporter();
+      if (!transporter) {
+        return {
+          success: false,
+          message: "SMTP credentials missing. Please set SMTP_USER and SMTP_PASS in your environment or Admin settings."
+        };
+      }
+      await transporter.verify();
+      if (targetEmail) {
+        const fromEmail = process.env.SMTP_USER || "info@zanzirangihouse.com";
+        await transporter.sendMail({
+          from: `"Zanzirangi House Test" <${fromEmail}>`,
+          to: targetEmail,
+          subject: "\u2705 Hostinger SMTP Test - Zanzirangi House",
+          html: "<p>Congratulations! Your Hostinger SMTP email integration is working perfectly. You will now receive instant alerts for villa bookings and guest support requests.</p>"
+        });
+      }
+      return {
+        success: true,
+        message: "Hostinger SMTP connection verified successfully! Test email delivered."
+      };
+    } catch (err) {
+      return {
+        success: false,
+        message: `SMTP Connection error: ${err.message}`
+      };
+    }
+  }
+};
+var emailService = new EmailService();
+
+// server/services/webPushService.ts
+import webpush from "web-push";
+var VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "BI6ZzUgSWdCiNylYuSYHQJ6one6Xxi3xln1zxIZ_TIK0_u-tb08uxhdwQRiqFife81rWgGmGM9ETDjU_SUCJtsM";
+var VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "QdvTfruhF5J5Namm7FHzOROFwMF8QFxFHr6ks9Y2Rdo";
+var VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:info@zanzirangihouse.com";
+try {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+} catch (e) {
+  console.warn("[WEB_PUSH] VAPID initialization notice:", e.message);
+}
+var WebPushService = class {
+  getPublicKey() {
+    return VAPID_PUBLIC_KEY;
+  }
+  /**
+   * Dispatches push notifications to staff mobile devices and desktop browsers.
+   * If on-duty staff exist, prioritizes them; otherwise alerts all registered staff.
+   */
+  async sendNotificationToStaff(payload, role) {
+    const subscriptions = await supportRepository.getPushSubscriptions(role);
+    if (!subscriptions || subscriptions.length === 0) {
+      console.log("[WEB_PUSH] No active push subscriptions found for staff.");
+      return { sent: 0, failed: 0 };
+    }
+    const targetUrl = payload.url || (payload.conversationId ? `/admin?tab=inbox&conversation=${payload.conversationId}` : "/admin");
+    const pushData = JSON.stringify({
+      title: payload.title,
+      body: payload.body,
+      icon: payload.icon || "/favicon-48x48.png",
+      badge: payload.badge || "/favicon-32x32.png",
+      data: {
+        url: targetUrl,
+        conversationId: payload.conversationId || null,
+        timestamp: Date.now()
+      }
+    });
+    let sent = 0;
+    let failed = 0;
+    await Promise.allSettled(
+      subscriptions.map(async (sub) => {
+        try {
+          const pushSubscription = {
+            endpoint: sub.endpoint,
+            keys: {
+              p256dh: sub.p256dh,
+              auth: sub.auth
+            }
+          };
+          await webpush.sendNotification(pushSubscription, pushData, {
+            TTL: 60 * 60,
+            // 1 hour TTL
+            urgency: "high"
+          });
+          sent++;
+        } catch (err) {
+          failed++;
+          if (err.statusCode === 404 || err.statusCode === 410) {
+            console.log(`[WEB_PUSH] Pruning expired subscription for ${sub.user_email} (${err.statusCode})`);
+            await supportRepository.deletePushSubscription(sub.endpoint).catch(() => {
+            });
+          } else {
+            console.warn(`[WEB_PUSH] Failed to send push to ${sub.user_email}:`, err.message);
+          }
+        }
+      })
+    );
+    console.log(`[WEB_PUSH] Dispatched push alerts: ${sent} sent, ${failed} failed across ${subscriptions.length} devices.`);
+    return { sent, failed };
+  }
+};
+var webPushService = new WebPushService();
+
+// server/services/supportEscalationService.ts
+var SupportEscalationService = class {
+  constructor() {
+    this.timer = null;
+  }
+  /**
+   * Initializes the recurring escalation monitor that checks for unanswered guest inquiries.
+   */
+  startEscalationMonitor() {
+    if (this.timer) return;
+    if (process.env.NODE_ENV === "test" || process.env.ZANZIRANGI_NO_LISTEN === "1") {
+      return;
+    }
+    console.log("[SUPPORT_ESCALATION] Escalation monitor started (30s polling cycle).");
+    this.timer = setInterval(() => {
+      this.checkEscalations().catch((e) => console.error("[SUPPORT_ESCALATION] Escalation check error:", e.message));
+    }, 3e4);
+    this.timer.unref();
+  }
+  stopEscalationMonitor() {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+  }
+  /**
+   * Triggered immediately when AI / visitor triggers HUMAN_REQUIRED.
+   * Multi-layer notification:
+   * 1. 🔔 Web Dashboard (status updated)
+   * 2. 📱 Web Push to HP Staff
+   * 3. 📧 Urgent Email via Hostinger SMTP
+   * 4. 💬 WhatsApp / Telegram Fallback (if configured)
+   */
+  async triggerHumanRequired(params) {
+    const { conversationId, visitorMessage, visitorId = "Guest", language = "en", currentPage = "/", handoffReason } = params;
+    console.log(`[SUPPORT_ESCALATION] \u{1F6A8} HUMAN_REQUIRED triggered for conversation ${conversationId}`);
+    const onDutyStaff = await supportRepository.getOnDutyStaff().catch(() => []);
+    const hasAgentOnline = onDutyStaff.length > 0;
+    const pushBody = hasAgentOnline ? `Guest requires assistance:
+"${visitorMessage.slice(0, 95)}"` : `\u26A0\uFE0F NO AGENT ON DUTY! Guest waiting:
+"${visitorMessage.slice(0, 90)}"`;
+    webPushService.sendNotificationToStaff({
+      title: hasAgentOnline ? "\u{1F514} Zanzirangi House \u2013 Customer Support" : "\u{1F6A8} URGENT: Guest Waiting (No Agent On Duty)",
+      body: pushBody,
+      conversationId
+    }).catch((e) => console.warn("[SUPPORT_ESCALATION] Web push error:", e.message));
+    emailService.sendHumanSupportAlert({
+      conversationId,
+      visitorId,
+      language,
+      currentPage,
+      lastMessage: visitorMessage,
+      handoffReason: handoffReason || (hasAgentOnline ? "Guest inquiry handed off to staff" : "URGENT: No staff currently on duty!")
+    }).catch((e) => console.error("[SUPPORT_ESCALATION] Email alert error:", e.message));
+    this.sendWebhookFallback({
+      title: "\u{1F6A8} Zanzirangi Support Alert (HUMAN REQUIRED)",
+      message: visitorMessage,
+      conversationId,
+      hasAgentOnline
+    }).catch(() => {
+    });
+    await supportRepository.createEscalationQueueItem(conversationId, visitorMessage).catch(
+      (e) => console.warn("[SUPPORT_ESCALATION] Failed to insert queue item:", e.message)
+    );
+  }
+  /**
+   * Called when a human staff member replies to the customer.
+   * Clears the escalation queue for this conversation.
+   */
+  async resolveEscalation(conversationId) {
+    console.log(`[SUPPORT_ESCALATION] \u2713 Resolving escalation for conversation ${conversationId}`);
+    await supportRepository.resolveEscalationQueueItem(conversationId).catch(() => {
+    });
+  }
+  /**
+   * Periodically checks pending escalations for 2m, 5m, and 10m thresholds.
+   */
+  async checkEscalations() {
+    const pending = await supportRepository.getPendingEscalations();
+    if (!pending || pending.length === 0) return;
+    const now = Date.now();
+    for (const item of pending) {
+      const triggeredTime = new Date(item.triggered_at).getTime();
+      const elapsedMinutes = (now - triggeredTime) / 6e4;
+      if (elapsedMinutes >= 2 && !item.reminder_2m_sent) {
+        console.log(`[SUPPORT_ESCALATION] \u23F1\uFE0F 2m Reminder for conversation ${item.conversation_id}`);
+        await webPushService.sendNotificationToStaff({
+          title: "\u26A0\uFE0F Zanzirangi Support Reminder (2m)",
+          body: `Unread guest inquiry waiting 2+ minutes:
+"${item.visitor_message.slice(0, 80)}"`,
+          conversationId: item.conversation_id
+        });
+        await supportRepository.updateEscalationReminders(item.id, { reminder_2m_sent: true });
+      }
+      if (elapsedMinutes >= 5 && !item.reminder_5m_sent) {
+        console.log(`[SUPPORT_ESCALATION] \u23F1\uFE0F 5m Escalation for conversation ${item.conversation_id}`);
+        await emailService.sendHumanSupportAlert({
+          conversationId: item.conversation_id,
+          visitorId: "Urgent Escalation",
+          language: "en",
+          lastMessage: `[UNANSWERED FOR 5 MINUTES] ${item.visitor_message}`,
+          handoffReason: "Guest message has been unanswered for 5 minutes. Please respond immediately."
+        });
+        await supportRepository.updateEscalationReminders(item.id, { reminder_5m_sent: true });
+      }
+      if (elapsedMinutes >= 10 && !item.reminder_10m_sent) {
+        console.log(`[SUPPORT_ESCALATION] \u{1F6A8} 10m Critical Escalation for conversation ${item.conversation_id}`);
+        await webPushService.sendNotificationToStaff({
+          title: "\u{1F6A8} CRITICAL ESCALATION (10m Unanswered)",
+          body: `Guest has been waiting 10 minutes without a reply:
+"${item.visitor_message.slice(0, 80)}"`,
+          conversationId: item.conversation_id
+        });
+        await this.sendWebhookFallback({
+          title: "\u{1F6A8} CRITICAL 10M UNANSWERED SUPPORT INQUIRY",
+          message: item.visitor_message,
+          conversationId: item.conversation_id,
+          hasAgentOnline: false
+        });
+        await supportRepository.updateEscalationReminders(item.id, { reminder_10m_sent: true });
+      }
+    }
+  }
+  /**
+   * Optional fallback to Telegram or WhatsApp Webhook if configured in environment variables.
+   */
+  async sendWebhookFallback(data) {
+    const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+    const telegramChatId = process.env.TELEGRAM_CHAT_ID;
+    const whatsappWebhook = process.env.WHATSAPP_WEBHOOK_URL;
+    const appUrl = process.env.APP_URL || "http://localhost:3000";
+    const text = `${data.title}
+
+Message: "${data.message}"
+
+Link: ${appUrl}/admin?tab=inbox&conversation=${data.conversationId}`;
+    if (telegramToken && telegramChatId) {
+      try {
+        await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: telegramChatId,
+            text,
+            parse_mode: "HTML"
+          })
+        });
+      } catch (err) {
+        console.warn("[SUPPORT_ESCALATION] Telegram fallback failed:", err.message);
+      }
+    }
+    if (whatsappWebhook) {
+      try {
+        await fetch(whatsappWebhook, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            event: "support_escalation",
+            conversationId: data.conversationId,
+            text
+          })
+        });
+      } catch (err) {
+        console.warn("[SUPPORT_ESCALATION] WhatsApp webhook fallback failed:", err.message);
+      }
+    }
+  }
+};
+var supportEscalationService = new SupportEscalationService();
+
 // server/supportApiRoutes.ts
+var requireSupport = requirePermission("support");
+var auditSupport = (req, action, details) => auditRepository.log({ action, userEmail: req.user?.email || "admin", details, ipAddress: req.ip }).catch((e) => console.error("[AUDIT] Support audit failed:", e.message));
 var supportRouter = Router();
 function toStr(val) {
   if (Array.isArray(val)) return String(val[0] || "");
@@ -4000,7 +6210,7 @@ supportRouter.get("/conversation/:id", async (req, res) => {
     if (!conv) {
       return res.status(404).json({ success: false, error: "Conversation not found" });
     }
-    if (visitor_id && conv.visitor_id !== visitor_id) {
+    if (!visitor_id || conv.visitor_id !== visitor_id) {
       return res.status(403).json({ success: false, error: "Access denied to this conversation" });
     }
     const messages = await supportRepository.getMessages(id);
@@ -4022,7 +6232,7 @@ supportRouter.post("/conversation/:id/messages", async (req, res) => {
       return res.status(404).json({ success: false, error: "Conversation not found" });
     }
     const vId = toStr(visitor_id);
-    if (vId && conv.visitor_id !== vId) {
+    if (!vId || conv.visitor_id !== vId) {
       return res.status(403).json({ success: false, error: "Access denied to this conversation" });
     }
     const userMsg = await supportRepository.createMessage({
@@ -4033,16 +6243,6 @@ supportRouter.post("/conversation/:id/messages", async (req, res) => {
       message_type: "TEXT",
       metadata
     });
-    if (conv.status === "HUMAN_ACTIVE") {
-      return res.json({
-        success: true,
-        data: {
-          userMessage: userMsg,
-          botMessage: null,
-          conversationStatus: "HUMAN_ACTIVE"
-        }
-      });
-    }
     const evaluation = await supportAiEngine.evaluateQuery(
       msgText,
       conv.language,
@@ -4063,6 +6263,14 @@ supportRouter.post("/conversation/:id/messages", async (req, res) => {
       await supportRepository.updateConversation(id, {
         status: "WAITING_HUMAN"
       });
+      await supportEscalationService.triggerHumanRequired({
+        conversationId: id,
+        visitorMessage: msgText,
+        visitorId: conv.visitor_id,
+        language: conv.language,
+        currentPage: conv.current_page,
+        handoffReason: evaluation.handoffReason
+      });
       botMsg = await supportRepository.createMessage({
         conversation_id: id,
         sender_type: "AI",
@@ -4075,6 +6283,9 @@ supportRouter.post("/conversation/:id/messages", async (req, res) => {
         }
       });
     } else {
+      if (conv.status === "HUMAN_ACTIVE") {
+        nextStatus = "HUMAN_ACTIVE";
+      }
       botMsg = await supportRepository.createMessage({
         conversation_id: id,
         sender_type: "AI",
@@ -4109,7 +6320,7 @@ supportRouter.get("/conversation/:id/poll", async (req, res) => {
     if (!conv) {
       return res.status(404).json({ success: false, error: "Conversation not found" });
     }
-    if (visitor_id && conv.visitor_id !== visitor_id) {
+    if (!visitor_id || conv.visitor_id !== visitor_id) {
       return res.status(403).json({ success: false, error: "Access denied" });
     }
     let messages = await supportRepository.getMessages(id);
@@ -4128,7 +6339,7 @@ supportRouter.get("/conversation/:id/poll", async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to poll messages" });
   }
 });
-supportRouter.get("/admin/conversations", authenticateAdmin, async (req, res) => {
+supportRouter.get("/admin/conversations", authenticateAdmin, requireSupport, async (req, res) => {
   try {
     const status = toStr(req.query.status);
     const search = toStr(req.query.search);
@@ -4158,7 +6369,7 @@ supportRouter.get("/admin/conversations", authenticateAdmin, async (req, res) =>
     res.status(500).json({ success: false, error: "Failed to fetch conversations" });
   }
 });
-supportRouter.get("/admin/conversations/:id", authenticateAdmin, async (req, res) => {
+supportRouter.get("/admin/conversations/:id", authenticateAdmin, requireSupport, async (req, res) => {
   try {
     const id = toStr(req.params.id);
     const conv = await supportRepository.getConversationById(id);
@@ -4179,7 +6390,7 @@ supportRouter.get("/admin/conversations/:id", authenticateAdmin, async (req, res
     res.status(500).json({ success: false, error: "Failed to retrieve conversation details" });
   }
 });
-supportRouter.post("/admin/conversations/:id/messages", authenticateAdmin, async (req, res) => {
+supportRouter.post("/admin/conversations/:id/messages", authenticateAdmin, requireSupport, async (req, res) => {
   try {
     const id = toStr(req.params.id);
     const { message, action, suggestedByAi } = req.body;
@@ -4207,6 +6418,8 @@ supportRouter.post("/admin/conversations/:id/messages", authenticateAdmin, async
       status: "HUMAN_ACTIVE",
       assigned_admin_id: adminEmail
     });
+    await supportEscalationService.resolveEscalation(id);
+    await auditSupport(req, "SUPPORT_REPLY_SENT", `Replied in conversation ${id}`);
     res.json({
       success: true,
       data: {
@@ -4218,7 +6431,7 @@ supportRouter.post("/admin/conversations/:id/messages", authenticateAdmin, async
     res.status(500).json({ success: false, error: "Failed to send admin message" });
   }
 });
-supportRouter.patch("/admin/conversations/:id/status", authenticateAdmin, async (req, res) => {
+supportRouter.patch("/admin/conversations/:id/status", authenticateAdmin, requireSupport, async (req, res) => {
   try {
     const id = toStr(req.params.id);
     const status = toStr(req.body.status);
@@ -4263,12 +6476,13 @@ supportRouter.patch("/admin/conversations/:id/status", authenticateAdmin, async 
         message_type: "SYSTEM_EVENT"
       });
     }
+    await auditSupport(req, "SUPPORT_STATUS_CHANGED", `Conversation ${id} \u2192 ${status}`);
     res.json({ success: true, data: updated });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to update conversation status" });
   }
 });
-supportRouter.get("/admin/conversations/:id/suggested-reply", authenticateAdmin, async (req, res) => {
+supportRouter.get("/admin/conversations/:id/suggested-reply", authenticateAdmin, requireSupport, async (req, res) => {
   try {
     const id = toStr(req.params.id);
     const messages = await supportRepository.getMessages(id);
@@ -4290,7 +6504,7 @@ supportRouter.get("/admin/conversations/:id/suggested-reply", authenticateAdmin,
     res.status(500).json({ success: false, error: "Failed to generate suggested reply" });
   }
 });
-supportRouter.get("/admin/knowledge-base", authenticateAdmin, async (req, res) => {
+supportRouter.get("/admin/knowledge-base", authenticateAdmin, requireSupport, async (req, res) => {
   try {
     const category = toStr(req.query.category);
     const language = toStr(req.query.language);
@@ -4307,7 +6521,7 @@ supportRouter.get("/admin/knowledge-base", authenticateAdmin, async (req, res) =
     res.status(500).json({ success: false, error: "Failed to fetch knowledge base" });
   }
 });
-supportRouter.post("/admin/knowledge-base", authenticateAdmin, async (req, res) => {
+supportRouter.post("/admin/knowledge-base", authenticateAdmin, requireSupport, async (req, res) => {
   try {
     const { question, answer, category, language, status, source } = req.body;
     const qText = toStr(question).trim();
@@ -4323,12 +6537,13 @@ supportRouter.post("/admin/knowledge-base", authenticateAdmin, async (req, res) 
       status: toStr(status) || "PUBLISHED",
       source: toStr(source) || "MANUAL"
     });
+    await auditSupport(req, "KNOWLEDGE_ITEM_CREATED", `Created knowledge item: ${qText.slice(0, 80)}`);
     res.json({ success: true, data: saved });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to save knowledge item" });
   }
 });
-supportRouter.put("/admin/knowledge-base/:id", authenticateAdmin, async (req, res) => {
+supportRouter.put("/admin/knowledge-base/:id", authenticateAdmin, requireSupport, async (req, res) => {
   try {
     const id = toStr(req.params.id);
     const { question, answer, category, language, status } = req.body;
@@ -4340,21 +6555,26 @@ supportRouter.put("/admin/knowledge-base/:id", authenticateAdmin, async (req, re
       language: toStr(language),
       status: toStr(status)
     });
+    await auditSupport(req, "KNOWLEDGE_ITEM_UPDATED", `Updated knowledge item ${id}`);
     res.json({ success: true, data: saved });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to update knowledge item" });
   }
 });
-supportRouter.delete("/admin/knowledge-base/:id", authenticateAdmin, async (req, res) => {
+supportRouter.delete("/admin/knowledge-base/:id", authenticateAdmin, requireSupport, async (req, res) => {
   try {
     const id = toStr(req.params.id);
     const deleted = await supportRepository.deleteKnowledgeItem(id);
-    res.json({ success: deleted });
+    if (!deleted) {
+      return res.status(404).json({ success: false, error: "Knowledge item not found" });
+    }
+    await auditSupport(req, "KNOWLEDGE_ITEM_DELETED", `Deleted knowledge item ${id}`);
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to delete knowledge item" });
   }
 });
-supportRouter.get("/admin/analytics", authenticateAdmin, async (req, res) => {
+supportRouter.get("/admin/analytics", authenticateAdmin, requireSupport, async (req, res) => {
   try {
     const analytics = await supportRepository.getAnalytics();
     res.json({ success: true, data: analytics });
@@ -4362,9 +6582,128 @@ supportRouter.get("/admin/analytics", authenticateAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to fetch support analytics" });
   }
 });
+supportRouter.post("/booking-alert", async (req, res) => {
+  try {
+    const booking = req.body;
+    if (!booking || !booking.fullName || !booking.villaName) {
+      return res.status(400).json({ success: false, error: "Incomplete booking details" });
+    }
+    emailService.sendBookingAlert(booking).catch((err) => {
+      console.error("[EMAIL] Background booking alert failed:", err.message);
+    });
+    res.json({ success: true, message: "Booking alert dispatched successfully" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+supportRouter.post("/admin/test-email", authenticateAdmin, requireSupport, async (req, res) => {
+  try {
+    const { targetEmail } = req.body;
+    const to = targetEmail || req.user?.email || "info@zanzirangihouse.com";
+    const result = await emailService.testConnection(to);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+supportRouter.get("/push/public-key", (_req, res) => {
+  res.json({ success: true, publicKey: webPushService.getPublicKey() });
+});
+supportRouter.post("/push/subscribe", authenticateAdmin, requireSupport, async (req, res) => {
+  try {
+    const { subscription } = req.body;
+    if (!subscription || !subscription.endpoint || !subscription.keys) {
+      return res.status(400).json({ success: false, error: "Invalid push subscription payload" });
+    }
+    const email = req.user?.email || "admin@zanzirangihouse.com";
+    const role = req.user?.role || "STAFF";
+    const saved = await supportRepository.savePushSubscription({
+      user_email: email,
+      role,
+      endpoint: subscription.endpoint,
+      p256dh: subscription.keys.p256dh,
+      auth: subscription.keys.auth,
+      user_agent: req.headers["user-agent"] || null
+    });
+    res.json({ success: true, subscription: saved });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+supportRouter.post("/push/unsubscribe", authenticateAdmin, requireSupport, async (req, res) => {
+  try {
+    const { endpoint } = req.body;
+    if (endpoint) {
+      await supportRepository.deletePushSubscription(endpoint);
+    }
+    res.json({ success: true, message: "Unsubscribed successfully" });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+supportRouter.post("/push/test", authenticateAdmin, requireSupport, async (req, res) => {
+  try {
+    const email = req.user?.email || "Staff";
+    const result = await webPushService.sendNotificationToStaff({
+      title: "\u{1F514} Zanzirangi House Support \u2013 Test Alert",
+      body: `Hi ${email.split("@")[0]}! Your phone is connected to Zanzirangi Support Alerts. When guests require human assistance, you will receive real-time notifications here.`,
+      url: "/admin"
+    });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+supportRouter.get("/duty/status", authenticateAdmin, requireSupport, async (req, res) => {
+  try {
+    const staffList = await supportRepository.getStaffDutyList();
+    const myEmail = req.user?.email || "";
+    const myDuty = staffList.find((s) => s.user_email.toLowerCase() === myEmail.toLowerCase());
+    res.json({
+      success: true,
+      staff: staffList,
+      isOnDuty: Boolean(myDuty?.is_on_duty),
+      hasAgentOnline: staffList.some((s) => s.is_on_duty)
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+supportRouter.post("/duty/toggle", authenticateAdmin, requireSupport, async (req, res) => {
+  try {
+    const { isOnDuty } = req.body;
+    const email = req.user?.email || "admin@zanzirangihouse.com";
+    const name = req.user?.name || email.split("@")[0];
+    const role = req.user?.role || "STAFF";
+    const updated = await supportRepository.updateStaffDuty(email, Boolean(isOnDuty), name, role);
+    const staffList = await supportRepository.getStaffDutyList();
+    res.json({
+      success: true,
+      duty: updated,
+      staff: staffList,
+      hasAgentOnline: staffList.some((s) => s.is_on_duty)
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// server/runtime.ts
+var runtimeState = {
+  startedAt: (/* @__PURE__ */ new Date()).toISOString(),
+  pid: process.pid,
+  /** True once the database adapter connected and verified its schema. */
+  databaseReady: false,
+  /** Last database startup error (message only, never credentials). */
+  databaseError: null,
+  shuttingDown: false
+};
+var uptimeSeconds = () => Math.round(process.uptime());
 
 // server/api.ts
 var apiApp = express();
+apiApp.set("trust proxy", 1);
+apiApp.disable("x-powered-by");
 apiApp.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "SAMEORIGIN");
@@ -4381,9 +6720,9 @@ apiApp.use((_req, res, next) => {
 var corsOrigin = env.CORS_ORIGIN === "*" ? true : env.CORS_ORIGIN;
 apiApp.use(cors({ origin: corsOrigin, credentials: true }));
 apiApp.use(cookieParser());
-apiApp.use(express.json({ limit: `${env.MAX_UPLOAD_SIZE_MB}mb` }));
+var JSON_BODY_LIMIT_MB = Math.ceil(env.MAX_UPLOAD_SIZE_MB * 1.4) + 1;
+apiApp.use(express.json({ limit: `${JSON_BODY_LIMIT_MB}mb` }));
 apiApp.use(express.urlencoded({ extended: true, limit: `${env.MAX_UPLOAD_SIZE_MB}mb` }));
-apiApp.use("/uploads", express.static(mediaStorage.getStorageDirectory()));
 var loginRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1e3,
   // 15 minutes
@@ -4399,19 +6738,35 @@ var loginRateLimiter = rateLimit({
   }
 });
 apiApp.get("/health", async (_req, res) => {
-  const dbHealth = await getDatabaseAdapter().healthCheck();
-  res.json({
-    status: "ok",
+  let dbHealth;
+  try {
+    dbHealth = await getDatabaseAdapter().healthCheck();
+  } catch (err) {
+    dbHealth = { connected: false, provider: env.DATABASE_PROVIDER, error: err?.message };
+  }
+  const healthy = dbHealth.connected && !runtimeState.shuttingDown;
+  res.status(healthy ? 200 : 503).json({
+    status: healthy ? "ok" : "degraded",
     database: {
       provider: dbHealth.provider,
-      connected: dbHealth.connected
+      connected: dbHealth.connected,
+      ...healthy ? {} : { error: runtimeState.databaseError || dbHealth.error || "Database unavailable" }
+    },
+    runtime: {
+      uptimeSeconds: uptimeSeconds(),
+      startedAt: runtimeState.startedAt,
+      shuttingDown: runtimeState.shuttingDown
     },
     service: "Zanzirangi House CMS Engine",
     version: env.APP_VERSION,
+    releaseDate: env.APP_RELEASE_DATE,
+    // Pipeline deployment stamp (tag, short commit, CI build, environment, time) — null for manual deploys.
+    // The repository is public, so none of this is sensitive; it lets TKS prove exactly what is live.
+    release: env.APP_DEPLOYMENT,
     timestamp: (/* @__PURE__ */ new Date()).toISOString()
   });
 });
-apiApp.get("/health/database", authenticateAdmin, async (_req, res) => {
+apiApp.get("/health/database", authenticateAdmin, requireSuperadmin, async (_req, res) => {
   try {
     const { testDatabaseConnection: testDatabaseConnection2 } = await Promise.resolve().then(() => (init_connection(), connection_exports));
     const diagnostic = await testDatabaseConnection2();
@@ -4438,6 +6793,12 @@ apiApp.post("/auth/login", loginRateLimiter, async (req, res) => {
     }
     const result = await loginUser(email, password);
     if (!result.success) {
+      await auditRepository.log({
+        action: "USER_LOGIN_FAILED",
+        userEmail: String(email).trim().toLowerCase().slice(0, 255),
+        details: "Failed administrator login attempt",
+        ipAddress: req.ip
+      }).catch(() => void 0);
       res.status(401).json(result);
       return;
     }
@@ -4468,6 +6829,22 @@ apiApp.post("/auth/login", loginRateLimiter, async (req, res) => {
   }
 });
 apiApp.post("/auth/logout", async (req, res) => {
+  const header = req.headers.authorization;
+  const token = header && header.startsWith("Bearer ") ? header.substring(7).trim() : req.cookies?.zanzirangi_admin_token;
+  const decoded = token ? verifyToken(token) : null;
+  if (decoded?.id) {
+    try {
+      await getDatabaseAdapter().revokeUserSessions(decoded.id);
+      await auditRepository.log({
+        action: "USER_LOGOUT",
+        userEmail: decoded.email,
+        details: "Administrator logged out (sessions revoked)",
+        ipAddress: req.ip
+      });
+    } catch (err) {
+      console.error("[AUTH] Logout revocation failed:", err.message);
+    }
+  }
   res.clearCookie("zanzirangi_admin_token");
   res.json({ success: true, message: "Successfully logged out." });
 });
@@ -4568,14 +6945,123 @@ apiApp.get("/content/settings", async (_req, res) => {
         bookingUrl: s.bookingUrl,
         logo: s.logo,
         favicon: s.favicon,
-        maintenanceMode: s.maintenanceMode
+        maintenanceMode: s.maintenanceMode,
+        supportAvatar: s.supportAvatar,
+        supportName: s.supportName,
+        supportTitle: s.supportTitle,
+        supportStatus: s.supportStatus
       }
     });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to retrieve site settings." });
   }
 });
-apiApp.get("/admin/homepage", authenticateAdmin, async (_req, res) => {
+apiApp.get("/content/pages", async (_req, res) => {
+  try {
+    const pages = await pageContentsRepository.getAll();
+    res.json({ success: true, data: pages });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to retrieve pages." });
+  }
+});
+apiApp.get("/content/pages/:id", async (req, res) => {
+  try {
+    const page = await pageContentsRepository.getById(String(req.params.id));
+    if (!page) {
+      res.status(404).json({ success: false, error: "Page not found." });
+      return;
+    }
+    res.json({ success: true, data: page });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to retrieve page content." });
+  }
+});
+var HOME_PAGE_ID = "home";
+apiApp.get("/content/home-sections", async (_req, res) => {
+  try {
+    const page = await pageContentsRepository.getById(HOME_PAGE_ID);
+    res.json({ success: true, data: page?.contentJson?.homeSections || {} });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to retrieve homepage sections." });
+  }
+});
+apiApp.get("/content/translations/:lang", async (req, res) => {
+  const lang = String(req.params.lang);
+  if (!SUPPORTED_TRANSLATION_LANGS.includes(lang)) {
+    res.json({ success: true, data: {} });
+    return;
+  }
+  try {
+    const data = await translationsRepository.getMapForLanguage(lang);
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to retrieve translations." });
+  }
+});
+apiApp.get("/content/chauffeur", async (_req, res) => {
+  try {
+    const data = await chauffeurRepository.get();
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to retrieve chauffeur configuration." });
+  }
+});
+apiApp.get("/content/whystay", async (_req, res) => {
+  try {
+    const data = await whyStayRepository.get();
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to retrieve sanctuary differentiators." });
+  }
+});
+apiApp.get("/content/dining", async (_req, res) => {
+  try {
+    const config = await diningRepository.getConfig();
+    const categories = await diningRepository.getCategories();
+    res.json({
+      success: true,
+      data: {
+        ...config,
+        categories: categories.filter((c) => c.visible)
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to retrieve dining content." });
+  }
+});
+apiApp.get("/content/dining/categories", async (_req, res) => {
+  try {
+    const categories = await diningRepository.getCategories();
+    res.json({ success: true, data: categories.filter((c) => c.visible) });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to retrieve dining categories." });
+  }
+});
+apiApp.get("/content/experiences", async (_req, res) => {
+  try {
+    const items = await experiencesRepository.getAll();
+    res.json({ success: true, data: items.filter((item) => item.visible) });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to retrieve experiences." });
+  }
+});
+apiApp.get("/content/safari", async (_req, res) => {
+  try {
+    const items = await safariRepository.getAll();
+    res.json({ success: true, data: items.filter((item) => item.visible) });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to retrieve safari destinations." });
+  }
+});
+apiApp.get("/content/global", async (_req, res) => {
+  try {
+    const data = await globalContentRepository.get();
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to retrieve global content." });
+  }
+});
+apiApp.get("/admin/homepage", authenticateAdmin, requirePermission("homepage"), async (_req, res) => {
   try {
     const data = await homepageRepository.getHomepage();
     res.json({ success: true, data });
@@ -4583,7 +7069,7 @@ apiApp.get("/admin/homepage", authenticateAdmin, async (_req, res) => {
     res.status(500).json({ success: false, error: "Failed to fetch homepage data." });
   }
 });
-apiApp.put("/admin/homepage", authenticateAdmin, async (req, res) => {
+apiApp.put("/admin/homepage", authenticateAdmin, requirePermission("homepage"), async (req, res) => {
   try {
     const body = req.body;
     if (!body || typeof body !== "object") {
@@ -4601,7 +7087,43 @@ apiApp.put("/admin/homepage", authenticateAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to save homepage changes." });
   }
 });
-apiApp.get("/admin/villas", authenticateAdmin, async (_req, res) => {
+var CONTACT_FIELDS = ["phone", "email", "whatsappNumber", "address", "googleMapsUrl"];
+var SOCIAL_FIELDS = ["instagram", "facebook", "tiktok", "youtube", "whatsapp"];
+apiApp.get("/admin/contact-info", authenticateAdmin, requirePermission("contact"), async (_req, res) => {
+  try {
+    const home = await homepageRepository.getHomepage();
+    res.json({ success: true, data: { contact: home.contact, socials: home.socials || {} } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to load contact information." });
+  }
+});
+apiApp.put("/admin/contact-info", authenticateAdmin, requirePermission("contact"), async (req, res) => {
+  try {
+    const body = req.body || {};
+    const home = await homepageRepository.getHomepage();
+    const contact = { ...home.contact };
+    const socials = { ...home.socials || {} };
+    if (body.contact && typeof body.contact === "object") {
+      for (const k of CONTACT_FIELDS) if (typeof body.contact[k] === "string") contact[k] = body.contact[k].trim();
+    }
+    if (body.socials && typeof body.socials === "object") {
+      for (const k of SOCIAL_FIELDS) if (typeof body.socials[k] === "string") socials[k] = body.socials[k].trim();
+    }
+    if (contact.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email)) {
+      res.status(400).json({ success: false, error: "Please provide a valid contact email address." });
+      return;
+    }
+    const updated = await homepageRepository.updateHomepage({ contact, socials }, req.user?.email || "admin");
+    res.json({
+      success: true,
+      data: { contact: updated.contact, socials: updated.socials || {} },
+      message: "Contact information saved and published."
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to save contact information." });
+  }
+});
+apiApp.get("/admin/villas", authenticateAdmin, requirePermission("villas"), async (_req, res) => {
   try {
     const data = await villasRepository.getAll();
     res.json({ success: true, data });
@@ -4609,7 +7131,7 @@ apiApp.get("/admin/villas", authenticateAdmin, async (_req, res) => {
     res.status(500).json({ success: false, error: "Failed to retrieve villas." });
   }
 });
-apiApp.post("/admin/villas", authenticateAdmin, async (req, res) => {
+apiApp.post("/admin/villas", authenticateAdmin, requirePermission("villas"), async (req, res) => {
   try {
     const newVilla = {
       ...req.body,
@@ -4623,7 +7145,7 @@ apiApp.post("/admin/villas", authenticateAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to create villa." });
   }
 });
-apiApp.put("/admin/villas/:id", authenticateAdmin, async (req, res) => {
+apiApp.put("/admin/villas/:id", authenticateAdmin, requirePermission("villas"), async (req, res) => {
   try {
     const id = String(req.params.id);
     const existing = await villasRepository.getById(id);
@@ -4638,7 +7160,7 @@ apiApp.put("/admin/villas/:id", authenticateAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to update villa." });
   }
 });
-apiApp.delete("/admin/villas/:id", authenticateAdmin, async (req, res) => {
+apiApp.delete("/admin/villas/:id", authenticateAdmin, requirePermission("villas"), async (req, res) => {
   try {
     const id = String(req.params.id);
     const deleted = await villasRepository.delete(id, req.user?.email || "admin");
@@ -4651,7 +7173,7 @@ apiApp.delete("/admin/villas/:id", authenticateAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to delete villa." });
   }
 });
-apiApp.get("/admin/gallery", authenticateAdmin, async (_req, res) => {
+apiApp.get("/admin/gallery", authenticateAdmin, requirePermission("gallery"), async (_req, res) => {
   try {
     const data = await galleryRepository.getAll();
     res.json({ success: true, data });
@@ -4659,7 +7181,7 @@ apiApp.get("/admin/gallery", authenticateAdmin, async (_req, res) => {
     res.status(500).json({ success: false, error: "Failed to retrieve gallery items." });
   }
 });
-apiApp.post("/admin/gallery", authenticateAdmin, async (req, res) => {
+apiApp.post("/admin/gallery", authenticateAdmin, requirePermission("gallery"), async (req, res) => {
   try {
     const newItem = {
       ...req.body,
@@ -4673,7 +7195,7 @@ apiApp.post("/admin/gallery", authenticateAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to add gallery item." });
   }
 });
-apiApp.put("/admin/gallery/:id", authenticateAdmin, async (req, res) => {
+apiApp.put("/admin/gallery/:id", authenticateAdmin, requirePermission("gallery"), async (req, res) => {
   try {
     const { id } = req.params;
     const items = await galleryRepository.getAll();
@@ -4689,7 +7211,7 @@ apiApp.put("/admin/gallery/:id", authenticateAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to update gallery item." });
   }
 });
-apiApp.delete("/admin/gallery/:id", authenticateAdmin, async (req, res) => {
+apiApp.delete("/admin/gallery/:id", authenticateAdmin, requirePermission("gallery"), async (req, res) => {
   try {
     const id = String(req.params.id);
     const deleted = await galleryRepository.delete(id, req.user?.email || "admin");
@@ -4702,7 +7224,7 @@ apiApp.delete("/admin/gallery/:id", authenticateAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to delete gallery item." });
   }
 });
-apiApp.get("/admin/facilities", authenticateAdmin, async (_req, res) => {
+apiApp.get("/admin/facilities", authenticateAdmin, requirePermission("facilities"), async (_req, res) => {
   try {
     const data = await facilitiesRepository.getAll();
     res.json({ success: true, data });
@@ -4710,7 +7232,7 @@ apiApp.get("/admin/facilities", authenticateAdmin, async (_req, res) => {
     res.status(500).json({ success: false, error: "Failed to retrieve facilities." });
   }
 });
-apiApp.put("/admin/facilities/:id", authenticateAdmin, async (req, res) => {
+apiApp.put("/admin/facilities/:id", authenticateAdmin, requirePermission("facilities"), async (req, res) => {
   try {
     const { id } = req.params;
     const facilities = await facilitiesRepository.getAll();
@@ -4726,7 +7248,52 @@ apiApp.put("/admin/facilities/:id", authenticateAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to update facility." });
   }
 });
-apiApp.get("/admin/testimonials", authenticateAdmin, async (_req, res) => {
+apiApp.post("/admin/facilities", authenticateAdmin, requirePermission("facilities"), async (req, res) => {
+  try {
+    const body = req.body || {};
+    if (!body.title || typeof body.title !== "string") {
+      res.status(400).json({ success: false, error: "A facility title is required." });
+      return;
+    }
+    const facilities = await facilitiesRepository.getAll();
+    const id = String(body.id || `facility-${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, "-");
+    if (facilities.some((f) => f.id === id)) {
+      res.status(400).json({ success: false, error: `A facility with id '${id}' already exists.` });
+      return;
+    }
+    const saved = await facilitiesRepository.save(
+      {
+        category: "",
+        description: "",
+        hours: "",
+        highlight: "",
+        image: "",
+        icon: "Sparkles",
+        order: facilities.length + 1,
+        visible: true,
+        ...body,
+        id
+      },
+      req.user?.email || "admin"
+    );
+    res.json({ success: true, data: saved, message: "Facility created." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to create facility." });
+  }
+});
+apiApp.delete("/admin/facilities/:id", authenticateAdmin, requirePermission("facilities"), async (req, res) => {
+  try {
+    const deleted = await getDatabaseAdapter().deleteFacility(String(req.params.id), req.user?.email || "admin");
+    if (!deleted) {
+      res.status(404).json({ success: false, error: "Facility not found." });
+      return;
+    }
+    res.json({ success: true, message: "Facility deleted." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to delete facility." });
+  }
+});
+apiApp.get("/admin/testimonials", authenticateAdmin, requirePermission("testimonials"), async (_req, res) => {
   try {
     const data = await testimonialsRepository.getAll();
     res.json({ success: true, data });
@@ -4734,7 +7301,7 @@ apiApp.get("/admin/testimonials", authenticateAdmin, async (_req, res) => {
     res.status(500).json({ success: false, error: "Failed to retrieve testimonials." });
   }
 });
-apiApp.post("/admin/testimonials", authenticateAdmin, async (req, res) => {
+apiApp.post("/admin/testimonials", authenticateAdmin, requirePermission("testimonials"), async (req, res) => {
   try {
     const newTestimonial = {
       ...req.body,
@@ -4749,7 +7316,7 @@ apiApp.post("/admin/testimonials", authenticateAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to add testimonial." });
   }
 });
-apiApp.put("/admin/testimonials/:id", authenticateAdmin, async (req, res) => {
+apiApp.put("/admin/testimonials/:id", authenticateAdmin, requirePermission("testimonials"), async (req, res) => {
   try {
     const { id } = req.params;
     const testimonials = await testimonialsRepository.getAll();
@@ -4765,7 +7332,7 @@ apiApp.put("/admin/testimonials/:id", authenticateAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to update testimonial." });
   }
 });
-apiApp.delete("/admin/testimonials/:id", authenticateAdmin, async (req, res) => {
+apiApp.delete("/admin/testimonials/:id", authenticateAdmin, requirePermission("testimonials"), async (req, res) => {
   try {
     const id = String(req.params.id);
     const deleted = await testimonialsRepository.delete(id, req.user?.email || "admin");
@@ -4778,7 +7345,7 @@ apiApp.delete("/admin/testimonials/:id", authenticateAdmin, async (req, res) => 
     res.status(500).json({ success: false, error: "Failed to delete testimonial." });
   }
 });
-apiApp.get("/admin/videos", authenticateAdmin, async (_req, res) => {
+apiApp.get("/admin/videos", authenticateAdmin, requirePermission("videos"), async (_req, res) => {
   try {
     const data = await videosRepository.get();
     res.json({ success: true, data });
@@ -4786,7 +7353,7 @@ apiApp.get("/admin/videos", authenticateAdmin, async (_req, res) => {
     res.status(500).json({ success: false, error: "Failed to fetch video details." });
   }
 });
-apiApp.put("/admin/videos", authenticateAdmin, async (req, res) => {
+apiApp.put("/admin/videos", authenticateAdmin, requirePermission("videos"), async (req, res) => {
   try {
     const updated = await videosRepository.update(req.body, req.user?.email || "admin");
     res.json({ success: true, data: updated, message: "Promotional video details updated." });
@@ -4794,7 +7361,7 @@ apiApp.put("/admin/videos", authenticateAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to update videos." });
   }
 });
-apiApp.get("/admin/seo", authenticateAdmin, async (_req, res) => {
+apiApp.get("/admin/seo", authenticateAdmin, requirePermission("seo"), async (_req, res) => {
   try {
     const data = await seoRepository.getSeo();
     res.json({ success: true, data });
@@ -4802,7 +7369,7 @@ apiApp.get("/admin/seo", authenticateAdmin, async (_req, res) => {
     res.status(500).json({ success: false, error: "Failed to fetch SEO configuration." });
   }
 });
-apiApp.put("/admin/seo", authenticateAdmin, async (req, res) => {
+apiApp.put("/admin/seo", authenticateAdmin, requirePermission("seo"), async (req, res) => {
   try {
     const updated = await seoRepository.updateSeo(req.body, req.user?.email || "admin");
     res.json({ success: true, data: updated, message: "SEO configuration saved." });
@@ -4810,7 +7377,7 @@ apiApp.put("/admin/seo", authenticateAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to update SEO." });
   }
 });
-apiApp.get("/admin/media", authenticateAdmin, async (_req, res) => {
+apiApp.get("/admin/media", authenticateAdmin, requirePermission("media"), async (_req, res) => {
   try {
     const data = await mediaRepository.getAll();
     res.json({ success: true, data });
@@ -4818,7 +7385,7 @@ apiApp.get("/admin/media", authenticateAdmin, async (_req, res) => {
     res.status(500).json({ success: false, error: "Failed to fetch media assets." });
   }
 });
-apiApp.post("/admin/media", authenticateAdmin, async (req, res) => {
+apiApp.post("/admin/media", authenticateAdmin, requirePermission("media"), async (req, res) => {
   try {
     const newMedia = {
       ...req.body,
@@ -4833,15 +7400,24 @@ apiApp.post("/admin/media", authenticateAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to save media." });
   }
 });
-apiApp.delete("/admin/media/:id", authenticateAdmin, async (req, res) => {
+apiApp.delete("/admin/media/:id", authenticateAdmin, requirePermission("media"), async (req, res) => {
   try {
     const id = String(req.params.id);
+    const asset = (await mediaRepository.getAll()).find((m) => m.id === id);
     const deleted = await mediaRepository.delete(id, req.user?.email || "admin");
     if (!deleted) {
       res.status(404).json({ success: false, error: "Media asset not found." });
       return;
     }
-    res.json({ success: true, message: "Media asset removed." });
+    let fileRemoved = false;
+    if (asset?.url && String(asset.url).startsWith("/uploads/")) {
+      try {
+        fileRemoved = await mediaStorage.deleteFile(String(asset.url).replace("/uploads/", ""));
+      } catch (e) {
+        console.error("[MEDIA] Could not delete stored file:", e.message);
+      }
+    }
+    res.json({ success: true, message: fileRemoved ? "Media asset and file removed." : "Media asset removed." });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to delete media asset." });
   }
@@ -4853,12 +7429,17 @@ apiApp.post("/admin/media/upload", authenticateAdmin, async (req, res) => {
       res.status(400).json({ success: false, error: "fileBase64, filename, and mimeType are required." });
       return;
     }
-    const base64Data = fileBase64.replace(/^data:([A-Za-z-+/]+);base64,/, "");
+    const base64Data = String(fileBase64).replace(/^data:[^;,]+;base64,/, "");
     const buffer = Buffer.from(base64Data, "base64");
-    const uploadRes = await mediaStorage.saveFile(buffer, filename, mimeType);
+    if (buffer.length === 0) {
+      res.status(400).json({ success: false, error: "The uploaded file is empty or not valid base64." });
+      return;
+    }
+    const uploadRes = await mediaStorage.saveFile(buffer, String(filename), String(mimeType));
     const assetRecord = {
       id: `med-${Date.now()}`,
       filename: uploadRes.filename,
+      originalFilename: String(filename).slice(0, 255),
       url: uploadRes.url,
       mimeType: uploadRes.mimeType,
       sizeBytes: uploadRes.size,
@@ -4875,7 +7456,7 @@ apiApp.post("/admin/media/upload", authenticateAdmin, async (req, res) => {
     res.status(400).json({ success: false, error: err.message });
   }
 });
-apiApp.get("/admin/settings", authenticateAdmin, async (_req, res) => {
+apiApp.get("/admin/settings", authenticateAdmin, requirePermission("settings"), async (_req, res) => {
   try {
     const data = await settingsRepository.getSettings();
     res.json({ success: true, data });
@@ -4883,7 +7464,7 @@ apiApp.get("/admin/settings", authenticateAdmin, async (_req, res) => {
     res.status(500).json({ success: false, error: "Failed to fetch settings." });
   }
 });
-apiApp.put("/admin/settings", authenticateAdmin, async (req, res) => {
+apiApp.put("/admin/settings", authenticateAdmin, requirePermission("settings"), async (req, res) => {
   try {
     const updated = await settingsRepository.updateSettings(req.body, req.user?.email || "admin");
     res.json({ success: true, data: updated, message: "Settings saved." });
@@ -4891,7 +7472,579 @@ apiApp.put("/admin/settings", authenticateAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to update settings." });
   }
 });
-apiApp.get("/admin/dashboard-stats", authenticateAdmin, async (_req, res) => {
+apiApp.get("/admin/pages", authenticateAdmin, requirePermission("pages"), async (_req, res) => {
+  try {
+    const pages = await pageContentsRepository.getAll();
+    res.json({ success: true, data: pages });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to fetch pages." });
+  }
+});
+apiApp.get("/admin/pages/:id", authenticateAdmin, requirePermission("pages"), async (req, res) => {
+  try {
+    const page = await pageContentsRepository.getById(String(req.params.id));
+    if (!page) {
+      res.status(404).json({ success: false, error: "Page not found." });
+      return;
+    }
+    res.json({ success: true, data: page });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to fetch page content." });
+  }
+});
+apiApp.put("/admin/pages/:id", authenticateAdmin, requirePermission("pages"), async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const body = { ...req.body || {} };
+    const existing = await pageContentsRepository.getById(id);
+    if (existing?.contentJson?.homeSections) {
+      body.contentJson = { ...body.contentJson || {}, homeSections: existing.contentJson.homeSections };
+    }
+    const updated = await pageContentsRepository.update(id, body, req.user?.email || "admin");
+    res.json({ success: true, data: updated, message: `Page '${updated.title}' saved and published.` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to update page." });
+  }
+});
+apiApp.get("/admin/translations/:lang", authenticateAdmin, requirePermission("pages"), async (req, res) => {
+  const lang = String(req.params.lang);
+  if (!SUPPORTED_TRANSLATION_LANGS.includes(lang)) {
+    res.status(400).json({ success: false, error: `Unsupported language '${lang}'.` });
+    return;
+  }
+  try {
+    const data = await translationsRepository.getForLanguage(lang);
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to fetch translations." });
+  }
+});
+apiApp.put("/admin/translations/:lang", authenticateAdmin, requirePermission("pages"), async (req, res) => {
+  const lang = String(req.params.lang);
+  const entries = req.body?.entries;
+  if (!SUPPORTED_TRANSLATION_LANGS.includes(lang)) {
+    res.status(400).json({ success: false, error: `Unsupported language '${lang}'.` });
+    return;
+  }
+  const valid = Array.isArray(entries) && entries.every(
+    (e) => e && typeof e.entity === "string" && typeof e.path === "string" && e.path.length <= 255 && typeof e.value === "string" && (e.source === void 0 || typeof e.source === "string")
+  );
+  if (!valid) {
+    res.status(400).json({ success: false, error: "Invalid translations payload." });
+    return;
+  }
+  try {
+    const saved = await translationsRepository.save(lang, entries, req.user?.email || "admin");
+    res.json({ success: true, data: { saved }, message: `${saved} ${lang.toUpperCase()} translations saved and published.` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to save translations." });
+  }
+});
+apiApp.get("/admin/home-sections", authenticateAdmin, requirePermission("homepage"), async (_req, res) => {
+  try {
+    const page = await pageContentsRepository.getById(HOME_PAGE_ID);
+    res.json({ success: true, data: page?.contentJson?.homeSections || {} });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to fetch homepage sections." });
+  }
+});
+apiApp.put("/admin/home-sections", authenticateAdmin, requirePermission("homepage"), async (req, res) => {
+  try {
+    const homeSections = req.body;
+    if (!homeSections || typeof homeSections !== "object" || Array.isArray(homeSections)) {
+      res.status(400).json({ success: false, error: "Invalid homepage sections payload." });
+      return;
+    }
+    const existing = await pageContentsRepository.getById(HOME_PAGE_ID);
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Home page record not found in page_contents." });
+      return;
+    }
+    const updated = await pageContentsRepository.update(
+      HOME_PAGE_ID,
+      { contentJson: { ...existing.contentJson || {}, homeSections } },
+      req.user?.email || "admin"
+    );
+    res.json({ success: true, data: updated.contentJson?.homeSections || {}, message: "Homepage sections saved and published." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to update homepage sections." });
+  }
+});
+apiApp.get("/admin/chauffeur", authenticateAdmin, requirePermission("transfers"), async (_req, res) => {
+  try {
+    const data = await chauffeurRepository.get();
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to fetch chauffeur configuration." });
+  }
+});
+apiApp.put("/admin/chauffeur", authenticateAdmin, requirePermission("transfers"), async (req, res) => {
+  try {
+    const updated = await chauffeurRepository.update(req.body, req.user?.email || "admin");
+    res.json({ success: true, data: updated, message: "VIP Chauffeur & Transfers configuration published." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to update chauffeur configuration." });
+  }
+});
+apiApp.get("/admin/whystay", authenticateAdmin, requireAnyPermission(["homepage", "pages"]), async (_req, res) => {
+  try {
+    const data = await whyStayRepository.get();
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to fetch sanctuary differentiators." });
+  }
+});
+apiApp.put("/admin/whystay", authenticateAdmin, requireAnyPermission(["homepage", "pages"]), async (req, res) => {
+  try {
+    const updated = await whyStayRepository.update(req.body, req.user?.email || "admin");
+    res.json({ success: true, data: updated, message: "Why Stay / Sanctuary Difference configuration published." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to update sanctuary differentiators." });
+  }
+});
+apiApp.get("/admin/dining", authenticateAdmin, requirePermission("dining"), async (_req, res) => {
+  try {
+    const config = await diningRepository.getConfig();
+    const categories = await diningRepository.getCategories();
+    res.json({ success: true, data: { ...config, categories } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to fetch dining content." });
+  }
+});
+apiApp.put("/admin/dining", authenticateAdmin, requirePermission("dining"), async (req, res) => {
+  try {
+    const updated = await diningRepository.updateConfig(req.body, req.user?.email || "admin");
+    res.json({ success: true, data: updated, message: "Dining narrative published." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to update dining config." });
+  }
+});
+apiApp.get("/admin/dining/categories", authenticateAdmin, requirePermission("dining"), async (_req, res) => {
+  try {
+    const categories = await diningRepository.getCategories();
+    res.json({ success: true, data: categories });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to fetch dining categories." });
+  }
+});
+apiApp.post("/admin/dining/categories", authenticateAdmin, requirePermission("dining"), async (req, res) => {
+  try {
+    const cat = {
+      ...req.body,
+      id: req.body.id || `dining-${Date.now()}`,
+      order: req.body.order || 0,
+      visible: req.body.visible !== false,
+      signatureDishes: req.body.signatureDishes || []
+    };
+    const saved = await diningRepository.saveCategory(cat, req.user?.email || "admin");
+    res.json({ success: true, data: saved, message: "Dining category created." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to create dining category." });
+  }
+});
+apiApp.put("/admin/dining/categories/:id", authenticateAdmin, requirePermission("dining"), async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const cat = {
+      ...req.body,
+      id
+    };
+    const saved = await diningRepository.saveCategory(cat, req.user?.email || "admin");
+    res.json({ success: true, data: saved, message: "Dining category updated." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to update dining category." });
+  }
+});
+apiApp.delete("/admin/dining/categories/:id", authenticateAdmin, requirePermission("dining"), async (req, res) => {
+  try {
+    const deleted = await diningRepository.deleteCategory(String(req.params.id), req.user?.email || "admin");
+    if (!deleted) {
+      res.status(404).json({ success: false, error: "Dining category not found." });
+      return;
+    }
+    res.json({ success: true, message: "Dining category deleted." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to delete dining category." });
+  }
+});
+apiApp.get("/admin/experiences", authenticateAdmin, requirePermission("experiences"), async (_req, res) => {
+  try {
+    const items = await experiencesRepository.getAll();
+    res.json({ success: true, data: items });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to fetch experiences." });
+  }
+});
+apiApp.post("/admin/experiences", authenticateAdmin, requirePermission("experiences"), async (req, res) => {
+  try {
+    const item = {
+      ...req.body,
+      id: req.body.id || `exp-${Date.now()}`,
+      order: req.body.order || 0,
+      visible: req.body.visible !== false
+    };
+    const saved = await experiencesRepository.save(item, req.user?.email || "admin");
+    res.json({ success: true, data: saved, message: "Experience created successfully." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to create experience." });
+  }
+});
+apiApp.put("/admin/experiences/:id", authenticateAdmin, requirePermission("experiences"), async (req, res) => {
+  try {
+    const item = {
+      ...req.body,
+      id: String(req.params.id)
+    };
+    const saved = await experiencesRepository.save(item, req.user?.email || "admin");
+    res.json({ success: true, data: saved, message: "Experience updated successfully." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to update experience." });
+  }
+});
+apiApp.delete("/admin/experiences/:id", authenticateAdmin, requirePermission("experiences"), async (req, res) => {
+  try {
+    const deleted = await experiencesRepository.delete(String(req.params.id), req.user?.email || "admin");
+    if (!deleted) {
+      res.status(404).json({ success: false, error: "Experience not found." });
+      return;
+    }
+    res.json({ success: true, message: "Experience deleted successfully." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to delete experience." });
+  }
+});
+apiApp.get("/admin/safari", authenticateAdmin, requirePermission("safari"), async (_req, res) => {
+  try {
+    const items = await safariRepository.getAll();
+    res.json({ success: true, data: items });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to fetch safari destinations." });
+  }
+});
+apiApp.post("/admin/safari", authenticateAdmin, requirePermission("safari"), async (req, res) => {
+  try {
+    const item = {
+      ...req.body,
+      id: req.body.id || `safari-${Date.now()}`,
+      order: req.body.order || 0,
+      visible: req.body.visible !== false,
+      highlights: req.body.highlights || []
+    };
+    const saved = await safariRepository.save(item, req.user?.email || "admin");
+    res.json({ success: true, data: saved, message: "Safari destination created successfully." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to create safari destination." });
+  }
+});
+apiApp.put("/admin/safari/:id", authenticateAdmin, requirePermission("safari"), async (req, res) => {
+  try {
+    const item = {
+      ...req.body,
+      id: String(req.params.id)
+    };
+    const saved = await safariRepository.save(item, req.user?.email || "admin");
+    res.json({ success: true, data: saved, message: "Safari destination updated successfully." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to update safari destination." });
+  }
+});
+apiApp.delete("/admin/safari/:id", authenticateAdmin, requirePermission("safari"), async (req, res) => {
+  try {
+    const deleted = await safariRepository.delete(String(req.params.id), req.user?.email || "admin");
+    if (!deleted) {
+      res.status(404).json({ success: false, error: "Safari destination not found." });
+      return;
+    }
+    res.json({ success: true, message: "Safari destination deleted successfully." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to delete safari destination." });
+  }
+});
+apiApp.get("/admin/global", authenticateAdmin, requirePermission("settings"), async (_req, res) => {
+  try {
+    const data = await globalContentRepository.get();
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to fetch global content." });
+  }
+});
+apiApp.put("/admin/global", authenticateAdmin, requirePermission("settings"), async (req, res) => {
+  try {
+    const updated = await globalContentRepository.update(req.body, req.user?.email || "admin");
+    res.json({ success: true, data: updated, message: "Global navigation and footer content published." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to update global content." });
+  }
+});
+var MAX_ACTIVE_ADMINS = 6;
+var EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+var countActiveSuperadmins = async () => (await usersRepository.list()).filter((u) => u.role === "superadmin" && u.status !== "disabled").length;
+apiApp.get("/admin/users", authenticateAdmin, requireSuperadmin, async (_req, res) => {
+  try {
+    const users = await usersRepository.list();
+    const activeCount = users.filter((u) => u.status !== "disabled").length;
+    res.json({
+      success: true,
+      data: users,
+      meta: {
+        activeCount,
+        maxActive: MAX_ACTIVE_ADMINS,
+        availableSlots: Math.max(0, MAX_ACTIVE_ADMINS - activeCount)
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to fetch administrators." });
+  }
+});
+apiApp.post("/admin/users", authenticateAdmin, requireSuperadmin, async (req, res) => {
+  try {
+    const name = req.body.name || req.body.fullName;
+    const { email, password, role, permissions } = req.body;
+    if (!name || !email || !password) {
+      res.status(400).json({ success: false, error: "Full name, email, and password are required." });
+      return;
+    }
+    if (typeof password !== "string" || password.length < 8 || password.length > 72) {
+      res.status(400).json({ success: false, error: "Password must be between 8 and 72 characters long." });
+      return;
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    if (!EMAIL_PATTERN.test(cleanEmail)) {
+      res.status(400).json({ success: false, error: "Please provide a valid email address." });
+      return;
+    }
+    const existing = await usersRepository.findByEmail(cleanEmail);
+    if (existing) {
+      res.status(400).json({ success: false, error: "An administrator with this email already exists." });
+      return;
+    }
+    const activeCount = await usersRepository.getActiveCount();
+    if (activeCount >= MAX_ACTIVE_ADMINS) {
+      res.status(400).json({
+        success: false,
+        error: `Maximum active administrators limit reached (${MAX_ACTIVE_ADMINS}/${MAX_ACTIVE_ADMINS}). Please disable an existing user before adding a new one.`
+      });
+      return;
+    }
+    const passwordHash = await bcrypt3.hash(password, 12);
+    const assignedRole = role === "superadmin" ? "superadmin" : "admin";
+    const assignedPermissions = Array.isArray(permissions) ? sanitizePermissions(permissions) : [...ADMIN_PERMISSIONS];
+    const newUser = await usersRepository.create({
+      id: `usr_${Date.now()}`,
+      name: name.trim(),
+      email: cleanEmail,
+      role: assignedRole,
+      status: "active",
+      permissions: assignedPermissions,
+      tokenVersion: 1,
+      passwordHash,
+      createdAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+    await auditRepository.log({
+      action: "ADMIN_USER_CREATED",
+      userEmail: req.user.email,
+      details: `Created administrator ${newUser.name} (${newUser.email}) with role ${newUser.role}`,
+      ipAddress: req.ip
+    });
+    res.json({
+      success: true,
+      message: "Administrator successfully created.",
+      data: {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+        status: newUser.status,
+        permissions: newUser.permissions,
+        createdAt: newUser.createdAt
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to create administrator." });
+  }
+});
+apiApp.get("/admin/users/:id", authenticateAdmin, requireSuperadmin, async (req, res) => {
+  try {
+    const user = await usersRepository.findById(String(req.params.id));
+    if (!user) {
+      res.status(404).json({ success: false, error: "User not found." });
+      return;
+    }
+    const { passwordHash, ...safe } = user;
+    res.json({ success: true, data: safe });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "Failed to fetch administrator." });
+  }
+});
+apiApp.put("/admin/users/:id", authenticateAdmin, requireSuperadmin, async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const existing = await usersRepository.findById(id);
+    if (!existing) {
+      res.status(404).json({ success: false, error: "User not found." });
+      return;
+    }
+    const body = req.body || {};
+    const changes = {};
+    if (body.name !== void 0) {
+      const name = String(body.name).trim();
+      if (!name || name.length > 120) {
+        res.status(400).json({ success: false, error: "Name must be between 1 and 120 characters." });
+        return;
+      }
+      changes.name = name;
+    }
+    if (body.role !== void 0) {
+      if (body.role !== "superadmin" && body.role !== "admin") {
+        res.status(400).json({ success: false, error: "Role must be 'superadmin' or 'admin'." });
+        return;
+      }
+      changes.role = body.role;
+    }
+    if (body.status !== void 0) {
+      if (body.status !== "active" && body.status !== "disabled") {
+        res.status(400).json({ success: false, error: "Status must be 'active' or 'disabled'." });
+        return;
+      }
+      changes.status = body.status;
+    }
+    if (body.permissions !== void 0) {
+      if (!Array.isArray(body.permissions)) {
+        res.status(400).json({ success: false, error: "Permissions must be a list." });
+        return;
+      }
+      changes.permissions = sanitizePermissions(body.permissions);
+    }
+    const isSelf = id === req.user?.id;
+    const losesSuperadmin = existing.role === "superadmin" && existing.status !== "disabled" && (changes.role && changes.role !== "superadmin" || changes.status === "disabled");
+    if (isSelf && (changes.status === "disabled" || changes.role && changes.role !== existing.role)) {
+      res.status(400).json({ success: false, error: "You cannot disable or change the role of your own account." });
+      return;
+    }
+    if (losesSuperadmin && await countActiveSuperadmins() <= 1) {
+      res.status(400).json({ success: false, error: "Cannot disable or demote the last remaining active Superadmin." });
+      return;
+    }
+    if (existing.status === "disabled" && changes.status === "active") {
+      const activeCount = await usersRepository.getActiveCount();
+      if (activeCount >= MAX_ACTIVE_ADMINS) {
+        res.status(400).json({
+          success: false,
+          error: `Maximum active administrators limit reached (${MAX_ACTIVE_ADMINS}/${MAX_ACTIVE_ADMINS}).`
+        });
+        return;
+      }
+    }
+    const updated = await usersRepository.update(id, changes);
+    const { passwordHash, ...safe } = updated;
+    const changeSummary = [
+      changes.name !== void 0 && changes.name !== existing.name ? "name" : null,
+      changes.role !== void 0 && changes.role !== existing.role ? `role ${existing.role} \u2192 ${changes.role}` : null,
+      changes.status !== void 0 && changes.status !== existing.status ? `status ${existing.status || "active"} \u2192 ${changes.status}` : null,
+      changes.permissions !== void 0 && JSON.stringify(changes.permissions) !== JSON.stringify(existing.permissions || []) ? `permissions [${changes.permissions.join(", ")}]` : null
+    ].filter(Boolean);
+    await auditRepository.log({
+      action: "ADMIN_USER_UPDATED",
+      userEmail: req.user.email,
+      details: `Updated administrator ${safe.name} (${safe.email})${changeSummary.length ? `: ${changeSummary.join("; ")}` : ""}`,
+      ipAddress: req.ip
+    });
+    res.json({ success: true, data: safe, message: "Administrator profile updated." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to update administrator." });
+  }
+});
+apiApp.post("/admin/users/:id/disable", authenticateAdmin, requireSuperadmin, async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const target = await usersRepository.findById(id);
+    if (!target) {
+      res.status(404).json({ success: false, error: "User not found." });
+      return;
+    }
+    if (id === req.user?.id) {
+      res.status(400).json({ success: false, error: "You cannot disable your own currently active account." });
+      return;
+    }
+    if (target.role === "superadmin") {
+      const allUsers = await usersRepository.list();
+      const activeSuperadmins = allUsers.filter((u) => u.role === "superadmin" && u.status !== "disabled");
+      if (activeSuperadmins.length <= 1) {
+        res.status(400).json({ success: false, error: "Cannot disable the last remaining active Superadmin." });
+        return;
+      }
+    }
+    await usersRepository.disable(id);
+    await auditRepository.log({
+      action: "ADMIN_USER_DISABLED",
+      userEmail: req.user.email,
+      details: `Deactivated administrator ${target.name} (${target.email})`,
+      ipAddress: req.ip
+    });
+    res.json({ success: true, message: `Administrator ${target.name} has been deactivated.` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to disable administrator." });
+  }
+});
+apiApp.post("/admin/users/:id/enable", authenticateAdmin, requireSuperadmin, async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const target = await usersRepository.findById(id);
+    if (!target) {
+      res.status(404).json({ success: false, error: "User not found." });
+      return;
+    }
+    if (target.status !== "disabled") {
+      res.json({ success: true, message: `Administrator ${target.name} is already active.` });
+      return;
+    }
+    const activeCount = await usersRepository.getActiveCount();
+    if (activeCount >= MAX_ACTIVE_ADMINS) {
+      res.status(400).json({
+        success: false,
+        error: `Maximum active administrators limit reached (${MAX_ACTIVE_ADMINS}/${MAX_ACTIVE_ADMINS}). Please disable an existing user first.`
+      });
+      return;
+    }
+    await usersRepository.enable(id);
+    await auditRepository.log({
+      action: "ADMIN_USER_ENABLED",
+      userEmail: req.user.email,
+      details: `Activated administrator ${target.name} (${target.email})`,
+      ipAddress: req.ip
+    });
+    res.json({ success: true, message: `Administrator ${target.name} has been activated.` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to enable administrator." });
+  }
+});
+apiApp.post("/admin/users/:id/reset-password", authenticateAdmin, requireSuperadmin, async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const { newPassword } = req.body;
+    if (typeof newPassword !== "string" || newPassword.length < 8 || newPassword.length > 72) {
+      res.status(400).json({ success: false, error: "New password must be between 8 and 72 characters long." });
+      return;
+    }
+    const target = await usersRepository.findById(id);
+    if (!target) {
+      res.status(404).json({ success: false, error: "User not found." });
+      return;
+    }
+    const newHash = await bcrypt3.hash(newPassword, 12);
+    await usersRepository.resetPassword(id, newHash);
+    await auditRepository.log({
+      action: "ADMIN_PASSWORD_RESET",
+      userEmail: req.user.email,
+      details: `Reset password for administrator ${target.name} (${target.email}). Active sessions invalidated.`,
+      ipAddress: req.ip
+    });
+    res.json({ success: true, message: "Password has been reset successfully. Active sessions invalidated." });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message || "Failed to reset password." });
+  }
+});
+apiApp.get("/admin/dashboard-stats", authenticateAdmin, requirePermission("dashboard"), async (_req, res) => {
   try {
     const stats = await getDatabaseAdapter().getDashboardStats();
     res.json({
@@ -4902,9 +8055,10 @@ apiApp.get("/admin/dashboard-stats", authenticateAdmin, async (_req, res) => {
     res.status(500).json({ success: false, error: "Failed to fetch dashboard metrics." });
   }
 });
-apiApp.get(["/admin/audit-logs", "/admin/audit"], authenticateAdmin, async (req, res) => {
+apiApp.get(["/admin/audit-logs", "/admin/audit"], authenticateAdmin, requireSuperadmin, async (req, res) => {
   try {
-    const limit = parseInt(String(req.query.limit || "50"), 10);
+    const requested = parseInt(String(req.query.limit || "50"), 10);
+    const limit = Number.isFinite(requested) ? Math.min(Math.max(requested, 1), 500) : 50;
     const logs = await auditRepository.getLogs(limit);
     res.json({ success: true, data: logs });
   } catch (err) {
@@ -4912,69 +8066,163 @@ apiApp.get(["/admin/audit-logs", "/admin/audit"], authenticateAdmin, async (req,
   }
 });
 apiApp.use("/support", supportRouter);
+apiApp.use((req, res) => {
+  res.status(404).json({ success: false, error: `API endpoint not found: ${req.method} ${req.baseUrl}${req.path}` });
+});
+apiApp.use((err, req, res, _next) => {
+  if (err?.type === "entity.too.large") {
+    res.status(413).json({ success: false, error: `Request is too large (limit ${env.MAX_UPLOAD_SIZE_MB} MB).` });
+    return;
+  }
+  if (err?.type === "entity.parse.failed") {
+    res.status(400).json({ success: false, error: "Malformed JSON request body." });
+    return;
+  }
+  console.error(`[API] Unhandled error on ${req.method} ${req.originalUrl}: ${err?.stack || err}`);
+  res.status(err?.status || 500).json({
+    success: false,
+    error: env.NODE_ENV === "production" ? "Internal server error." : String(err?.message || err)
+  });
+});
 
 // server/index.ts
 init_env();
-validateEnvironment();
+try {
+  validateEnvironment();
+} catch (err) {
+  console.error(`[STARTUP] Invalid environment configuration: ${err.message}`);
+  process.exit(1);
+}
 var __filename2 = fileURLToPath2(import.meta.url);
 var __dirname2 = path5.dirname(__filename2);
 var app = express2();
-getDatabaseAdapter().connect().then(() => {
-  console.log(`\u{1F680} Database engine initialized [Provider: ${env.DATABASE_PROVIDER}]`);
-}).catch((err) => {
-  console.error("\u274C Failed to initialize database on startup:", err.message);
-  if (env.DATABASE_PROVIDER === "mysql") {
-    console.error("\u{1F4A5} Critical Database Failure: Hostinger MySQL unreachable. Silent fallback to JSON is strictly prohibited.");
-    if (env.NODE_ENV === "production") {
-      console.error("\u{1F4A5} Terminating production process to prevent inconsistent data state.");
-      process.exit(1);
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
+if (env.SITE_NOINDEX) {
+  app.use((req, res, next) => {
+    res.setHeader("X-Robots-Tag", "noindex, nofollow");
+    if (req.path === "/robots.txt") {
+      res.type("text/plain").send("User-agent: *\nDisallow: /\n");
+      return;
     }
+    next();
+  });
+}
+var uploadHeaders = (res) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Content-Security-Policy", "default-src 'none'; img-src 'self'; media-src 'self'; sandbox");
+  res.setHeader("Cache-Control", "public, no-cache");
+};
+var mediaDirs = Array.from(/* @__PURE__ */ new Set([mediaStorage.getStorageDirectory(), path5.resolve(process.cwd(), "uploads")]));
+mediaDirs.forEach((dir) => {
+  if (fs5.existsSync(dir)) {
+    app.use("/uploads", express2.static(dir, { setHeaders: uploadHeaders, index: false }));
   }
 });
-app.use("/uploads", express2.static(mediaStorage.getStorageDirectory()));
 app.use("/api", apiApp);
-var distPath = fs4.existsSync(path5.resolve(__dirname2, "../dist")) ? path5.resolve(__dirname2, "../dist") : path5.resolve(__dirname2, "./dist");
-app.use(express2.static(distPath));
+var distCandidates = [path5.resolve(__dirname2, "dist"), path5.resolve(__dirname2, "../dist")];
+var distPath = distCandidates.find((p) => fs5.existsSync(path5.join(p, "index.html"))) || distCandidates[0];
+app.use(
+  "/assets",
+  express2.static(path5.join(distPath, "assets"), { maxAge: "1y", immutable: true, index: false, fallthrough: false })
+);
+app.use(
+  express2.static(distPath, {
+    index: false,
+    redirect: false,
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith(".html")) res.setHeader("Cache-Control", "no-cache");
+    }
+  })
+);
 app.use((req, res, next) => {
-  if (req.method !== "GET") return next();
-  if (req.path.startsWith("/api") || req.path.startsWith("/uploads")) {
+  if (req.method !== "GET" && req.method !== "HEAD") return next();
+  if (req.path.startsWith("/api") || req.path.startsWith("/uploads") || req.path.startsWith("/assets")) {
     return next();
   }
-  const indexPath = path5.join(distPath, "index.html");
-  res.sendFile(indexPath, (err) => {
-    if (err) {
-      res.status(404).send("Zanzirangi House - Frontend distribution not built yet. Please run `npm run build`.");
+  if (path5.extname(req.path)) {
+    res.status(404).type("text/plain").send("Not found");
+    return;
+  }
+  const routeDir = path5.resolve(distPath, "." + req.path.replace(/\/+$/, ""));
+  const prerendered = path5.join(routeDir, "index.html");
+  const target = routeDir.startsWith(distPath) && req.path !== "/" && fs5.existsSync(prerendered) ? prerendered : path5.join(distPath, "index.html");
+  res.setHeader("Cache-Control", "no-cache");
+  res.sendFile(target, (err) => {
+    if (err && !res.headersSent) {
+      res.status(503).type("text/plain").send("Zanzirangi House: frontend build is missing on the server.");
     }
   });
 });
+var dbRetryTimer = null;
+async function connectDatabase(attempt = 1) {
+  try {
+    await getDatabaseAdapter().connect();
+    runtimeState.databaseReady = true;
+    runtimeState.databaseError = null;
+    console.log(`[DATABASE] Ready [provider: ${env.DATABASE_PROVIDER}, attempt ${attempt}]`);
+  } catch (err) {
+    runtimeState.databaseReady = false;
+    runtimeState.databaseError = err?.message || "Unknown database error";
+    const delay = Math.min(60, 5 * attempt);
+    console.error(
+      `[DATABASE] Connection failed (attempt ${attempt}): ${runtimeState.databaseError}. Retrying in ${delay}s.`
+    );
+    if (!runtimeState.shuttingDown) {
+      dbRetryTimer = setTimeout(() => connectDatabase(attempt + 1), delay * 1e3);
+    }
+  }
+}
 var PORT = env.PORT || 3e3;
 var HOST = "0.0.0.0";
-var server;
-if (process.argv[1] && process.argv[1].endsWith("index.ts") || process.argv[1]?.endsWith("index.js") || process.argv[1]?.endsWith("server.js") || process.env.NODE_ENV === "production") {
-  server = app.listen(PORT, HOST, () => {
-    console.log(`\u{1F3F0} Zanzirangi House Production Engine running on ${env.APP_URL} (Host: ${HOST}, Port: ${PORT})`);
-  });
-  const shutdown = async (signal) => {
-    console.log(`
-\u{1F6D1} Received ${signal}. Initiating graceful shutdown...`);
-    if (server) {
-      server.close(async () => {
-        try {
-          await getDatabaseAdapter().disconnect();
-          console.log("\u2705 Closed database connections.");
-        } catch (e) {
-          console.error("Error closing database connections:", e.message);
-        }
-        console.log("\u{1F3C1} Application process exited cleanly.");
-        process.exit(0);
-      });
-    } else {
-      process.exit(0);
-    }
-  };
+var embedded = process.env.ZANZIRANGI_NO_LISTEN === "1";
+var server = embedded ? null : app.listen(PORT, HOST, () => {
+  console.log(
+    `[STARTUP] Zanzirangi House ready [env: ${env.NODE_ENV}, provider: ${env.DATABASE_PROVIDER}, bind: ${HOST}:${PORT}, pid: ${process.pid}, url: ${env.APP_URL}]`
+  );
+});
+server?.on("error", (err) => {
+  console.error(`[STARTUP] HTTP server error: ${err.code || ""} ${err.message}`);
+  if (err.code === "EADDRINUSE" || err.code === "EACCES") process.exit(1);
+});
+connectDatabase();
+supportEscalationService.startEscalationMonitor();
+async function shutdown(signal, exitCode = 0) {
+  if (runtimeState.shuttingDown) return;
+  runtimeState.shuttingDown = true;
+  console.log(`[SHUTDOWN] ${signal} received (pid ${process.pid}, uptime ${uptimeSeconds()}s). Shutting down gracefully...`);
+  supportEscalationService.stopEscalationMonitor();
+  if (dbRetryTimer) clearTimeout(dbRetryTimer);
+  const forceExit = setTimeout(() => {
+    console.error("[SHUTDOWN] Graceful shutdown timed out after 10s. Forcing exit.");
+    process.exit(exitCode || 1);
+  }, 1e4);
+  forceExit.unref();
+  if (server) {
+    await new Promise((resolve) => server.close(() => resolve()));
+    console.log("[SHUTDOWN] HTTP server closed.");
+  }
+  try {
+    await getDatabaseAdapter().disconnect();
+    console.log("[SHUTDOWN] Database connections closed.");
+  } catch (e) {
+    console.error(`[SHUTDOWN] Error closing database connections: ${e.message}`);
+  }
+  console.log(`[SHUTDOWN] Process exit (${exitCode}).`);
+  process.exit(exitCode);
+}
+if (!embedded) {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("unhandledRejection", (reason) => {
+    console.error(`[RUNTIME] Unhandled promise rejection: ${reason?.stack || reason}`);
+  });
+  process.on("uncaughtException", (err) => {
+    console.error(`[RUNTIME] Uncaught exception: ${err.stack || err.message}`);
+    shutdown("uncaughtException", 1);
+  });
 }
 export {
-  app
+  app,
+  server
 };

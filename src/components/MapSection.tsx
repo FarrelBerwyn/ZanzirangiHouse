@@ -3,17 +3,57 @@ import { MapPin, Phone, Mail, MessageSquare, Navigation, Copy, Check, ExternalLi
 import { Language } from '../types';
 import { PROPERTY_CONFIG } from '../data/propertyConfig';
 import { TRANSLATIONS } from '../data/translations';
+import { HomeSectionContent, cmsList, cmsText } from '../data/homeSectionsCms';
+import { MAP_DEFAULTS_I18N } from '../data/sectionDefaultsI18n';
 
 interface MapSectionProps {
   currentLang: Language;
+  cmsContent?: HomeSectionContent;
+  /** Contact details from Admin → Halaman Home → Kontak */
+  contact?: { phone?: string; email?: string; whatsappNumber?: string; address?: string; googleMapsUrl?: string };
 }
 
-export const MapSection: React.FC<MapSectionProps> = ({ currentLang }) => {
+export const MAP_DEFAULTS = {
+  eyebrow: 'Zanzirangi House • Bwejuu',
+  badge: 'Bwejuu Beach • East Coast',
+  copyLabel: 'Copy Exact Coordinates & Address',
+  copiedLabel: 'Address Copied to Clipboard',
+  directionsUrl: 'https://maps.app.goo.gl/4rkgUt9tPLa1dZQw5',
+  embedUrl: PROPERTY_CONFIG.coordinates.embedUrl,
+  travel: [
+    { label: "Abeid Amani Karume Int'l Airport", value: '~1 hr 10 min (Private Chauffeur)' },
+    { label: 'Stone Town UNESCO', value: '~1 hr 15 min (Scenic Drive)' },
+    { label: 'Bwejuu Beach', value: 'Direct Oceanfront Access' },
+  ],
+};
+
+export const MapSection: React.FC<MapSectionProps> = ({ currentLang, cmsContent, contact }) => {
   const t = TRANSLATIONS[currentLang];
+  const localDefaults = MAP_DEFAULTS_I18N[currentLang] || MAP_DEFAULTS_I18N.en;
   const [copied, setCopied] = useState(false);
 
+  const text = {
+    eyebrow: cmsText(cmsContent?.eyebrow, localDefaults.eyebrow),
+    heading: cmsText(cmsContent?.heading, t.map.heading),
+    subhead: cmsText(cmsContent?.subhead, t.map.subhead),
+    badge: cmsText(cmsContent?.badge, localDefaults.badge),
+    copyLabel: cmsText(cmsContent?.copyLabel, localDefaults.copyLabel),
+    copiedLabel: cmsText(cmsContent?.copiedLabel, localDefaults.copiedLabel),
+    getDirections: cmsText(cmsContent?.directionsLabel, t.map.getDirections),
+    directionsUrl: cmsText(cmsContent?.directionsUrl, cmsText(contact?.googleMapsUrl, MAP_DEFAULTS.directionsUrl)),
+    embedUrl: cmsText(cmsContent?.embedUrl, MAP_DEFAULTS.embedUrl),
+  };
+  const travel = cmsList<{ label: string; value: string }>(cmsContent?.travel, localDefaults.travel);
+
+  const fullAddress = cmsText(contact?.address, `${PROPERTY_CONFIG.address}, ${PROPERTY_CONFIG.city}, ${PROPERTY_CONFIG.country}`);
+  const phone = cmsText(contact?.phone, PROPERTY_CONFIG.contact.phone);
+  const email = cmsText(contact?.email, PROPERTY_CONFIG.contact.email);
+  const whatsappRaw = cmsText(contact?.whatsappNumber, PROPERTY_CONFIG.contact.whatsapp);
+  // The CMS stores WhatsApp as bare digits (e.g. 255777890123); display it in international format.
+  const whatsapp = /^\d+$/.test(whatsappRaw) ? `+${whatsappRaw}` : whatsappRaw;
+
   const handleCopyAddress = () => {
-    navigator.clipboard.writeText(`${PROPERTY_CONFIG.address}, ${PROPERTY_CONFIG.city}, ${PROPERTY_CONFIG.country}`);
+    navigator.clipboard.writeText(fullAddress);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
@@ -25,16 +65,16 @@ export const MapSection: React.FC<MapSectionProps> = ({ currentLang }) => {
         <div className="max-w-3xl mb-16">
           <div className="inline-flex items-center space-x-2 text-[11px] tracking-[0.3em] uppercase text-[#C4A27A] font-medium mb-3">
             <MapPin className="w-3.5 h-3.5" />
-            <span>Southern Zanzibar Sanctuary</span>
+            <span>{text.eyebrow}</span>
           </div>
           <h2
             id="map-heading"
             className="font-serif text-3xl sm:text-4xl md:text-5xl font-light tracking-[0.05em] uppercase text-[#FAF8F5] mb-2"
           >
-            {t.map.heading}
+            {text.heading}
           </h2>
           <p className="text-[#D8CCB8]/80 text-sm sm:text-base">
-            {t.map.subhead}
+            {text.subhead}
           </p>
         </div>
 
@@ -52,7 +92,7 @@ export const MapSection: React.FC<MapSectionProps> = ({ currentLang }) => {
                   {PROPERTY_CONFIG.name}
                 </p>
                 <p className="text-xs sm:text-sm text-[#D8CCB8] leading-relaxed">
-                  {PROPERTY_CONFIG.address}, {PROPERTY_CONFIG.city}, {PROPERTY_CONFIG.country}
+                  {fullAddress}
                 </p>
                 <button
                   onClick={handleCopyAddress}
@@ -61,12 +101,12 @@ export const MapSection: React.FC<MapSectionProps> = ({ currentLang }) => {
                   {copied ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-emerald-400">Address Copied to Clipboard</span>
+                      <span className="text-emerald-400">{text.copiedLabel}</span>
                     </>
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      <span>Copy Exact Coordinates & Address</span>
+                      <span>{text.copyLabel}</span>
                     </>
                   )}
                 </button>
@@ -78,11 +118,11 @@ export const MapSection: React.FC<MapSectionProps> = ({ currentLang }) => {
                   {t.map.phone}
                 </span>
                 <a
-                  href={`tel:${PROPERTY_CONFIG.contact.phone}`}
+                  href={`tel:${phone.replace(/\s+/g, '')}`}
                   className="font-mono text-sm text-[#FAF8F5] hover:text-[#C4A27A] transition-colors flex items-center space-x-2"
                 >
                   <Phone className="w-3.5 h-3.5 text-[#C4A27A]" />
-                  <span>{PROPERTY_CONFIG.contact.phone}</span>
+                  <span>{phone}</span>
                 </a>
               </div>
 
@@ -92,11 +132,11 @@ export const MapSection: React.FC<MapSectionProps> = ({ currentLang }) => {
                   {t.map.email}
                 </span>
                 <a
-                  href={`mailto:${PROPERTY_CONFIG.contact.email}`}
+                  href={`mailto:${email}`}
                   className="font-mono text-sm text-[#FAF8F5] hover:text-[#C4A27A] transition-colors flex items-center space-x-2"
                 >
                   <Mail className="w-3.5 h-3.5 text-[#C4A27A]" />
-                  <span>{PROPERTY_CONFIG.contact.email}</span>
+                  <span>{email}</span>
                 </a>
               </div>
 
@@ -106,77 +146,80 @@ export const MapSection: React.FC<MapSectionProps> = ({ currentLang }) => {
                   {t.map.whatsapp}
                 </span>
                 <a
-                  href={`https://wa.me/${PROPERTY_CONFIG.contact.whatsapp.replace(/[^0-9]/g, '')}`}
+                  href={`https://wa.me/${whatsapp.replace(/[^0-9]/g, '')}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-mono text-sm text-emerald-400 hover:text-emerald-300 transition-colors flex items-center space-x-2"
                 >
                   <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{PROPERTY_CONFIG.contact.whatsapp}</span>
+                  <span>{whatsapp}</span>
                 </a>
               </div>
             </div>
 
             {/* Direct Action Link */}
             <a
-              href="https://www.google.com/maps/place/Zanzirangi+House/@-6.2345748,39.528593,17z/data=!3m1!4b1!4m6!3m5!1s0x185d3d007c81b231:0xd21c4f44e083553a!8m2!3d-6.2345748!4d39.5311679!16s%2Fg%2F11yyhxw2xf?entry=ttu&g_ep=EgoyMDI2MDkyMi4wIKXMDSoASAFQAw%3D%3D"
+              href={text.directionsUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full py-3.5 px-4 bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-xs font-semibold tracking-[0.18em] uppercase rounded flex items-center justify-center space-x-2 transition-all shadow-md"
             >
               <Navigation className="w-4 h-4" />
-              <span>{t.map.getDirections}</span>
+              <span>{text.getDirections}</span>
               <ExternalLink className="w-3.5 h-3.5 ml-1 opacity-70" />
             </a>
           </div>
 
-          {/* Right Column: Custom Luxury Styled Map Canvas */}
+          {/* Right Column: Live Google Map of Zanzirangi House */}
           <div className="lg:col-span-7 bg-[#1C1B1A] border border-[#2C2B28] rounded-2xl overflow-hidden relative min-h-[420px] shadow-xl flex flex-col justify-between p-6 sm:p-8">
-            {/* Map Imagery Texture */}
-            <div
-              className="absolute inset-0 bg-cover bg-center opacity-40 mix-blend-luminosity filter contrast-125"
-              style={{
-                backgroundImage: `url('https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=1600&q=80')`,
-              }}
+            <iframe
+              title={`${PROPERTY_CONFIG.name} on Google Maps`}
+              src={text.embedUrl}
+              className="absolute inset-0 w-full h-full border-0"
+              // Google's free embed can't be themed, so tint it into the Zanzirangi charcoal & gold palette.
+              style={{ filter: 'grayscale(1) invert(0.92) sepia(0.55) saturate(1.4) hue-rotate(-8deg) brightness(0.9) contrast(1.05)' }}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#141413] via-[#141413]/70 to-transparent" />
+            <div className="absolute inset-0 bg-[#141413]/15 mix-blend-multiply pointer-events-none" />
+            <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#141413]/90 to-transparent pointer-events-none" />
+
+            {/* Zanzirangi gold pin over the property location (map is centred on it) */}
+            <div className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-full pointer-events-none flex flex-col items-center">
+              <div className="w-9 h-9 rounded-full bg-[#B8966C] text-[#141413] flex items-center justify-center shadow-2xl ring-4 ring-[#B8966C]/30">
+                <MapPin className="w-5 h-5" />
+              </div>
+              <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[8px] border-l-transparent border-r-transparent border-t-[#B8966C]" />
+            </div>
 
             {/* Coordinates Badge */}
-            <div className="relative z-10 flex items-center justify-between">
+            {/* Kept top-right so Google's place card (top-left) stays readable */}
+            <div className="relative z-10 flex flex-col items-end gap-2 pointer-events-none">
               <span className="px-3 py-1 bg-black/70 backdrop-blur rounded font-mono text-[11px] text-[#C4A27A] tracking-wider border border-white/10">
                 Lat: {PROPERTY_CONFIG.coordinates.lat} • Lng: {PROPERTY_CONFIG.coordinates.lng}
               </span>
               <span className="px-2.5 py-1 bg-white/10 backdrop-blur rounded text-[10px] uppercase tracking-wider text-[#FAF8F5]">
-                Menai Bay Marine Reserve
+                {text.badge}
               </span>
             </div>
 
-            {/* Center Landmark Pin */}
-            <div className="relative z-10 my-auto text-center py-12">
-              <div className="inline-flex flex-col items-center animate-bounce">
-                <div className="w-12 h-12 rounded-full bg-[#B8966C] text-[#141413] flex items-center justify-center shadow-2xl ring-8 ring-[#B8966C]/20">
-                  <MapPin className="w-6 h-6" />
-                </div>
-                <div className="mt-3 px-3 py-1 bg-[#141413] border border-[#C4A27A] rounded text-xs font-serif tracking-wider text-[#FAF8F5]">
-                  {PROPERTY_CONFIG.name}
-                </div>
-              </div>
-            </div>
+            {/* Spacer keeps the badges at the top and travel cards at the bottom of the map */}
+            <div className="flex-1 min-h-[220px]" />
 
             {/* Travel Time References */}
-            <div className="relative z-10 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs font-mono">
-              <div className="p-3 bg-black/60 backdrop-blur rounded border border-white/5">
-                <span className="text-[#A07E54] block text-[10px]">Abeid Amani Int'l Airport</span>
-                <span className="text-[#FAF8F5]">55 min (Private Chauffeur)</span>
-              </div>
-              <div className="p-3 bg-black/60 backdrop-blur rounded border border-white/5">
-                <span className="text-[#A07E54] block text-[10px]">Stone Town UNESCO</span>
-                <span className="text-[#FAF8F5]">50 min (Scenic Drive)</span>
-              </div>
-              <div className="p-3 bg-black/60 backdrop-blur rounded border border-white/5 col-span-2 sm:col-span-1">
-                <span className="text-[#A07E54] block text-[10px]">Kizimkazi Dimbani Beach</span>
-                <span className="text-[#FAF8F5]">Direct Oceanfront Access</span>
-              </div>
+            <div className="relative z-10 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs font-mono pointer-events-none">
+              {travel.map((item, idx) => (
+                <div
+                  key={idx}
+                  className={`p-3 bg-black/60 backdrop-blur rounded border border-white/5 ${
+                    idx === travel.length - 1 && travel.length % 2 === 1 ? 'col-span-2 sm:col-span-1' : ''
+                  }`}
+                >
+                  <span className="text-[#A07E54] block text-[10px]">{item.label}</span>
+                  <span className="text-[#FAF8F5]">{item.value}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>

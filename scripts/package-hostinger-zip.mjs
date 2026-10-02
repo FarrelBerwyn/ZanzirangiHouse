@@ -47,6 +47,13 @@ fs.copyFileSync(serverJs, path.join(STAGING, 'server.js'));
 // Copy package.json
 fs.copyFileSync(path.join(ROOT, 'package.json'), path.join(STAGING, 'package.json'));
 
+// Copy release.json (deployment stamp: tag/commit/build, reported by /api/health) when the release
+// process created one — docs/DEPLOYMENT.md §4.
+if (fs.existsSync(path.join(ROOT, 'release.json'))) {
+  fs.copyFileSync(path.join(ROOT, 'release.json'), path.join(STAGING, 'release.json'));
+  console.log('Included release.json deployment stamp.');
+}
+
 // Copy package-lock.json
 if (fs.existsSync(path.join(ROOT, 'package-lock.json'))) {
   fs.copyFileSync(path.join(ROOT, 'package-lock.json'), path.join(STAGING, 'package-lock.json'));
@@ -80,14 +87,16 @@ console.log('✓ Production runtime files staged.');
 // 4. Strict Security & Secret Scan on Staging
 console.log('⏳ Scanning staging directory for accidental credentials...');
 
-const forbiddenFiles = ['.env', '.env.local', 'db.json'];
+const forbiddenFiles = ['db.json'];
+// Any dotenv file (.env, .env.local, .env.production, ...) except the documented template.
+const isForbiddenEnvFile = (name) => /^\.env(\..+)?$/.test(name) && name !== '.env.example';
 // Secret values are read from local env files so they never live in this script.
 const localEnv = {};
 for (const file of ['.env', '.env.local']) {
   const envPath = path.join(ROOT, file);
   if (fs.existsSync(envPath)) Object.assign(localEnv, dotenv.parse(fs.readFileSync(envPath)));
 }
-const forbiddenPatterns = ['DB_PASSWORD', 'JWT_SECRET', 'MYSQL_PASSWORD']
+const forbiddenPatterns = ['DB_PASSWORD', 'JWT_SECRET', 'MYSQL_PASSWORD', 'TEST_ADMIN_PASSWORD']
   .map((key) => localEnv[key])
   .filter((value) => value && value.length >= 6);
 
@@ -95,7 +104,7 @@ function scanDir(dir) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
-    if (forbiddenFiles.includes(entry.name)) {
+    if (forbiddenFiles.includes(entry.name) || isForbiddenEnvFile(entry.name)) {
       console.error(`💥 CRITICAL SECURITY ERROR: Forbidden file staged: ${fullPath}`);
       fs.rmSync(STAGING, { recursive: true, force: true });
       process.exit(1);
@@ -104,7 +113,7 @@ function scanDir(dir) {
       scanDir(fullPath);
     } else if (entry.isFile()) {
       const ext = path.extname(entry.name).toLowerCase();
-      if (['.js', '.json', '.html', '.txt', '.example', '.htaccess', '.md'].includes(ext)) {
+      if (['.js', '.mjs', '.cjs', '.json', '.html', '.txt', '.example', '.htaccess', '.md', '.map', '.css'].includes(ext)) {
         const content = fs.readFileSync(fullPath, 'utf8');
         for (const pattern of forbiddenPatterns) {
           if (content.includes(pattern)) {

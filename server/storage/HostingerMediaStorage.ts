@@ -10,12 +10,28 @@ import { env } from '../config/env.ts';
  */
 export class HostingerMediaStorage extends LocalMediaStorage {
   constructor(customStorageDir?: string) {
-    const hostingerDir =
-      customStorageDir ||
-      env.MEDIA_STORAGE_PATH ||
-      path.resolve(process.cwd(), 'uploads');
-    super(hostingerDir);
+    super(HostingerMediaStorage.resolveWritableDirectory(customStorageDir || env.MEDIA_STORAGE_PATH));
     this.enforceDirectorySecurity();
+  }
+
+  /**
+   * Uses the configured persistent directory (outside the deployed app, so uploads survive
+   * redeploys). If it cannot be created, falls back to ./uploads and says so loudly.
+   */
+  private static resolveWritableDirectory(preferred: string): string {
+    try {
+      fs.mkdirSync(preferred, { recursive: true });
+      fs.accessSync(preferred, fs.constants.W_OK);
+      console.log(`[MEDIA] Persistent media storage: ${preferred}`);
+      return preferred;
+    } catch (e: any) {
+      const fallback = path.resolve(process.cwd(), 'uploads');
+      console.error(
+        `[MEDIA] Cannot use media directory ${preferred} (${e.code || e.message}). ` +
+          `Falling back to ${fallback} — files there are replaced on every redeploy. Set MEDIA_STORAGE_PATH.`
+      );
+      return fallback;
+    }
   }
 
   /**

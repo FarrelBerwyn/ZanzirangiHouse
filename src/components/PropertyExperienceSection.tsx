@@ -3,12 +3,14 @@ import { Eye, Compass } from 'lucide-react';
 import { Language } from '../types';
 import { PROPERTY_EXPERIENCE_TRANSLATIONS } from '../data/serviceTranslations';
 import { ScrollReveal } from './ScrollReveal';
+import { HomeSectionContent, cmsList, cmsText } from '../data/homeSectionsCms';
 
 interface PropertyExperienceSectionProps {
   currentLang: Language;
+  cmsContent?: HomeSectionContent;
 }
 
-const FACET_KEYS = [
+export const FACET_KEYS = [
   'villas',
   'bungalows',
   'pool',
@@ -19,7 +21,7 @@ const FACET_KEYS = [
   'outdoor',
 ] as const;
 
-const FACET_IMAGES: Record<string, string> = {
+export const FACET_IMAGES: Record<string, string> = {
   villas: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=1600&q=85',
   bungalows: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1600&q=85',
   pool: 'https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?auto=format&fit=crop&w=1600&q=85',
@@ -30,13 +32,47 @@ const FACET_IMAGES: Record<string, string> = {
   outdoor: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1600&q=85',
 };
 
-export const PropertyExperienceSection: React.FC<PropertyExperienceSectionProps> = ({ currentLang }) => {
-  const t = PROPERTY_EXPERIENCE_TRANSLATIONS[currentLang] || PROPERTY_EXPERIENCE_TRANSLATIONS.en;
+interface Facet {
+  key: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  image: string;
+}
 
-  const [activeFacetKey, setActiveFacetKey] = useState<string>('villas');
+export const PropertyExperienceSection: React.FC<PropertyExperienceSectionProps> = ({ currentLang, cmsContent }) => {
+  const baseT = PROPERTY_EXPERIENCE_TRANSLATIONS[currentLang] || PROPERTY_EXPERIENCE_TRANSLATIONS.en;
+  const t = {
+    eyebrow: cmsText(cmsContent?.eyebrow, baseT.eyebrow),
+    heading: cmsText(cmsContent?.heading, baseT.heading),
+    subhead: cmsText(cmsContent?.subhead, baseT.subhead),
+  };
 
-  const activeFacet = t.facets[activeFacetKey] || t.facets.villas;
-  const activeImage = FACET_IMAGES[activeFacetKey] || FACET_IMAGES.villas;
+  const builtInFacets: Facet[] = FACET_KEYS.map((key) => {
+    const facet = baseT.facets[key];
+    return {
+      key,
+      title: facet?.title || key,
+      subtitle: facet?.subtitle || '',
+      description: facet?.description || '',
+      image: FACET_IMAGES[key],
+    };
+  });
+  const facets: Facet[] = cmsList<Partial<Facet>>(cmsContent?.facets, builtInFacets).map((item, idx) => {
+    const builtIn = builtInFacets.find((f) => f.key === item.key) || builtInFacets[idx] || builtInFacets[0];
+    return {
+      key: item.key || `facet-${idx}`,
+      title: cmsText(item.title, builtIn.title),
+      subtitle: cmsText(item.subtitle, builtIn.subtitle),
+      description: cmsText(item.description, builtIn.description),
+      image: cmsText(item.image, builtIn.image),
+    };
+  });
+
+  const [activeFacetKey, setActiveFacetKey] = useState<string>(facets[0]?.key || 'villas');
+
+  const activeFacet = facets.find((f) => f.key === activeFacetKey) || facets[0];
+  const activeImage = activeFacet.image;
 
   return (
     <section id="retreat" className="py-24 md:py-36 bg-[#141413] text-[#FAF8F5] relative overflow-hidden">
@@ -69,14 +105,9 @@ export const PropertyExperienceSection: React.FC<PropertyExperienceSectionProps>
               {t.eyebrow}
             </span>
             <div className="space-y-1.5 overflow-y-auto max-h-[500px] pr-2">
-              {FACET_KEYS.map((key, idx) => {
-                const facet = t.facets[key] || {
-                  id: key,
-                  title: key,
-                  subtitle: '',
-                  description: '',
-                };
-                const isActive = activeFacetKey === key;
+              {facets.map((facet, idx) => {
+                const key = facet.key;
+                const isActive = activeFacet.key === key;
                 return (
                   <button
                     key={key}
@@ -89,7 +120,7 @@ export const PropertyExperienceSection: React.FC<PropertyExperienceSectionProps>
                   >
                     <div>
                       <span className="text-[10px] font-mono text-[#A07E54] block">
-                        0{idx + 1}
+                        {String(idx + 1).padStart(2, '0')}
                       </span>
                       <span className="font-serif text-lg tracking-wide uppercase font-normal block">
                         {facet.title}

@@ -1,6 +1,7 @@
 import { Language } from '../types';
 import { ZanzibarDestination, ZANZIBAR_DESTINATIONS } from './exploreZanzibar';
 import { TanzaniaDestination, TANZANIA_DESTINATIONS } from './tanzaniaDestinations';
+import { localizeUnlessEdited, localizeListUnlessEdited } from './homeSectionsCms';
 
 export interface LocalizedZanzibarDest {
   name: string;
@@ -1321,21 +1322,28 @@ export function getLocalizedZanzibarDestinations(lang: Language): ZanzibarDestin
   });
 }
 
-export function getLocalizedTanzaniaDestinations(lang: Language): TanzaniaDestination[] {
+export function getLocalizedTanzaniaDestinations(
+  lang: Language,
+  baseDestinations: TanzaniaDestination[] = TANZANIA_DESTINATIONS
+): TanzaniaDestination[] {
   const dict = TANZANIA_DEST_TRANSLATIONS[lang] || TANZANIA_DEST_TRANSLATIONS.en;
-  return TANZANIA_DESTINATIONS.map((dest) => {
+  return baseDestinations.map((dest) => {
     const loc = dict[dest.id];
     if (!loc) return dest;
+    const seed = TANZANIA_DESTINATIONS.find((d) => d.id === dest.id);
+    const en = TANZANIA_DEST_TRANSLATIONS.en[dest.id];
+    const pick = (field: Exclude<keyof LocalizedTanzaniaDest, 'highlights'>) =>
+      localizeUnlessEdited(dest[field], seed?.[field], en?.[field], loc[field]);
     return {
       ...dest,
-      name: loc.name,
-      tagline: loc.tagline,
-      region: loc.region,
-      flightTimeFromZanzibar: loc.flightTimeFromZanzibar,
-      description: loc.description,
-      highlights: loc.highlights,
-      bestFor: loc.bestFor,
-      safariType: loc.safariType,
+      name: pick('name'),
+      tagline: pick('tagline'),
+      region: pick('region'),
+      flightTimeFromZanzibar: pick('flightTimeFromZanzibar'),
+      description: pick('description'),
+      highlights: localizeListUnlessEdited(dest.highlights, seed?.highlights, en?.highlights, loc.highlights),
+      bestFor: pick('bestFor'),
+      safariType: pick('safariType'),
     };
   });
 }

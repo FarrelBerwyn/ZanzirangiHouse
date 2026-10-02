@@ -1,5 +1,6 @@
 import { Language, GalleryItem } from '../types';
 import { GALLERY_DATA } from './gallery';
+import { localizeUnlessEdited } from './homeSectionsCms';
 
 export interface LocalizedGalleryItem extends GalleryItem {
   localizedCategoryName: string;
@@ -802,11 +803,13 @@ export function getLocalizedGallery(lang: Language, baseGallery: GalleryItem[] =
   return baseGallery.map((item) => {
     const itemTrans = dict.items[item.id];
     const catLabel = dict.categories[item.category] || item.category;
+    const seed = GALLERY_DATA.find((g) => g.id === item.id);
+    const en = GALLERY_TRANSLATIONS.en.items[item.id];
     return {
       ...item,
-      title: itemTrans?.title || item.title,
-      caption: itemTrans?.caption || item.caption,
-      description: itemTrans?.caption || item.description,
+      title: localizeUnlessEdited(item.title, seed?.title, en?.title, itemTrans?.title),
+      caption: localizeUnlessEdited(item.caption, seed?.caption, en?.caption, itemTrans?.caption),
+      description: localizeUnlessEdited(item.description, seed?.description, en?.caption, itemTrans?.caption),
       localizedCategoryName: catLabel,
     };
   });

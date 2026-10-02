@@ -1,3 +1,4 @@
+process.env.ZANZIRANGI_NO_LISTEN = '1';
 // ==============================================================================
 // Zanzirangi House: Automated Customer Support Verification Suite
 // Tests all 20 sections and requirements:
@@ -50,7 +51,7 @@ process.env.DATABASE_PROVIDER = 'json';
 const TEST_PORT = 3105;
 const API_BASE = `http://localhost:${TEST_PORT}/api`;
 const ADMIN_EMAIL = process.env.TEST_ADMIN_EMAIL || 'info@zanzirangihouse.com';
-const ADMIN_PASSWORD = process.env.TEST_ADMIN_PASSWORD || 'Zanzirangi2026!';
+const ADMIN_PASSWORD = process.env.TEST_ADMIN_PASSWORD || '';
 
 let testToken = '';
 let passedCount = 0;

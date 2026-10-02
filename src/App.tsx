@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
+import { applyCmsContact } from './data/propertyConfig';
+import { applyTranslations, EntityTranslations } from './i18n/cmsTranslations';
 import { Language, Villa, GalleryItem, Facility, Review } from './types';
 import { VILLAS_DATA } from './data/villas';
 import { GALLERY_DATA } from './data/gallery';
@@ -33,7 +35,18 @@ import { ChatAssistant } from './components/ChatAssistant';
 
 // CMS Admin Portal Components
 import { authApi, AdminUser } from './services/authApi';
-import { contentApi, HomepageContent } from './services/contentApi';
+import {
+  contentApi,
+  HomepageContent,
+  PageContentModel,
+  ChauffeurConfigModel,
+  WhyStayConfigModel,
+  DiningConfigModel,
+  ExperienceModel,
+  SafariDestinationModel,
+  GlobalContentModel,
+  ADMIN_SESSION_EXPIRED_EVENT,
+} from './services/contentApi';
 import { AdminLogin } from './admin/AdminLogin';
 import { AdminLayout } from './admin/AdminLayout';
 import { AdminDashboardHome } from './admin/pages/AdminDashboardHome';
@@ -48,6 +61,15 @@ import { AdminSeoManager } from './admin/pages/AdminSeoManager';
 import { AdminMediaLibrary } from './admin/pages/AdminMediaLibrary';
 import { AdminSettingsManager } from './admin/pages/AdminSettingsManager';
 import { AdminSupportInbox } from './admin/pages/AdminSupportInbox';
+import { AdminAccessManager } from './admin/pages/AdminAccessManager';
+import { AdminTransfersManager } from './admin/pages/AdminTransfersManager';
+import { AdminWhyStayManager } from './admin/pages/AdminWhyStayManager';
+import { AdminDiningManager } from './admin/pages/AdminDiningManager';
+import { AdminExperiencesManager } from './admin/pages/AdminExperiencesManager';
+import { AdminSafariManager } from './admin/pages/AdminSafariManager';
+import { AdminGlobalContentManager } from './admin/pages/AdminGlobalContentManager';
+import { AdminPageEditor } from './admin/pages/AdminPageEditor';
+import { AdminTranslationsManager } from './admin/pages/AdminTranslationsManager';
 
 // Dedicated Subpages for Organic Google Sitelinks & Deep-Link Exploration
 import { VillasPage } from './pages/VillasPage';
@@ -156,11 +178,11 @@ export default function App() {
     return 'en';
   });
 
-  const [villas, setVillas] = useState<Villa[]>(VILLAS_DATA);
-  const [gallery, setGallery] = useState<GalleryItem[]>(GALLERY_DATA);
-  const [facilities, setFacilities] = useState<Facility[]>(FACILITIES_DATA);
-  const [testimonials, setTestimonials] = useState<Review[]>(REVIEWS_DATA);
-  const [videos, setVideos] = useState<any>(null);
+  const [villasRaw, setVillas] = useState<Villa[]>(VILLAS_DATA);
+  const [galleryRaw, setGallery] = useState<GalleryItem[]>(GALLERY_DATA);
+  const [facilitiesRaw, setFacilities] = useState<Facility[]>(FACILITIES_DATA);
+  const [testimonialsRaw, setTestimonials] = useState<Review[]>(REVIEWS_DATA);
+  const [videosRaw, setVideos] = useState<any>(null);
 
   // Client Routing state (Supports direct URL access and browser history)
   const [currentPath, setCurrentPath] = useState<string>(() => {
@@ -175,17 +197,60 @@ export default function App() {
   const isAdminRoute = currentPath.startsWith('/admin');
   const [adminUser, setAdminUser] = useState<AdminUser | null>(() => authApi.getUser());
   const [adminTab, setAdminTab] = useState<string>(() => {
-    if (currentPath === '/admin/homepage') return 'homepage';
+    if (currentPath.startsWith('/admin/')) {
+      return currentPath.replace('/admin/', '') || 'dashboard';
+    }
     return 'dashboard';
   });
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Dynamic Content State (Fetched from Database API)
-  const [homepageContent, setHomepageContent] = useState<HomepageContent | null>(null);
+  const [homepageContentRaw, setHomepageContent] = useState<HomepageContent | null>(null);
+  const [pageContentsRaw, setPageContents] = useState<Record<string, PageContentModel>>({});
+  const [chauffeurConfigRaw, setChauffeurConfig] = useState<ChauffeurConfigModel | null>(null);
+  const [whyStayConfigRaw, setWhyStayConfig] = useState<WhyStayConfigModel | null>(null);
+  const [diningConfigRaw, setDiningConfig] = useState<DiningConfigModel | null>(null);
+  const [experiencesDataRaw, setExperiencesData] = useState<ExperienceModel[] | null>(null);
+  const [safariDestinationsRaw, setSafariDestinations] = useState<SafariDestinationModel[] | null>(null);
+  const [globalContentRaw, setGlobalContent] = useState<GlobalContentModel | null>(null);
 
+  // Per-language translations of CMS content (Admin → Translations). English uses the CMS as-is.
+  const [cmsTranslations, setCmsTranslations] = useState<EntityTranslations>({});
+  useEffect(() => {
+    let cancelled = false;
+    contentApi.getTranslations(currentLang).then((data) => {
+      if (!cancelled) setCmsTranslations(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentLang]);
+
+  const villas = useMemo(() => applyTranslations(villasRaw, cmsTranslations.villas), [villasRaw, cmsTranslations]);
+  const gallery = useMemo(() => applyTranslations(galleryRaw, cmsTranslations.gallery), [galleryRaw, cmsTranslations]);
+  const facilities = useMemo(() => applyTranslations(facilitiesRaw, cmsTranslations.facilities), [facilitiesRaw, cmsTranslations]);
+  const testimonials = useMemo(() => applyTranslations(testimonialsRaw, cmsTranslations.testimonials), [testimonialsRaw, cmsTranslations]);
+  const videos = useMemo(() => applyTranslations(videosRaw, cmsTranslations.videos), [videosRaw, cmsTranslations]);
+  const homepageContent = useMemo(() => applyTranslations(homepageContentRaw, cmsTranslations.homepage), [homepageContentRaw, cmsTranslations]);
+  const chauffeurConfig = useMemo(() => applyTranslations(chauffeurConfigRaw, cmsTranslations.chauffeur), [chauffeurConfigRaw, cmsTranslations]);
+  const whyStayConfig = useMemo(() => applyTranslations(whyStayConfigRaw, cmsTranslations.whystay), [whyStayConfigRaw, cmsTranslations]);
+  const diningConfig = useMemo(() => applyTranslations(diningConfigRaw, cmsTranslations.dining), [diningConfigRaw, cmsTranslations]);
+  const experiencesData = useMemo(() => applyTranslations(experiencesDataRaw, cmsTranslations.experiences), [experiencesDataRaw, cmsTranslations]);
+  const safariDestinations = useMemo(() => applyTranslations(safariDestinationsRaw, cmsTranslations.safari), [safariDestinationsRaw, cmsTranslations]);
+  const globalContent = useMemo(() => applyTranslations(globalContentRaw, cmsTranslations.global), [globalContentRaw, cmsTranslations]);
+  const pageContents = useMemo(() => {
+    // Translation paths for pages are keyed by page id, so translate the list then re-key by slug.
+    const translated = applyTranslations(Object.values(pageContentsRaw) as PageContentModel[], cmsTranslations.pages);
+    const map: Record<string, PageContentModel> = {};
+    translated.forEach((p) => {
+      map[p.slug] = p;
+    });
+    return map;
+  }, [pageContentsRaw, cmsTranslations]);
   // Fetch dynamic content on mount or path change
   const refreshPublicContent = () => {
     contentApi.getHomepage().then((data) => {
+      applyCmsContact(data?.contact);
       setHomepageContent(data);
     });
     contentApi.getVillas().then((data) => {
@@ -213,6 +278,33 @@ export default function App() {
         setVideos(data);
       }
     });
+    contentApi.getAllPages().then((pages) => {
+      if (pages && pages.length > 0) {
+        const map: Record<string, PageContentModel> = {};
+        pages.forEach((p) => {
+          map[p.slug] = p;
+        });
+        setPageContents(map);
+      }
+    });
+    contentApi.getChauffeur().then((data) => {
+      if (data) setChauffeurConfig(data);
+    });
+    contentApi.getWhyStay().then((data) => {
+      if (data) setWhyStayConfig(data);
+    });
+    contentApi.getDining().then((data) => {
+      if (data) setDiningConfig(data);
+    });
+    contentApi.getExperiences().then((data) => {
+      if (data && data.length > 0) setExperiencesData(data);
+    });
+    contentApi.getSafari().then((data) => {
+      if (data && data.length > 0) setSafariDestinations(data);
+    });
+    contentApi.getGlobalContent().then((data) => {
+      if (data) setGlobalContent(data);
+    });
   };
 
   useEffect(() => {
@@ -220,6 +312,9 @@ export default function App() {
   }, [currentPath]);
 
   // Helper to determine if a homepage section should be visible
+  // Per-section homepage copy managed in Admin → Halaman Home → Konten Section
+  const homeSections = applyTranslations(pageContentsRaw['home']?.contentJson?.homeSections || {}, cmsTranslations.homeSections);
+
   const isSectionVisible = (key: string): boolean => {
     if (!homepageContent?.sections) return true;
     const s = homepageContent.sections.find((sec) => sec.id === key);
@@ -234,6 +329,16 @@ export default function App() {
       });
     }
   }, [currentPath]);
+
+  // An admin API call rejected the session (HTTP 401): drop back to the CMS login screen.
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setAdminUser(null);
+      setHasUnsavedChanges(false);
+    };
+    window.addEventListener(ADMIN_SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => window.removeEventListener(ADMIN_SESSION_EXPIRED_EVENT, handleSessionExpired);
+  }, []);
 
   // Synchronize admin tab with path
   useEffect(() => {
@@ -288,11 +393,19 @@ export default function App() {
     document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
 
     const routeSeo = ROUTE_SEO[currentPath] || ROUTE_SEO['/'];
+    // Per-page SEO managed in Admin → Info & Legal Pages (contentJson.seo); ROUTE_SEO is the fallback.
+    const cmsSeo =
+      currentPath !== '/' && ROUTE_SEO[currentPath] ? pageContents[currentPath.slice(1)]?.contentJson?.seo : undefined;
+    const cmsText = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+    const seoTitle = cmsText(cmsSeo?.title) || routeSeo.title;
+    const seoDescription = cmsText(cmsSeo?.description) || routeSeo.description;
+    const seoImage = cmsText(cmsSeo?.ogImage);
+
     if (currentPath === '/') {
       const langSeo = SEO_TRANSLATIONS[currentLang] || SEO_TRANSLATIONS.en;
       document.title = langSeo.title || 'Zanzirangi House';
     } else {
-      document.title = routeSeo.title;
+      document.title = seoTitle;
     }
 
     const updateMeta = (selector: string, content: string) => {
@@ -302,19 +415,32 @@ export default function App() {
       }
     };
 
-    updateMeta('meta[name="description"]', routeSeo.description);
-    updateMeta('meta[property="og:title"]', routeSeo.title);
-    updateMeta('meta[property="og:description"]', routeSeo.description);
+    // Social images: use the page's CMS image when set, otherwise restore the default from index.html.
+    const updateImageMeta = (selector: string) => {
+      const el = document.querySelector(selector) as HTMLMetaElement | null;
+      if (!el) return;
+      if (el.dataset.defaultContent === undefined) {
+        el.dataset.defaultContent = el.getAttribute('content') || '';
+      }
+      el.setAttribute('content', seoImage || el.dataset.defaultContent);
+    };
+
+    updateMeta('meta[name="description"]', seoDescription);
+    updateMeta('meta[property="og:title"]', seoTitle);
+    updateMeta('meta[property="og:description"]', seoDescription);
     updateMeta('meta[property="og:url"]', routeSeo.canonical);
-    updateMeta('meta[name="twitter:title"]', routeSeo.title);
-    updateMeta('meta[name="twitter:description"]', routeSeo.description);
+    updateMeta('meta[name="twitter:title"]', seoTitle);
+    updateMeta('meta[name="twitter:description"]', seoDescription);
     updateMeta('meta[name="twitter:url"]', routeSeo.canonical);
+    updateImageMeta('meta[property="og:image"]');
+    updateImageMeta('meta[property="og:image:secure_url"]');
+    updateImageMeta('meta[name="twitter:image"]');
 
     const canonicalEl = document.querySelector('link[rel="canonical"]');
     if (canonicalEl) {
       canonicalEl.setAttribute('href', routeSeo.canonical);
     }
-  }, [currentLang, currentPath, isAdminRoute, homepageContent]);
+  }, [currentLang, currentPath, isAdminRoute, homepageContent, pageContents]);
 
   // Modals State for Public Visitors
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
@@ -393,6 +519,24 @@ export default function App() {
         {adminTab === 'homepage' && (
           <AdminHomepageEditor onUnsavedChangesChange={setHasUnsavedChanges} />
         )}
+        {adminTab === 'pages' && (
+          <AdminPageEditor
+            onNavigateToTab={(tab) => {
+              setAdminTab(tab);
+              handleNavigate(`/admin/${tab}`);
+            }}
+          />
+        )}
+        {adminTab === 'transfers' && <AdminTransfersManager />}
+        {adminTab === 'whystay' && <AdminWhyStayManager />}
+        {adminTab === 'dining' && <AdminDiningManager />}
+        {adminTab === 'experiences' && <AdminExperiencesManager />}
+        {adminTab === 'safari' && <AdminSafariManager />}
+        {adminTab === 'global' && <AdminGlobalContentManager />}
+        {adminTab === 'translations' && (
+          <AdminTranslationsManager onUnsavedChangesChange={setHasUnsavedChanges} />
+        )}
+        {adminTab === 'admin-access' && <AdminAccessManager />}
         {adminTab === 'rooms' && <AdminRoomsManager />}
         {adminTab === 'gallery' && <AdminGalleryManager />}
         {adminTab === 'videos' && <AdminVideosManager />}
@@ -401,7 +545,14 @@ export default function App() {
         {adminTab === 'contact' && <AdminContactManager />}
         {adminTab === 'seo' && <AdminSeoManager />}
         {adminTab === 'media' && <AdminMediaLibrary />}
-        {adminTab === 'settings' && <AdminSettingsManager />}
+        {adminTab === 'settings' && (
+          <AdminSettingsManager
+            onNavigateToTab={(tab) => {
+              setAdminTab(tab);
+              handleNavigate(`/admin/${tab}`);
+            }}
+          />
+        )}
         {adminTab === 'dashboard' && (
           <AdminDashboardHome
             onNavigateToTab={(tab) => {
@@ -426,6 +577,7 @@ export default function App() {
           onSelectLang={handleSelectLanguage}
           onOpenBooking={handleOpenBooking}
           onNavigate={handleNavigate}
+          dynamicGlobal={globalContent}
         />
 
         {/* Subpage Routing Views */}
@@ -436,6 +588,9 @@ export default function App() {
             onSelectVilla={(v) => setSelectedVillaForDetail(v)}
             onRequestBooking={(id) => handleOpenBooking(id)}
             villas={villas}
+            facilities={facilities}
+            pageContent={pageContents['villas']}
+            homeSections={homeSections}
           />
         )}
 
@@ -444,6 +599,8 @@ export default function App() {
             currentLang={currentLang}
             onNavigate={handleNavigate}
             onRequestBooking={() => handleOpenBooking()}
+            pageContent={pageContents['dining']}
+            dynamicDining={diningConfig}
           />
         )}
 
@@ -453,6 +610,9 @@ export default function App() {
             onNavigate={handleNavigate}
             onRequestBooking={() => handleOpenBooking()}
             onOpenSupportChat={handleOpenSupportChat}
+            pageContent={pageContents['experiences']}
+            dynamicExperiences={experiencesData}
+            homeSections={homeSections}
           />
         )}
 
@@ -462,6 +622,9 @@ export default function App() {
             onNavigate={handleNavigate}
             onRequestBooking={() => handleOpenBooking()}
             onOpenSupportChat={handleOpenSupportChat}
+            pageContent={pageContents['safari']}
+            dynamicSafari={safariDestinations}
+            homeSections={homeSections}
           />
         )}
 
@@ -470,6 +633,10 @@ export default function App() {
             currentLang={currentLang}
             onNavigate={handleNavigate}
             onRequestBooking={() => handleOpenBooking()}
+            pageContent={pageContents['about']}
+            dynamicWhyStay={whyStayConfig}
+            homepageContent={homepageContent}
+            homeSections={homeSections}
           />
         )}
 
@@ -479,11 +646,20 @@ export default function App() {
             onNavigate={handleNavigate}
             onRequestBooking={() => handleOpenBooking()}
             onOpenSupportChat={handleOpenSupportChat}
+            pageContent={pageContents['contact']}
+            dynamicChauffeur={chauffeurConfig}
+            dynamicGlobal={globalContent}
+            homepageContent={homepageContent}
+            homeSections={homeSections}
           />
         )}
 
-        {currentPath === '/privacy' && <PrivacyPage onNavigate={handleNavigate} />}
-        {currentPath === '/terms' && <TermsPage onNavigate={handleNavigate} />}
+        {currentPath === '/privacy' && (
+          <PrivacyPage onNavigate={handleNavigate} pageContent={pageContents['privacy']} currentLang={currentLang} />
+        )}
+        {currentPath === '/terms' && (
+          <TermsPage onNavigate={handleNavigate} pageContent={pageContents['terms']} currentLang={currentLang} />
+        )}
 
         {/* 01 to 20: Full Main Homepage Customer Journey */}
         {currentPath === '/' && (
@@ -502,6 +678,8 @@ export default function App() {
               <QuickBookingBar
                 currentLang={currentLang}
                 onCheckAvailability={handleCheckAvailability}
+                cmsContent={homeSections.quickBooking}
+                villas={villas}
               />
             )}
 
@@ -520,17 +698,18 @@ export default function App() {
                 onSelectVilla={(v) => setSelectedVillaForDetail(v)}
                 onRequestBooking={(id) => handleOpenBooking(id)}
                 villas={villas}
+                cmsContent={homeSections.villas}
               />
             )}
 
             {/* 05: Property Experience (DISCOVER THE RETREAT) */}
             {isSectionVisible('experience') && (
-              <PropertyExperienceSection currentLang={currentLang} />
+              <PropertyExperienceSection currentLang={currentLang} cmsContent={homeSections.experience} />
             )}
 
             {/* 06: Dining Section (TASTE ZANZIBAR + FROM OUR GARDEN TO YOUR TABLE) */}
             {isSectionVisible('dining') && (
-              <DiningSection currentLang={currentLang} />
+              <DiningSection currentLang={currentLang} dynamicConfig={diningConfig} />
             )}
 
             {/* 07: Experiences Section (EXPERIENCES - Discover Zanzibar beyond the ordinary) */}
@@ -539,6 +718,7 @@ export default function App() {
                 currentLang={currentLang}
                 onOpenBooking={() => handleOpenBooking()}
                 onOpenSupportChat={handleOpenSupportChat}
+                dynamicExperiences={experiencesData}
               />
             )}
 
@@ -547,6 +727,7 @@ export default function App() {
               <ExploreZanzibarSection
                 currentLang={currentLang}
                 onOpenBooking={() => handleOpenBooking()}
+                cmsContent={homeSections.explore}
               />
             )}
 
@@ -556,6 +737,7 @@ export default function App() {
                 currentLang={currentLang}
                 onOpenBooking={() => handleOpenBooking()}
                 onOpenSupportChat={handleOpenSupportChat}
+                dynamicDestinations={safariDestinations}
               />
             )}
 
@@ -564,6 +746,7 @@ export default function App() {
               <CustomItinerarySection
                 currentLang={currentLang}
                 onOpenSupportChat={handleOpenSupportChat}
+                cmsContent={homeSections.itinerary}
               />
             )}
 
@@ -572,6 +755,7 @@ export default function App() {
               <ShuttleSection
                 currentLang={currentLang}
                 onOpenBooking={() => handleOpenBooking()}
+                dynamicConfig={chauffeurConfig}
               />
             )}
 
@@ -580,12 +764,13 @@ export default function App() {
               <ConciergeSection
                 currentLang={currentLang}
                 onOpenSupportChat={handleOpenSupportChat}
+                cmsContent={homeSections.concierge}
               />
             )}
 
             {/* 13: Why Stay With Us (WHY ZANZIRANGI HOUSE) */}
             {isSectionVisible('whyStay') && (
-              <WhyStaySection currentLang={currentLang} />
+              <WhyStaySection currentLang={currentLang} dynamicWhyStay={whyStayConfig} />
             )}
 
             {/* 14: Promotional Film Journey */}
@@ -593,6 +778,7 @@ export default function App() {
               <PromotionalVideoSection
                 currentLang={currentLang}
                 dynamicVideo={videos}
+                cmsContent={homeSections.video}
               />
             )}
 
@@ -601,6 +787,7 @@ export default function App() {
               <FacilitiesSection
                 currentLang={currentLang}
                 facilities={facilities}
+                cmsContent={homeSections.facilities}
               />
             )}
 
@@ -609,6 +796,7 @@ export default function App() {
               <GallerySection
                 currentLang={currentLang}
                 items={gallery}
+                cmsContent={homeSections.gallery}
               />
             )}
 
@@ -617,17 +805,22 @@ export default function App() {
               <ReviewsSection
                 currentLang={currentLang}
                 reviews={testimonials}
+                cmsContent={homeSections.reviews}
               />
             )}
 
             {/* 18: OTA Distribution Trust Channels */}
             {isSectionVisible('otaChannels') && (
-              <OtaChannelsSection currentLang={currentLang} />
+              <OtaChannelsSection currentLang={currentLang} cmsContent={homeSections.otaChannels} />
             )}
 
             {/* 19: Location, Map & Directions */}
             {isSectionVisible('map') && (
-              <MapSection currentLang={currentLang} />
+              <MapSection
+                currentLang={currentLang}
+                cmsContent={homeSections.map}
+                contact={homepageContent?.contact}
+              />
             )}
 
             {/* 20: Final Call To Action */}
@@ -635,6 +828,7 @@ export default function App() {
               <FinalCtaSection
                 currentLang={currentLang}
                 onOpenBooking={() => handleOpenBooking()}
+                cmsContent={homeSections.finalCta}
               />
             )}
           </main>
@@ -650,6 +844,7 @@ export default function App() {
           dynamicContact={homepageContent?.contact}
           dynamicSocials={homepageContent?.socials}
           dynamicCopyright={homepageContent?.footer?.copyrightText}
+          dynamicGlobal={globalContent}
         />
 
         {/* Unified Personal Concierge & Support Chat Assistant in Bottom Left */}
@@ -680,6 +875,7 @@ export default function App() {
           initialCheckOut={bookingParams.checkOut}
           initialGuests={bookingParams.guests}
           currentLang={currentLang}
+          villas={villas}
           onClose={() => setBookingModalOpen(false)}
           onOpenSupportChat={handleOpenSupportChat}
         />

@@ -240,7 +240,7 @@ A strict scan of all Git-tracked files in the repository was executed:
 
 | Search Pattern | Git Search Scope | Forensic Result | Status |
 |---|---|---|---|
-| `Zanzirangi2026!` | `git grep -i "Zanzirangi2026!"` | **NOT FOUND** (Exit Code 1) | **CLEAN** |
+| `[REDACTED]` | `git grep -i "[REDACTED]"` | **NOT FOUND** (Exit Code 1) | **CLEAN** |
 | `ChangeMeImmediately` | `git grep -i "ChangeMeImmediately"` | **NOT FOUND** (Exit Code 1) | **CLEAN** |
 | `DB_PASSWORD=` | `git grep "DB_PASSWORD="` | Found only empty placeholders in `.env.example`, `HOSTINGER_DEPLOYMENT.md`, `docs/*` | **CLEAN** |
 | `JWT_SECRET=` | `git grep "JWT_SECRET="` | Found only empty placeholders in `.env.example`, `HOSTINGER_DEPLOYMENT.md`, `docs/*` | **CLEAN** |

@@ -1,3 +1,5 @@
+> **Superseded (2026-10-01):** the authoritative procedure is [docs/DEPLOYMENT.md](DEPLOYMENT.md) with the CI/CD pipeline in [docs/CICD.md](CICD.md). This file is kept for history; parts are outdated. Do not copy infrastructure identifiers from it.
+
 # Zanzirangi House — Pre-Deployment Master Checklist
 
 **Target Release:** Production v1.0.0  
@@ -55,7 +57,7 @@ Every item in this checklist must be reviewed and marked `[X]` before initiating
 - [x] **Smoke Test Passed:** 13/13 endpoints verified via `npm run smoke-test`.
 - [x] **Persistence Test Passed:** Verified admin edit → immediate public visibility → restart survival via `node scripts/persistence-test.mjs`.
 - [x] **Health Endpoint Verified:** `GET /api/health` reports status `online`, database `connected`, leaking no credentials.
-- [x] **Rollback Plan Documented:** Step-by-step procedure documented in `docs/ROLLBACK_PLAN.md`.
+- [x] **Rollback Plan Documented:** Step-by-step procedure documented in `docs/ROLLBACK.md`.
 
 ---
 

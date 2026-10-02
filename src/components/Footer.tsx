@@ -3,6 +3,7 @@ import { ArrowUp, Instagram, Facebook, Youtube, Settings, MessageSquare, Calenda
 import { Language } from '../types';
 import { PROPERTY_CONFIG } from '../data/propertyConfig';
 import { TRANSLATIONS } from '../data/translations';
+import { PAGE_NAMES } from '../data/pageTranslations';
 
 const TikTokIcon: React.FC<{ className?: string }> = ({ className = 'w-3.5 h-3.5' }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -24,6 +25,7 @@ const FOOTER_EXTRA_TRANSLATIONS: Record<
     location: string;
     locationAddress: string;
     top: string;
+    social: { instagram: string; facebook: string; tiktok: string; youtube: string };
     supportPrompt: string;
   }
 > = {
@@ -37,8 +39,9 @@ const FOOTER_EXTRA_TRANSLATIONS: Record<
     liveSupport: 'Live Support • Juma (Online)',
     email: 'Email:',
     location: 'Location:',
-    locationAddress: 'Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania',
+    locationAddress: 'Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania',
     top: 'Top',
+    social: { instagram: 'Follow us on Instagram', facebook: 'Follow us on Facebook', tiktok: 'Watch our videos on TikTok', youtube: 'Subscribe to our YouTube channel' },
     supportPrompt: 'Hello Zanzirangi House Customer Support! I would like to inquire about availability and planning our stay.',
   },
   pl: {
@@ -51,8 +54,9 @@ const FOOTER_EXTRA_TRANSLATIONS: Record<
     liveSupport: 'Wsparcie na żywo • Juma (Online)',
     email: 'Email:',
     location: 'Lokalizacja:',
-    locationAddress: 'Kizimkazi Dimbani, Południowe Wybrzeże, Zanzibar, Tanzania',
+    locationAddress: 'Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania',
     top: 'Góra',
+    social: { instagram: 'Obserwuj nas na Instagramie', facebook: 'Obserwuj nas na Facebooku', tiktok: 'Oglądaj nasze filmy na TikToku', youtube: 'Subskrybuj nasz kanał na YouTube' },
     supportPrompt: 'Dzień dobry, Zanzirangi House! Chciałbym zapytać o dostępność willi i zaplanowanie pobytu.',
   },
   ar: {
@@ -65,8 +69,9 @@ const FOOTER_EXTRA_TRANSLATIONS: Record<
     liveSupport: 'دعم مباشر • جمعة (متصل)',
     email: 'البريد الإلكتروني:',
     location: 'الموقع:',
-    locationAddress: 'كيزيمكازي ديمباني، الساحل الجنوبي، زنجبار، تنزانيا',
+    locationAddress: 'Kwa Lila 31, Bwejuu 72111، زنجبار، تنزانيا',
     top: 'للأعلى',
+    social: { instagram: 'تابعونا على إنستغرام', facebook: 'تابعونا على فيسبوك', tiktok: 'شاهدوا مقاطعنا على تيك توك', youtube: 'اشتركوا في قناتنا على يوتيوب' },
     supportPrompt: 'مرحباً خدمة عملاء زانزيرانجي هاوس! أود الاستفسار عن التوافر وتخطيط إقامتنا.',
   },
   zh: {
@@ -79,8 +84,9 @@ const FOOTER_EXTRA_TRANSLATIONS: Record<
     liveSupport: '在线客服 • Juma（在线）',
     email: '电子邮箱:',
     location: '地理位置:',
-    locationAddress: '坦桑尼亚桑给巴尔南海岸 Kizimkazi Dimbani',
+    locationAddress: '坦桑尼亚桑给巴尔 Bwejuu 72111, Kwa Lila 31',
     top: '返回顶部',
+    social: { instagram: '在 Instagram 上关注我们', facebook: '在 Facebook 上关注我们', tiktok: '在 TikTok 上观看我们的视频', youtube: '订阅我们的 YouTube 频道' },
     supportPrompt: '您好 Zanzirangi House 客服团队！我想咨询预订空房并规划我们的桑给巴尔之旅。',
   },
   fr: {
@@ -93,8 +99,9 @@ const FOOTER_EXTRA_TRANSLATIONS: Record<
     liveSupport: 'Support en direct • Juma (En ligne)',
     email: 'Courriel :',
     location: 'Emplacement :',
-    locationAddress: 'Kizimkazi Dimbani, Côte Sud, Zanzibar, Tanzanie',
+    locationAddress: 'Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzanie',
     top: 'Haut',
+    social: { instagram: 'Suivez-nous sur Instagram', facebook: 'Suivez-nous sur Facebook', tiktok: 'Regardez nos vidéos sur TikTok', youtube: 'Abonnez-vous à notre chaîne YouTube' },
     supportPrompt: 'Bonjour le service client de Zanzirangi House ! Je souhaite me renseigner sur les disponibilités pour notre séjour.',
   },
   sw: {
@@ -107,8 +114,9 @@ const FOOTER_EXTRA_TRANSLATIONS: Record<
     liveSupport: 'Msaada wa Moja kwa Moja • Juma (Yuko Mtandaoni)',
     email: 'Barua pepe:',
     location: 'Mahali:',
-    locationAddress: 'Kizimkazi Dimbani, Pwani ya Kusini, Zanzibar, Tanzania',
+    locationAddress: 'Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania',
     top: 'Juu',
+    social: { instagram: 'Tufuate kwenye Instagram', facebook: 'Tufuate kwenye Facebook', tiktok: 'Tazama video zetu kwenye TikTok', youtube: 'Jiunge na chaneli yetu ya YouTube' },
     supportPrompt: 'Habari Huduma kwa Wateja Zanzirangi House! Ningependa kuulizia kuhusu nafasi na kupanga kukaa kwetu.',
   },
   es: {
@@ -121,8 +129,9 @@ const FOOTER_EXTRA_TRANSLATIONS: Record<
     liveSupport: 'Soporte en directo • Juma (En línea)',
     email: 'Correo:',
     location: 'Ubicación:',
-    locationAddress: 'Kizimkazi Dimbani, Costa Sur, Zanzíbar, Tanzania',
+    locationAddress: 'Kwa Lila 31, Bwejuu 72111, Zanzíbar, Tanzania',
     top: 'Arriba',
+    social: { instagram: 'Síganos en Instagram', facebook: 'Síganos en Facebook', tiktok: 'Vea nuestros vídeos en TikTok', youtube: 'Suscríbase a nuestro canal de YouTube' },
     supportPrompt: '¡Hola equipo de atención de Zanzirangi House! Me gustaría consultar sobre disponibilidad y planificar nuestra estancia.',
   },
   it: {
@@ -135,11 +144,21 @@ const FOOTER_EXTRA_TRANSLATIONS: Record<
     liveSupport: 'Supporto Live • Juma (Online)',
     email: 'Email:',
     location: 'Posizione:',
-    locationAddress: 'Kizimkazi Dimbani, Costa Sud, Zanzibar, Tanzania',
+    locationAddress: 'Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania',
     top: 'Inizio',
+    social: { instagram: 'Seguici su Instagram', facebook: 'Seguici su Facebook', tiktok: 'Guarda i nostri video su TikTok', youtube: 'Iscriviti al nostro canale YouTube' },
     supportPrompt: 'Salve assistenza clienti Zanzirangi House! Vorrei informazioni sulla disponibilità e sulla pianificazione del nostro soggiorno.',
   },
 };
+
+import { GlobalContentModel } from '../services/contentApi';
+import { localizeUnlessEdited } from '../data/homeSectionsCms';
+
+// Footer tagline seeded into global_content; treated as a built-in default for non-English visitors.
+const SEEDED_FOOTER_TAGLINE = 'An intimate sanctuary between the ocean breeze and Swahili heritage.';
+
+const DEFAULT_MAPS_URL =
+  'https://www.google.com/maps/place/Zanzirangi+House/@-6.2345748,39.528593,17z/data=!3m1!4b1!4m6!3m5!1s0x185d3d007c81b231:0xd21c4f44e083553a!8m2!3d-6.2345748!4d39.5311679!16s%2Fg%2F11yyhxw2xf?entry=ttu&g_ep=EgoyMDI2MDkyMi4wIKXMDSoASAFQAw%3D%3D';
 
 interface FooterProps {
   currentLang: Language;
@@ -152,6 +171,7 @@ interface FooterProps {
     email?: string;
     address?: string;
     whatsappNumber?: string;
+    googleMapsUrl?: string;
   };
   dynamicSocials?: {
     instagram?: string;
@@ -161,6 +181,7 @@ interface FooterProps {
     whatsapp?: string;
   };
   dynamicCopyright?: string;
+  dynamicGlobal?: GlobalContentModel | null;
 }
 
 export const Footer: React.FC<FooterProps> = ({
@@ -172,34 +193,84 @@ export const Footer: React.FC<FooterProps> = ({
   dynamicContact,
   dynamicSocials,
   dynamicCopyright,
+  dynamicGlobal,
 }) => {
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
   const extra = FOOTER_EXTRA_TRANSLATIONS[currentLang] || FOOTER_EXTRA_TRANSLATIONS.en;
 
-  const contactPhone = dynamicContact?.phone || PROPERTY_CONFIG.contact.phone;
-  const contactEmail = dynamicContact?.email || PROPERTY_CONFIG.email;
-  const contactAddress = dynamicContact?.address || extra.locationAddress;
+  const tEn = TRANSLATIONS.en;
+  const extraEn = FOOTER_EXTRA_TRANSLATIONS.en;
+  const cms = (value: unknown): string | undefined =>
+    typeof value === 'string' && value.trim() ? value : undefined;
+
+  // Contact details come from Admin → Contact & WhatsApp (homepage.contact).
+  const contactPhone = cms(dynamicContact?.phone) || PROPERTY_CONFIG.contact.phone;
+  const contactEmail = cms(dynamicContact?.email) || PROPERTY_CONFIG.email;
+  const contactAddress = cms(dynamicContact?.address) || extra.locationAddress;
+  const mapsUrl = cms(dynamicContact?.googleMapsUrl) || DEFAULT_MAPS_URL;
+
+  const brandName = cms(dynamicGlobal?.brandName) || PROPERTY_CONFIG.name;
+  // English shows exactly what is saved; other languages keep the built-in translation while the
+  // tagline is still the seeded/English default.
+  const brandStatement = localizeUnlessEdited(
+    cms(dynamicGlobal?.footerTagline),
+    currentLang === 'en' ? undefined : SEEDED_FOOTER_TAGLINE,
+    tEn.footer.brandStatement,
+    t.footer.brandStatement
+  );
+  const planStayLabel = localizeUnlessEdited(
+    cms(dynamicGlobal?.ctaPlanStayLabel),
+    'PLAN YOUR STAY',
+    extraEn.planStay,
+    extra.planStay
+  );
+  const copyrightText =
+    cms(dynamicCopyright) ||
+    cms(dynamicGlobal?.footerCopyright) ||
+    `© ${new Date().getFullYear()} ${brandName}. ${t.footer.allRightsReserved}`;
+  const disclaimer = cms(dynamicGlobal?.footerDisclaimer);
+
+  const globalSocials = (dynamicGlobal?.socials || {}) as Record<string, string | undefined>;
   const socials = {
-    instagram: dynamicSocials?.instagram || PROPERTY_CONFIG.socials.instagram,
-    facebook: dynamicSocials?.facebook || PROPERTY_CONFIG.socials.facebook,
-    tiktok: dynamicSocials?.tiktok || PROPERTY_CONFIG.socials.tiktok,
-    youtube: dynamicSocials?.youtube || PROPERTY_CONFIG.socials.youtube,
+    instagram: cms(dynamicSocials?.instagram) || cms(globalSocials.instagram) || PROPERTY_CONFIG.socials.instagram,
+    facebook: cms(dynamicSocials?.facebook) || cms(globalSocials.facebook) || PROPERTY_CONFIG.socials.facebook,
+    tiktok: cms(dynamicSocials?.tiktok) || cms(globalSocials.tiktok) || PROPERTY_CONFIG.socials.tiktok,
+    youtube: cms(dynamicSocials?.youtube) || cms(globalSocials.youtube) || PROPERTY_CONFIG.socials.youtube,
   };
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const navLinks = [
-    { label: t.nav.stay || 'Private Villas', href: '/villas' },
-    { label: t.nav.dining || 'Oceanfront Dining', href: '/dining' },
-    { label: t.nav.experiences || 'Zanzibar Experiences', href: '/experiences' },
-    { label: 'Tanzania Safari', href: '/safari' },
-    { label: t.nav.about || 'About Sanctuary', href: '/about' },
-    { label: 'Contact & Reservations', href: '/contact' },
-    { label: 'Privacy Policy', href: '/privacy' },
-    { label: 'Terms & Conditions', href: '/terms' },
+  const pageNames = PAGE_NAMES[currentLang] || PAGE_NAMES.en;
+  const pageNamesEn = PAGE_NAMES.en;
+
+  // Built-in quick links; `en` lists the English defaults a CMS label may still hold.
+  const builtInLinks: { href: string; label: string; en: string[] }[] = [
+    { href: '/villas', label: t.nav.stay || pageNames.villas, en: [tEn.nav.stay, pageNamesEn.villas] },
+    { href: '/dining', label: t.nav.dining || pageNames.dining, en: [tEn.nav.dining, pageNamesEn.dining] },
+    { href: '/experiences', label: t.nav.experiences || pageNames.experiences, en: [tEn.nav.experiences, pageNamesEn.experiences] },
+    { href: '/safari', label: pageNames.safari, en: ['SAFARI', pageNamesEn.safari] },
+    { href: '/about', label: t.nav.about || pageNames.about, en: [tEn.nav.about || 'ABOUT', pageNamesEn.about] },
+    { href: '/contact', label: pageNames.contact, en: ['CONTACT', pageNamesEn.contact] },
+    { href: '/privacy', label: pageNames.privacy, en: [pageNamesEn.privacy] },
+    { href: '/terms', label: pageNames.terms, en: [pageNamesEn.terms] },
   ];
+
+  const localizeLinkLabel = (label: string, href: string): string => {
+    const builtIn = builtInLinks.find((b) => b.href === href);
+    if (!builtIn) return label;
+    const enMatch = builtIn.en.find((e) => !!e && e.toUpperCase() === label.trim().toUpperCase());
+    return localizeUnlessEdited(label, enMatch, enMatch, builtIn.label);
+  };
+
+  // Quick links follow Admin → Navigation & Footer; the built-in list is used when none are visible.
+  const cmsLinks = (Array.isArray(dynamicGlobal?.navLinks) ? dynamicGlobal!.navLinks : [])
+    .filter((link) => link && link.visible !== false && link.label && link.href)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map((link) => ({ label: localizeLinkLabel(link.label, link.href), href: link.href }));
+
+  const navLinks = cmsLinks.length > 0 ? cmsLinks : builtInLinks.map(({ label, href }) => ({ label, href }));
 
   const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     if (onNavigate && href.startsWith('/')) {
@@ -227,13 +298,13 @@ export const Footer: React.FC<FooterProps> = ({
           {/* Brand Col */}
           <div className="lg:col-span-4 space-y-4">
             <span className="font-serif text-2xl sm:text-3xl tracking-[0.16em] uppercase text-[#FAF8F5] block">
-              {PROPERTY_CONFIG.name}
+              {brandName}
             </span>
             <span className="text-[10px] tracking-[0.3em] uppercase text-[#C4A27A] block font-mono">
               Zanzibar • Tanzania
             </span>
             <p className="text-xs sm:text-sm text-[#D8CCB8]/80 leading-relaxed max-w-sm">
-              {t.footer.brandStatement}
+              {brandStatement}
             </p>
 
             {/* Plan Your Stay CTA Button */}
@@ -244,7 +315,7 @@ export const Footer: React.FC<FooterProps> = ({
                 className="px-6 py-3 bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-xs font-bold tracking-[0.2em] uppercase rounded transition-all shadow-md active:scale-95 flex items-center space-x-2 cursor-pointer"
               >
                 <Calendar className="w-3.5 h-3.5" />
-                <span>{extra.planStay}</span>
+                <span>{planStayLabel}</span>
               </button>
             </div>
           </div>
@@ -255,8 +326,8 @@ export const Footer: React.FC<FooterProps> = ({
               {t.footer.quickLinks}
             </span>
             <ul className="space-y-2.5 text-xs tracking-wider uppercase text-[#D8CCB8]/90">
-              {navLinks.map((link) => (
-                <li key={link.href}>
+              {navLinks.map((link, idx) => (
+                <li key={`${link.href}-${idx}`}>
                   <a
                     href={link.href}
                     onClick={(e) => handleLinkClick(e, link.href)}
@@ -308,7 +379,7 @@ export const Footer: React.FC<FooterProps> = ({
               <p>
                 <span className="text-[10px] text-[#6B6862] block">{extra.location}</span>
                 <a
-                  href="https://www.google.com/maps/place/Zanzirangi+House/@-6.2345748,39.528593,17z/data=!3m1!4b1!4m6!3m5!1s0x185d3d007c81b231:0xd21c4f44e083553a!8m2!3d-6.2345748!4d39.5311679!16s%2Fg%2F11yyhxw2xf?entry=ttu&g_ep=EgoyMDI2MDkyMi4wIKXMDSoASAFQAw%3D%3D"
+                  href={mapsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[#D8CCB8]/80 hover:text-[#C4A27A] transition-colors text-[11px] block"
@@ -350,7 +421,7 @@ export const Footer: React.FC<FooterProps> = ({
                 rel="noopener noreferrer"
                 className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#FAF8F5] hover:border-[#C4A27A] hover:text-[#C4A27A] transition-colors"
                 aria-label="Instagram"
-                title="Follow us on Instagram"
+                title={extra.social.instagram}
               >
                 <Instagram className="w-3.5 h-3.5" />
               </a>
@@ -360,7 +431,7 @@ export const Footer: React.FC<FooterProps> = ({
                 rel="noopener noreferrer"
                 className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#FAF8F5] hover:border-[#C4A27A] hover:text-[#C4A27A] transition-colors"
                 aria-label="Facebook"
-                title="Follow us on Facebook"
+                title={extra.social.facebook}
               >
                 <Facebook className="w-3.5 h-3.5" />
               </a>
@@ -370,7 +441,7 @@ export const Footer: React.FC<FooterProps> = ({
                 rel="noopener noreferrer"
                 className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#FAF8F5] hover:border-[#C4A27A] hover:text-[#C4A27A] transition-colors"
                 aria-label="TikTok"
-                title="Watch our videos on TikTok"
+                title={extra.social.tiktok}
               >
                 <TikTokIcon className="w-3.5 h-3.5" />
               </a>
@@ -380,7 +451,7 @@ export const Footer: React.FC<FooterProps> = ({
                 rel="noopener noreferrer"
                 className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#FAF8F5] hover:border-[#C4A27A] hover:text-[#C4A27A] transition-colors"
                 aria-label="YouTube"
-                title="Subscribe to our YouTube channel"
+                title={extra.social.youtube}
               >
                 <Youtube className="w-3.5 h-3.5" />
               </a>
@@ -391,7 +462,7 @@ export const Footer: React.FC<FooterProps> = ({
         {/* Bottom Sub-Bar */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-[#6B6862] gap-4">
           <p className="text-center sm:text-left">
-            {dynamicCopyright || `© ${new Date().getFullYear()} ${PROPERTY_CONFIG.name}. ${t.footer.allRightsReserved}`}
+            {copyrightText}
           </p>
 
           <div className="flex items-center space-x-4 text-[11px] text-[#A07E54]">
@@ -400,7 +471,7 @@ export const Footer: React.FC<FooterProps> = ({
               onClick={(e) => handleLinkClick(e, '/privacy')}
               className="hover:underline transition-colors"
             >
-              Privacy Policy
+              {pageNames.privacy}
             </a>
             <span>•</span>
             <a
@@ -408,7 +479,7 @@ export const Footer: React.FC<FooterProps> = ({
               onClick={(e) => handleLinkClick(e, '/terms')}
               className="hover:underline transition-colors"
             >
-              Terms & Conditions
+              {pageNames.terms}
             </a>
           </div>
 
@@ -420,6 +491,12 @@ export const Footer: React.FC<FooterProps> = ({
             <ArrowUp className="w-3.5 h-3.5" />
           </button>
         </div>
+
+        {disclaimer && (
+          <p className="pt-4 text-[11px] leading-relaxed text-[#6B6862] text-center sm:text-left">
+            {disclaimer}
+          </p>
+        )}
       </div>
     </footer>
   );

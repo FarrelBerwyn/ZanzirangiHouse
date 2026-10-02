@@ -1,0 +1,140 @@
+name: CI
+
+# Quality gate for every change. Nothing can be deployed unless this workflow passes for the exact
+# commit being deployed (deploy.yml calls it again with `ref`). No production secrets are used here.
+# Documentation: docs/CICD.md
+
+on:
+  pull_request:
+    branches: [main, staging]
+  push:
+    branches: [main, staging]
+    tags: ['v*']
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit SHA to verify (used by deploy.yml)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ inputs.ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_VERSION: '22' # matches the Hostinger Node.js app (node_version 22) and package.json engines >=20
+
+jobs:
+  quality:
+    name: Type check · Tests · Security · Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0 # tags/history for the release + migration checks
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies (lockfile must be in sync)
+        run: npm ci
+
+      - name: Verify registry signatures of installed packages
+        run: npm audit signatures
+
+      - name: Type check (tsc --noEmit)
+        run: npm run typecheck
+
+      - name: Unit + integration tests
+        run: npm test
+
+      - name: Secret scan (blocks committed secrets/forbidden files; warns on infra identifiers)
+        run: npm run security:secrets
+
+      - name: Dependency audit — BLOCKING (production dependencies, high + critical)
+        # One retry absorbs transient registry errors; a real advisory fails both attempts.
+        run: npm run security:audit || { sleep 15; npm run security:audit; }
+
+      - name: Dependency audit — REPORT ONLY (all dependencies, all severities)
+        run: npm audit || echo "::warning title=npm audit::Moderate/low or dev-dependency advisories found — review (does not block)."
+
+      - name: Migration review (destructive / non-portable SQL)
+        run: node scripts/check-migrations.mjs
+
+      - name: Build (client + pre-rendered routes + server bundle)
+        run: npm run build
+
+      - name: Verify build output
+        run: npm run verify:build
+
+      - name: Release metadata (package.json ↔ CHANGELOG ↔ tags)
+        run: npm run release:check
+
+      - name: Strict release gate (version tags only)
+        if: startsWith(github.ref, 'refs/tags/v') && inputs.ref == ''
+        run: |
+          test "${GITHUB_REF_NAME}" = "v$(node -p "require('./package.json').version")" \
+            || { echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version"; exit 1; }
+          npm run release:check -- --release
+
+  production-boot:
+    name: Production bundle boot + DB migrations (MariaDB)
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      db:
+        image: mariadb:10.11
+        env:
+          MARIADB_DATABASE: ci_zanzirangi
+          MARIADB_ROOT_PASSWORD: ci-throwaway-root # ephemeral container, never reachable outside the job
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_NAME: ci_zanzirangi
+      DB_USER: root
+      DB_PASSWORD: ci-throwaway-root
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Apply all migrations to an empty database
+        run: node scripts/ci-db-setup.mjs
+
+      - name: Start server.js exactly as production does (NODE_ENV=production)
+        run: |
+          export NODE_ENV=production PORT=3000 DATABASE_PROVIDER=mysql
+          export JWT_SECRET="$(openssl rand -hex 32)"   # random per run, never stored
+          export APP_URL=http://127.0.0.1:3000 CORS_ORIGIN=http://127.0.0.1:3000
+          export MEDIA_STORAGE_PATH="$RUNNER_TEMP/media"
+          nohup node server.js > "$RUNNER_TEMP/server.log" 2>&1 &
+
+      - name: Health check + smoke test against the booted bundle
+        run: node scripts/smoke-test-deployment.mjs --url http://127.0.0.1:3000 --wait 90
+
+      - name: Server log
+        if: always()
+        run: cat "$RUNNER_TEMP/server.log" || true

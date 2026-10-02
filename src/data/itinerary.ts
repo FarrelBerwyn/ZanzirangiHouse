@@ -1,3 +1,4 @@
+import { PROPERTY_CONFIG } from './propertyConfig';
 export interface ItineraryDay {
   dayNumber: string;
   dayTitle: string;
@@ -156,7 +157,7 @@ export const SAMPLE_ITINERARY: ItineraryDay[] = [
 
 export function buildItineraryWhatsAppUrl(
   selectedActivityIds: string[],
-  whatsappNumber: string = '255777890123'
+  whatsappNumber: string = PROPERTY_CONFIG.whatsappNumber
 ): string {
   const selectedTitles: string[] = [];
   SAMPLE_ITINERARY.forEach((day) => {

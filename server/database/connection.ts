@@ -35,9 +35,9 @@ export function getMysqlPool(): mysql.Pool {
   if (!connectionPool) {
     const host = process.env.DB_HOST || env.MYSQL_HOST || 'localhost';
     const port = Number(process.env.DB_PORT || env.MYSQL_PORT || 3306);
-    const user = process.env.DB_USER || env.MYSQL_USER || 'u170555096_admindatabase';
+    const user = process.env.DB_USER || env.MYSQL_USER || '';
     const password = process.env.DB_PASSWORD || env.MYSQL_PASSWORD || '';
-    const database = process.env.DB_NAME || env.MYSQL_DATABASE || 'u170555096_Zanzirangi';
+    const database = process.env.DB_NAME || env.MYSQL_DATABASE || '';
     const connectionLimit = Number(process.env.MYSQL_CONNECTION_LIMIT || env.MYSQL_CONNECTION_LIMIT || 10);
 
     connectionPool = mysql.createPool({
@@ -81,8 +81,8 @@ export async function closeMysqlPool(): Promise<void> {
 export async function testDatabaseConnection(): Promise<ConnectionDiagnosticResult> {
   const host = process.env.DB_HOST || env.MYSQL_HOST || 'localhost';
   const port = Number(process.env.DB_PORT || env.MYSQL_PORT || 3306);
-  const user = process.env.DB_USER || env.MYSQL_USER || 'u170555096_admindatabase';
-  const database = process.env.DB_NAME || env.MYSQL_DATABASE || 'u170555096_Zanzirangi';
+  const user = process.env.DB_USER || env.MYSQL_USER || '';
+  const database = process.env.DB_NAME || env.MYSQL_DATABASE || '';
 
   const steps: DiagnosticStep[] = [];
   let overallSuccess = true;

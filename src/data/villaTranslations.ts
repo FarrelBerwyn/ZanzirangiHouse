@@ -1,5 +1,6 @@
 import { Language, Villa } from '../types';
 import { VILLAS_DATA } from './villas';
+import { localizeUnlessEdited, localizeListUnlessEdited } from './homeSectionsCms';
 
 export interface VillaLocalization {
   name: string;
@@ -1295,50 +1296,41 @@ export const VILLA_TRANSLATIONS: Record<Language, Record<string, VillaLocalizati
   },
 };
 
-/**
- * Returns the localized villa array for the given language.
- */
-export function getLocalizedVillas(lang: Language, baseVillas: Villa[] = VILLAS_DATA): Villa[] {
-  const translations = VILLA_TRANSLATIONS[lang] || VILLA_TRANSLATIONS.en;
-
-  return baseVillas.map((villa) => {
-    const loc = translations[villa.id];
-    if (!loc) return villa;
-
-    return {
-      ...villa,
-      name: loc.name || villa.name,
-      type: loc.type || villa.type,
-      shortDescription: loc.shortDescription || villa.shortDescription,
-      description: loc.description || villa.description,
-      bed: loc.bed || villa.bed,
-      bathroom: loc.bathroom || villa.bathroom,
-      view: loc.view || villa.view,
-      architecturalFeature: loc.architecturalFeature || villa.architecturalFeature,
-      amenities: loc.amenities && loc.amenities.length > 0 ? loc.amenities : villa.amenities,
-    };
-  });
-}
+const asText = (value: unknown): string | undefined =>
+  value === undefined || value === null ? undefined : String(value);
 
 /**
  * Returns a single localized villa for the given language.
+ * CMS values win; the built-in translation is only used while a field is empty or still
+ * holds the built-in English default (seed or English dictionary).
  */
 export function getLocalizedVilla(villa: Villa | null, lang: Language): Villa | null {
   if (!villa) return null;
   const translations = VILLA_TRANSLATIONS[lang] || VILLA_TRANSLATIONS.en;
   const loc = translations[villa.id];
   if (!loc) return villa;
+  const seed = VILLAS_DATA.find((v) => v.id === villa.id);
+  const en = VILLA_TRANSLATIONS.en[villa.id];
+  const pick = (field: Exclude<keyof VillaLocalization, 'amenities'>) =>
+    localizeUnlessEdited(asText(villa[field]), asText(seed?.[field]), en?.[field], loc[field]);
 
   return {
     ...villa,
-    name: loc.name || villa.name,
-    type: loc.type || villa.type,
-    shortDescription: loc.shortDescription || villa.shortDescription,
-    description: loc.description || villa.description,
-    bed: loc.bed || villa.bed,
-    bathroom: loc.bathroom || villa.bathroom,
-    view: loc.view || villa.view,
-    architecturalFeature: loc.architecturalFeature || villa.architecturalFeature,
-    amenities: loc.amenities && loc.amenities.length > 0 ? loc.amenities : villa.amenities,
+    name: pick('name'),
+    type: pick('type'),
+    shortDescription: pick('shortDescription'),
+    description: pick('description'),
+    bed: pick('bed'),
+    bathroom: pick('bathroom'),
+    view: pick('view'),
+    architecturalFeature: pick('architecturalFeature'),
+    amenities: localizeListUnlessEdited(villa.amenities, seed?.amenities, en?.amenities, loc.amenities),
   };
+}
+
+/**
+ * Returns the localized villa array for the given language.
+ */
+export function getLocalizedVillas(lang: Language, baseVillas: Villa[] = VILLAS_DATA): Villa[] {
+  return baseVillas.map((villa) => getLocalizedVilla(villa, lang) as Villa);
 }

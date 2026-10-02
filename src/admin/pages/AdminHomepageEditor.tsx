@@ -16,6 +16,7 @@ import {
   FileText,
   Phone,
   Share2,
+  LayoutGrid,
 } from 'lucide-react';
 import {
   contentApi,
@@ -23,6 +24,13 @@ import {
   HeroSlide,
   FALLBACK_HOMEPAGE_CONTENT,
 } from '../../services/contentApi';
+import { HomeSectionsContent } from '../../data/homeSectionsCms';
+import { HomeSectionsEditor } from './HomeSectionsEditor';
+import { AdminImageInput } from '../components/AdminImageInput';
+
+// Slide images may be stored as './file.jpg' (relative to the site root). Resolve them from the root so
+// previews also work under /admin/*.
+const previewUrl = (url?: string) => (url && url.startsWith('./') ? url.slice(1) : url || '');
 
 interface AdminHomepageEditorProps {
   onUnsavedChangesChange?: (hasUnsaved: boolean) => void;
@@ -33,7 +41,8 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
 }) => {
   const [initialData, setInitialData] = useState<HomepageContent | null>(null);
   const [formData, setFormData] = useState<HomepageContent>(FALLBACK_HOMEPAGE_CONTENT);
-  const [activeTab, setActiveTab] = useState<'hero' | 'sections' | 'intro' | 'contact' | 'socials'>('hero');
+  const [activeTab, setActiveTab] = useState<'hero' | 'sections' | 'intro' | 'contact' | 'socials' | 'content'>('hero');
+  const [homeSections, setHomeSections] = useState<HomeSectionsContent>({});
   const [isLoading, setIsLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'unsaved' | 'saving' | 'success' | 'error'>('saved');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -52,9 +61,16 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
   const loadContent = async () => {
     try {
       setIsLoading(true);
-      const data = await contentApi.getAdminHomepage();
+      const [data, sectionsContent] = await Promise.all([
+        contentApi.getAdminHomepage(),
+        contentApi.getAdminHomeSections().catch((err) => {
+          console.error('Failed to load homepage section content:', err);
+          return {} as HomeSectionsContent;
+        }),
+      ]);
       setInitialData(data);
       setFormData(data);
+      setHomeSections(sectionsContent);
       setSaveStatus('saved');
       if (onUnsavedChangesChange) onUnsavedChangesChange(false);
     } catch (err) {
@@ -220,9 +236,13 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
         },
       };
 
-      const updated = await contentApi.updateHomepage(payload);
+      const [updated, updatedSections] = await Promise.all([
+        contentApi.updateHomepage(payload),
+        contentApi.updateHomeSections(homeSections),
+      ]);
       setInitialData(updated);
       setFormData(updated);
+      setHomeSections(updatedSections);
       setSaveStatus('success');
       setStatusMessage('✓ Published to live website');
       if (onUnsavedChangesChange) onUnsavedChangesChange(false);
@@ -241,8 +261,8 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
   if (isLoading) {
     return (
       <div className="py-24 text-center">
-        <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin text-[#C4A27A]" />
-        <p className="font-mono text-xs uppercase tracking-widest text-[#D8CCB8]">
+        <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin text-adm-accent" />
+        <p className="font-mono text-xs uppercase tracking-widest text-adm-text-2">
           Loading Homepage CMS...
         </p>
       </div>
@@ -254,21 +274,21 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Top Header & Publish Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-[#2C2B28] gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-adm-line gap-4">
         <div>
           <div className="flex items-center space-x-2">
-            <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-[#C4A27A]">
+            <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-adm-accent">
               HOMEPAGE
             </span>
             <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase bg-emerald-950/60 border border-emerald-700/60 text-emerald-300">
-              LIVE
+              LIVE ON WEBSITE
             </span>
           </div>
-          <h1 className="font-serif text-2xl sm:text-3xl text-[#FAF8F5] tracking-wide mt-1">
-            Homepage
+          <h1 className="font-serif text-2xl sm:text-3xl text-adm-text tracking-wide mt-1">
+            Homepage Settings
           </h1>
-          <p className="text-xs text-[#8E8B85] mt-0.5">
-            Kelola hero slider, section beranda, dan konten utama.
+          <p className="text-xs text-adm-muted mt-0.5">
+            Manage the opening hero, video banner, introduction text, and the order of content on the homepage.
           </p>
         </div>
 
@@ -281,12 +301,12 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                   ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-800/60'
                   : saveStatus === 'error'
                   ? 'bg-red-950/60 text-red-300 border border-red-800/60'
-                  : 'bg-[#22211F] text-[#D8CCB8] border border-[#2C2B28]'
+                  : 'bg-adm-raised text-adm-text-2 border border-adm-line'
               }`}
             >
               {saveStatus === 'success' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
               {saveStatus === 'error' && <AlertTriangle className="w-3.5 h-3.5 text-red-400" />}
-              {saveStatus === 'saving' && <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#C4A27A]" />}
+              {saveStatus === 'saving' && <RefreshCw className="w-3.5 h-3.5 animate-spin text-adm-accent" />}
               <span>{statusMessage}</span>
             </div>
           )}
@@ -295,76 +315,123 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
             onClick={handlePublish}
             disabled={saveStatus === 'saving'}
             id="homepage-publish-btn"
-            className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-lg bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-xs font-mono uppercase tracking-widest font-bold shadow-lg transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+            className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-lg bg-adm-accent-fill hover:bg-adm-accent-hover text-adm-on-accent text-xs font-mono uppercase tracking-widest font-bold shadow-lg transition-all cursor-pointer active:scale-95 disabled:opacity-50"
           >
             <Save className="w-4 h-4" />
-            <span>Publish Live</span>
+            <span>Publish Changes</span>
           </button>
         </div>
       </div>
 
+      {/* Visual Guide Banner for Layperson Admin */}
+      <div className="bg-adm-panel border border-adm-accent/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center space-x-2 text-xs font-mono text-adm-accent">
+            <span>📍 WHERE THIS APPEARS ON THE WEBSITE</span>
+            <span className="text-adm-muted">•</span>
+            <span className="text-adm-text">Homepage (Root /)</span>
+          </div>
+          <p className="text-xs text-adm-muted">
+            The content below is the first thing prospective guests see when they open <span className="text-adm-text font-mono">zanzirangihouse.com</span>. Click a tab below to edit each section.
+          </p>
+        </div>
+        <a
+          href="/"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-adm-raised hover:bg-adm-line border border-adm-line-strong text-xs font-mono text-adm-text transition-colors whitespace-nowrap"
+        >
+          <span>Open Live Website</span>
+          <span className="text-adm-accent">↗</span>
+        </a>
+      </div>
+
       {/* Navigation Sub-Tabs */}
-      <div className="flex items-center space-x-2 border-b border-[#2C2B28] pb-3 overflow-x-auto">
+      <div className="flex items-center space-x-2 border-b border-adm-line pb-3 overflow-x-auto">
         <button
           onClick={() => setActiveTab('hero')}
           className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-mono tracking-wider uppercase transition-colors cursor-pointer ${
             activeTab === 'hero'
-              ? 'bg-[#B8966C] text-[#141413] font-bold'
-              : 'text-[#D8CCB8] hover:bg-[#1E1D1B]'
+              ? 'bg-adm-accent-fill text-adm-on-accent font-bold'
+              : 'text-adm-text-2 hover:bg-adm-surface'
           }`}
         >
           <Sliders className="w-3.5 h-3.5" />
-          <span>Hero Header</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('sections')}
-          className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-mono tracking-wider uppercase transition-colors cursor-pointer ${
-            activeTab === 'sections'
-              ? 'bg-[#B8966C] text-[#141413] font-bold'
-              : 'text-[#D8CCB8] hover:bg-[#1E1D1B]'
-          }`}
-        >
-          <Layers className="w-3.5 h-3.5" />
-          <span>Sections & Ordering ({sections.length})</span>
+          <span>1. Main Banner Slider ({slides.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('intro')}
           className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-mono tracking-wider uppercase transition-colors cursor-pointer ${
             activeTab === 'intro'
-              ? 'bg-[#B8966C] text-[#141413] font-bold'
-              : 'text-[#D8CCB8] hover:bg-[#1E1D1B]'
+              ? 'bg-adm-accent-fill text-adm-on-accent font-bold'
+              : 'text-adm-text-2 hover:bg-adm-surface'
           }`}
         >
           <FileText className="w-3.5 h-3.5" />
-          <span>Editorial Intro</span>
+          <span>2. Story & Introduction</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('sections')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-mono tracking-wider uppercase transition-colors cursor-pointer ${
+            activeTab === 'sections'
+              ? 'bg-adm-accent-fill text-adm-on-accent font-bold'
+              : 'text-adm-text-2 hover:bg-adm-surface'
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5" />
+          <span>3. Section Order ({sections.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('contact')}
           className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-mono tracking-wider uppercase transition-colors cursor-pointer ${
             activeTab === 'contact'
-              ? 'bg-[#B8966C] text-[#141413] font-bold'
-              : 'text-[#D8CCB8] hover:bg-[#1E1D1B]'
+              ? 'bg-adm-accent-fill text-adm-on-accent font-bold'
+              : 'text-adm-text-2 hover:bg-adm-surface'
           }`}
         >
           <Phone className="w-3.5 h-3.5" />
-          <span>Contacts & Concierge</span>
+          <span>4. Concierge Quick Contact</span>
         </button>
 
         <button
           onClick={() => setActiveTab('socials')}
           className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-mono tracking-wider uppercase transition-colors cursor-pointer ${
             activeTab === 'socials'
-              ? 'bg-[#B8966C] text-[#141413] font-bold'
-              : 'text-[#D8CCB8] hover:bg-[#1E1D1B]'
+              ? 'bg-adm-accent-fill text-adm-on-accent font-bold'
+              : 'text-adm-text-2 hover:bg-adm-surface'
           }`}
         >
           <Share2 className="w-3.5 h-3.5" />
-          <span>Social Media</span>
+          <span>5. Social Media Accounts</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('content')}
+          id="homepage-tab-content"
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-mono tracking-wider uppercase transition-colors cursor-pointer ${
+            activeTab === 'content'
+              ? 'bg-adm-accent-fill text-adm-on-accent font-bold'
+              : 'text-adm-text-2 hover:bg-adm-surface'
+          }`}
+        >
+          <LayoutGrid className="w-3.5 h-3.5" />
+          <span>6. Other Section Content</span>
         </button>
       </div>
+
+      {/* TAB 6: PER-SECTION CONTENT (headings, cards & lists of every other homepage section) */}
+      {activeTab === 'content' && (
+        <HomeSectionsEditor
+          value={homeSections}
+          onChange={(next) => {
+            setHomeSections(next);
+            markUnsaved();
+          }}
+        />
+      )}
 
       {/* ============================================================== */}
       {/* ============================================================== */}
@@ -373,18 +440,18 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
       {activeTab === 'hero' && (
         <div className="space-y-6">
           {/* Hero Slides Header & Autoplay Settings */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-[#181716] border border-[#2C2B28]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-adm-panel border border-adm-line">
             <div>
-              <h2 className="font-serif text-lg text-[#FAF8F5]">Hero Carousel Slides</h2>
-              <p className="text-xs text-[#8E8B85] mt-0.5">
-                Setiap slide menggunakan background video autentik Zanzirangi House (./Zanzirangi-home.mp4).
+              <h2 className="font-serif text-lg text-adm-text">Hero Carousel Slides</h2>
+              <p className="text-xs text-adm-muted mt-0.5">
+                Every slide uses the authentic Zanzirangi House background video (./Zanzirangi-home.mp4).
               </p>
             </div>
 
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
-                <label className="text-[11px] font-mono text-[#D8CCB8] uppercase tracking-wider">
-                  Interval (detik):
+                <label className="text-[11px] font-mono text-adm-text-2 uppercase tracking-wider">
+                  Interval (seconds):
                 </label>
                 <input
                   type="number"
@@ -399,15 +466,15 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                     }));
                     markUnsaved();
                   }}
-                  className="w-16 px-2 py-1 bg-[#141413] border border-[#2C2B28] rounded text-xs font-mono text-center text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                  className="w-16 px-2 py-1 bg-adm-bg border border-adm-line rounded text-xs font-mono text-center text-adm-text focus:border-adm-accent outline-none"
                 />
               </div>
 
               <button
                 onClick={handleAddSlide}
-                className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-lg bg-[#22211F] hover:bg-[#2C2B28] border border-[#2C2B28] hover:border-[#C4A27A] text-xs font-mono text-[#FAF8F5] transition-all cursor-pointer"
+                className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-lg bg-adm-raised hover:bg-adm-line border border-adm-line hover:border-adm-accent text-xs font-mono text-adm-text transition-all cursor-pointer"
               >
-                <Plus className="w-3.5 h-3.5 text-[#C4A27A]" />
+                <Plus className="w-3.5 h-3.5 text-adm-accent" />
                 <span>Add Slide</span>
               </button>
             </div>
@@ -423,33 +490,33 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                   onClick={() => setSelectedSlideIndex(index)}
                   className={`relative p-3 rounded-xl border transition-all cursor-pointer ${
                     isSelected
-                      ? 'bg-[#22211F] border-[#C4A27A] shadow-lg'
-                      : 'bg-[#181716] border-[#2C2B28] hover:border-[#3D3B37]'
+                      ? 'bg-adm-raised border-adm-accent shadow-lg'
+                      : 'bg-adm-panel border-adm-line hover:border-adm-line-strong'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-mono font-bold text-[#C4A27A]">
+                    <span className="text-[10px] font-mono font-bold text-adm-accent">
                       #{index + 1}
                     </span>
                     <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => handleToggleSlideVisibility(index)}
                         title={slide.visible ? 'Hide slide' : 'Show slide'}
-                        className="p-1 text-[#8E8B85] hover:text-[#FAF8F5] cursor-pointer"
+                        className="p-1 text-adm-muted hover:text-adm-text cursor-pointer"
                       >
                         {slide.visible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5 text-amber-400" />}
                       </button>
                       <button
                         disabled={index === 0}
                         onClick={() => handleMoveSlide(index, 'up')}
-                        className="p-1 text-[#8E8B85] hover:text-[#FAF8F5] disabled:opacity-30 cursor-pointer"
+                        className="p-1 text-adm-muted hover:text-adm-text disabled:opacity-30 cursor-pointer"
                       >
                         <ArrowUp className="w-3.5 h-3.5" />
                       </button>
                       <button
                         disabled={index === slides.length - 1}
                         onClick={() => handleMoveSlide(index, 'down')}
-                        className="p-1 text-[#8E8B85] hover:text-[#FAF8F5] disabled:opacity-30 cursor-pointer"
+                        className="p-1 text-adm-muted hover:text-adm-text disabled:opacity-30 cursor-pointer"
                       >
                         <ArrowDown className="w-3.5 h-3.5" />
                       </button>
@@ -458,11 +525,11 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
 
                   <div className="h-20 rounded-lg overflow-hidden bg-black/40 mb-2 relative">
                     <img
-                      src={slide.heroImage}
+                      src={previewUrl(slide.heroImage)}
                       alt={slide.title}
                       className="w-full h-full object-cover"
                     />
-                    <div className="absolute top-1 right-1 bg-black/70 px-1.5 py-0.5 rounded text-[8px] font-mono uppercase text-[#C4A27A]">
+                    <div className="absolute top-1 right-1 bg-black/70 px-1.5 py-0.5 rounded text-[8px] font-mono uppercase text-adm-accent">
                       VIDEO
                     </div>
                     {!slide.visible && (
@@ -474,10 +541,10 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                     )}
                   </div>
 
-                  <p className="font-serif text-xs text-[#FAF8F5] truncate font-medium">
+                  <p className="font-serif text-xs text-adm-text truncate font-medium">
                     {slide.title}
                   </p>
-                  <p className="text-[10px] text-[#8E8B85] truncate mt-0.5">
+                  <p className="text-[10px] text-adm-muted truncate mt-0.5">
                     {slide.subtitle || slide.badgeText}
                   </p>
                 </div>
@@ -487,24 +554,24 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
 
           {/* Detailed Hero Editor Form */}
           {currentSlide && (
-            <div className="bg-[#181716] p-6 rounded-xl border border-[#2C2B28] space-y-5">
-              <div className="flex items-center justify-between pb-3 border-b border-[#2C2B28]">
+            <div className="bg-adm-panel p-6 rounded-xl border border-adm-line space-y-5">
+              <div className="flex items-center justify-between pb-3 border-b border-adm-line">
                 <div>
-                  <span className="text-[10px] font-mono tracking-widest text-[#C4A27A] uppercase">
+                  <span className="text-[10px] font-mono tracking-widest text-adm-accent uppercase">
                     EDITING SLIDE {selectedSlideIndex + 1} OF {slides.length}
                   </span>
-                  <h3 className="font-serif text-lg text-[#FAF8F5]">
+                  <h3 className="font-serif text-lg text-adm-text">
                     {currentSlide.title || 'Untitled Slide'}
                   </h3>
-                  <p className="text-xs text-[#8E8B85] mt-0.5">
-                    Latar belakang video autentik dan konten editorial untuk slide ini.
+                  <p className="text-xs text-adm-muted mt-0.5">
+                    Authentic background video and editorial content for this slide.
                   </p>
                 </div>
 
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => handleDuplicateSlide(selectedSlideIndex)}
-                    className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded bg-[#22211F] hover:bg-[#2C2B28] text-xs font-mono text-[#D8CCB8] cursor-pointer"
+                    className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded bg-adm-raised hover:bg-adm-line text-xs font-mono text-adm-text-2 cursor-pointer"
                   >
                     <Copy className="w-3.5 h-3.5" />
                     <span>Duplicate</span>
@@ -523,7 +590,7 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Eyebrow / Badge */}
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Eyebrow / Badge Label
                   </label>
                   <input
@@ -533,13 +600,13 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                       handleUpdateSlide(selectedSlideIndex, 'badgeText', e.target.value)
                     }
                     placeholder="e.g. KIZIMKAZI DIMBANI • SOUTH COAST"
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 {/* Main Headline */}
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Main Title (Heading)
                   </label>
                   <input
@@ -547,13 +614,13 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                     value={currentSlide.title || ''}
                     onChange={(e) => handleUpdateSlide(selectedSlideIndex, 'title', e.target.value)}
                     placeholder="e.g. Zanzibar Luxury Villa - Zanzirangi House"
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-serif text-[#FAF8F5] focus:border-[#C4A27A] outline-none text-sm"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-serif text-adm-text focus:border-adm-accent outline-none text-sm"
                   />
                 </div>
 
                 {/* Subtitle */}
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Subtitle Descriptor
                   </label>
                   <input
@@ -563,13 +630,13 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                       handleUpdateSlide(selectedSlideIndex, 'subtitle', e.target.value)
                     }
                     placeholder="e.g. Private Pool Retreat"
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-serif text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-serif text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 {/* Background Video URL (Optional) */}
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Background Video URL (Optional MP4)
                   </label>
                   <input
@@ -579,13 +646,13 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                       handleUpdateSlide(selectedSlideIndex, 'videoUrl', e.target.value)
                     }
                     placeholder="./Zanzirangi-home.mp4"
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 {/* Description Narrative */}
                 <div className="md:col-span-2">
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Narrative Story / Description
                   </label>
                   <textarea
@@ -595,13 +662,13 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                       handleUpdateSlide(selectedSlideIndex, 'description', e.target.value)
                     }
                     placeholder="Experience Zanzibar luxury villas with private plunge pools..."
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 {/* Primary CTA Label & Link */}
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Primary CTA Label
                   </label>
                   <input
@@ -611,12 +678,12 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                       handleUpdateSlide(selectedSlideIndex, 'primaryCtaText', e.target.value)
                     }
                     placeholder="Reserve Sanctuary"
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Primary CTA Destination
                   </label>
                   <input
@@ -626,13 +693,13 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                       handleUpdateSlide(selectedSlideIndex, 'primaryCtaLink', e.target.value)
                     }
                     placeholder="#stay or /villas"
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 {/* Secondary CTA Label & Link */}
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Secondary CTA Label
                   </label>
                   <input
@@ -642,12 +709,12 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                       handleUpdateSlide(selectedSlideIndex, 'secondaryCtaText', e.target.value)
                     }
                     placeholder="Explore Sanctuary"
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                     Secondary CTA Destination
                   </label>
                   <input
@@ -657,53 +724,23 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                       handleUpdateSlide(selectedSlideIndex, 'secondaryCtaLink', e.target.value)
                     }
                     placeholder="#itinerary or /experiences"
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                   />
                 </div>
 
                 {/* Background Image URL & Curated Picker */}
-                <div className="md:col-span-2 space-y-2">
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8]">
-                    Background Image URL / High-Res Photography
-                  </label>
-                  <input
-                    type="text"
+                <div className="md:col-span-2 pt-2">
+                  <AdminImageInput
                     value={currentSlide.heroImage || ''}
-                    onChange={(e) =>
-                      handleUpdateSlide(selectedSlideIndex, 'heroImage', e.target.value)
+                    onChange={(url) =>
+                      handleUpdateSlide(selectedSlideIndex, 'heroImage', url)
                     }
-                    className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                    label="Foto Latar Belakang Slide (Hero Image)"
+                    hint="Gunakan link foto (URL) atau langsung upload file gambar resolusi tinggi dari komputer."
+                    altText={currentSlide.title}
+                    presets={CURATED_IMAGES.map((img) => ({ label: img.name, url: img.url }))}
+                    previewHeight="h-56"
                   />
-
-                  {/* Quick Preset Selector */}
-                  <div className="pt-2">
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-[#8E8B85] block mb-2">
-                      Or select from curated sanctuary gallery:
-                    </span>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {CURATED_IMAGES.map((img) => (
-                        <button
-                          key={img.url}
-                          type="button"
-                          onClick={() =>
-                            handleUpdateSlide(selectedSlideIndex, 'heroImage', img.url)
-                          }
-                          className={`flex items-center space-x-2 p-1.5 rounded-lg border text-left cursor-pointer transition-all ${
-                            currentSlide.heroImage === img.url
-                              ? 'border-[#B8966C] bg-[#B8966C]/10 text-[#C4A27A]'
-                              : 'border-[#2C2B28] bg-[#141413] text-[#8E8B85] hover:text-[#FAF8F5]'
-                          }`}
-                        >
-                          <img
-                            src={img.url}
-                            alt={img.name}
-                            className="w-8 h-8 rounded object-cover shrink-0"
-                          />
-                          <span className="text-[10px] font-mono truncate">{img.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -715,15 +752,15 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
       {/* TAB 2: HOMEPAGE SECTIONS VISIBILITY & ORDERING               */}
       {/* ============================================================== */}
       {activeTab === 'sections' && (
-        <div className="bg-[#181716] p-6 rounded-xl border border-[#2C2B28] space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#2C2B28]">
+        <div className="bg-adm-panel p-6 rounded-xl border border-adm-line space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-adm-line">
             <div>
-              <h3 className="font-serif text-lg text-[#FAF8F5]">Homepage Section Architecture</h3>
-              <p className="text-xs text-[#8E8B85]">
+              <h3 className="font-serif text-lg text-adm-text">Homepage Section Architecture</h3>
+              <p className="text-xs text-adm-muted">
                 Show/Hide sections without deleting content. Reorder sections dynamically to test customer journeys.
               </p>
             </div>
-            <span className="text-[11px] font-mono text-[#C4A27A]">
+            <span className="text-[11px] font-mono text-adm-accent">
               {sections.filter((s) => s.visible).length} of {sections.length} Sections Visible
             </span>
           </div>
@@ -734,20 +771,20 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                 key={section.id}
                 className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
                   section.visible
-                    ? 'bg-[#1C1B1A] border-[#2C2B28]'
-                    : 'bg-[#141413]/60 border-[#22211F] opacity-60'
+                    ? 'bg-adm-surface border-adm-line'
+                    : 'bg-adm-bg/60 border-adm-raised opacity-60'
                 }`}
               >
                 <div className="flex items-center space-x-3">
-                  <span className="w-6 h-6 rounded bg-[#242321] text-[#C4A27A] flex items-center justify-center font-mono text-xs">
+                  <span className="w-6 h-6 rounded bg-adm-raised text-adm-accent flex items-center justify-center font-mono text-xs">
                     {idx + 1}
                   </span>
                   <div>
-                    <span className="font-mono text-xs uppercase tracking-wider text-[#FAF8F5] block">
-                      {section.name}
+                    <span className="font-mono text-xs uppercase tracking-wider text-adm-text block">
+                      {section.name || (section as any).label || section.id}
                     </span>
-                    <span className="text-[10px] text-[#8E8B85] font-mono">
-                      Key: <code className="text-[#C4A27A]">{section.id}</code>
+                    <span className="text-[10px] text-adm-muted font-mono">
+                      Key: <code className="text-adm-accent">{section.id}</code>
                     </span>
                   </div>
                 </div>
@@ -757,7 +794,7 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                   <button
                     onClick={() => handleMoveSection(idx, 'up')}
                     disabled={idx === 0}
-                    className="p-1.5 rounded bg-[#242321] hover:bg-[#2C2B28] text-[#D8CCB8] disabled:opacity-20 cursor-pointer"
+                    className="p-1.5 rounded bg-adm-raised hover:bg-adm-line text-adm-text-2 disabled:opacity-20 cursor-pointer"
                     title="Move section up"
                   >
                     <ArrowUp className="w-3.5 h-3.5" />
@@ -765,7 +802,7 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                   <button
                     onClick={() => handleMoveSection(idx, 'down')}
                     disabled={idx === sections.length - 1}
-                    className="p-1.5 rounded bg-[#242321] hover:bg-[#2C2B28] text-[#D8CCB8] disabled:opacity-20 cursor-pointer"
+                    className="p-1.5 rounded bg-adm-raised hover:bg-adm-line text-adm-text-2 disabled:opacity-20 cursor-pointer"
                     title="Move section down"
                   >
                     <ArrowDown className="w-3.5 h-3.5" />
@@ -803,17 +840,17 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
       {/* TAB 3: EDITORIAL INTRO ("MORE THAN A STAY")                     */}
       {/* ============================================================== */}
       {activeTab === 'intro' && (
-        <div className="bg-[#181716] p-6 rounded-xl border border-[#2C2B28] space-y-4">
-          <div className="pb-3 border-b border-[#2C2B28]">
-            <h3 className="font-serif text-lg text-[#FAF8F5]">Editorial Sanctuary Introduction</h3>
-            <p className="text-xs text-[#8E8B85]">
+        <div className="bg-adm-panel p-6 rounded-xl border border-adm-line space-y-4">
+          <div className="pb-3 border-b border-adm-line">
+            <h3 className="font-serif text-lg text-adm-text">Editorial Sanctuary Introduction</h3>
+            <p className="text-xs text-adm-muted">
               The prominent narrative section immediately following the quick booking bar.
             </p>
           </div>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                 Eyebrow Small Headline
               </label>
               <input
@@ -826,12 +863,12 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                   }));
                   markUnsaved();
                 }}
-                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                 Major Statement Title
               </label>
               <input
@@ -844,12 +881,12 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                   }));
                   markUnsaved();
                 }}
-                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-sm font-serif text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-sm font-serif text-adm-text focus:border-adm-accent outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                 Philosophical Narrative
               </label>
               <textarea
@@ -862,7 +899,7 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                   }));
                   markUnsaved();
                 }}
-                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs text-[#FAF8F5] focus:border-[#C4A27A] outline-none leading-relaxed"
+                className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs text-adm-text focus:border-adm-accent outline-none leading-relaxed"
               />
             </div>
           </div>
@@ -873,17 +910,17 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
       {/* TAB 4: CONTACT & CONCIERGE INFORMATION                         */}
       {/* ============================================================== */}
       {activeTab === 'contact' && (
-        <div className="bg-[#181716] p-6 rounded-xl border border-[#2C2B28] space-y-4">
-          <div className="pb-3 border-b border-[#2C2B28]">
-            <h3 className="font-serif text-lg text-[#FAF8F5]">Concierge & Direct Contact Channels</h3>
-            <p className="text-xs text-[#8E8B85]">
+        <div className="bg-adm-panel p-6 rounded-xl border border-adm-line space-y-4">
+          <div className="pb-3 border-b border-adm-line">
+            <h3 className="font-serif text-lg text-adm-text">Concierge & Direct Contact Channels</h3>
+            <p className="text-xs text-adm-muted">
               Official phone numbers, WhatsApp, physical address and map links displayed on website and footer.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                 Telephone (Direct Line)
               </label>
               <input
@@ -896,12 +933,12 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                   }));
                   markUnsaved();
                 }}
-                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                 Concierge Email
               </label>
               <input
@@ -914,12 +951,12 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                   }));
                   markUnsaved();
                 }}
-                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                 WhatsApp Number (International format without +)
               </label>
               <input
@@ -933,12 +970,12 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                   markUnsaved();
                 }}
                 placeholder="255777890123"
-                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                 Google Maps URL
               </label>
               <input
@@ -951,12 +988,12 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                   }));
                   markUnsaved();
                 }}
-                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
               />
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                 Physical Property Address
               </label>
               <input
@@ -969,7 +1006,7 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                   }));
                   markUnsaved();
                 }}
-                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
               />
             </div>
           </div>
@@ -980,17 +1017,17 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
       {/* TAB 5: SOCIAL MEDIA CHANNELS                                   */}
       {/* ============================================================== */}
       {activeTab === 'socials' && (
-        <div className="bg-[#181716] p-6 rounded-xl border border-[#2C2B28] space-y-4">
-          <div className="pb-3 border-b border-[#2C2B28]">
-            <h3 className="font-serif text-lg text-[#FAF8F5]">Social Media Channels</h3>
-            <p className="text-xs text-[#8E8B85]">
+        <div className="bg-adm-panel p-6 rounded-xl border border-adm-line space-y-4">
+          <div className="pb-3 border-b border-adm-line">
+            <h3 className="font-serif text-lg text-adm-text">Social Media Channels</h3>
+            <p className="text-xs text-adm-muted">
               Update Instagram, Facebook, TikTok, and YouTube channels rendered in footer and concierge features.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                 Instagram Profile URL
               </label>
               <input
@@ -1003,12 +1040,12 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                   }));
                   markUnsaved();
                 }}
-                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                 Facebook Page URL
               </label>
               <input
@@ -1021,12 +1058,12 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                   }));
                   markUnsaved();
                 }}
-                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                 TikTok Channel URL
               </label>
               <input
@@ -1039,12 +1076,12 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                   }));
                   markUnsaved();
                 }}
-                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                 YouTube Channel URL
               </label>
               <input
@@ -1057,7 +1094,7 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                   }));
                   markUnsaved();
                 }}
-                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
               />
             </div>
           </div>

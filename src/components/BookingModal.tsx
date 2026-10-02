@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Calendar, Users, Home, CheckCircle2, MessageSquare, ArrowRight, ShieldCheck } from 'lucide-react';
-import { Language } from '../types';
-import { getLocalizedVillas, getLocalizedVilla } from '../data/villaTranslations';
+import { Language, Villa } from '../types';
+import { getLocalizedVillas } from '../data/villaTranslations';
 import { PROPERTY_CONFIG } from '../data/propertyConfig';
 import { TRANSLATIONS } from '../data/translations';
 
@@ -14,6 +14,7 @@ interface BookingModalProps {
   currentLang: Language;
   onClose: () => void;
   onOpenSupportChat?: (query?: string) => void;
+  villas?: Villa[];
 }
 
 export const BookingModal: React.FC<BookingModalProps> = ({
@@ -25,11 +26,16 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   currentLang,
   onClose,
   onOpenSupportChat,
+  villas: customVillas,
 }) => {
   if (!isOpen) return null;
 
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
-  const localizedVillas = getLocalizedVillas(currentLang);
+  // CMS villas (when provided) win; the built-in list is only the fallback
+  const localizedVillas = getLocalizedVillas(
+    currentLang,
+    customVillas && customVillas.length > 0 ? customVillas : undefined
+  );
 
   const today = new Date();
   const defaultCheckIn =
@@ -54,7 +60,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [isSuccess, setIsSuccess] = useState(false);
 
   const chosenVilla =
-    getLocalizedVilla(selectedVillaId, currentLang) || localizedVillas[0];
+    localizedVillas.find((v) => v.id === selectedVillaId) || localizedVillas[0];
 
   const guestUnit = t.quickBooking.guests || 'Guests';
 
@@ -211,10 +217,34 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+
+    const bookingPayload = {
+      bookingId: `bk_${Date.now()}`,
+      villaId: chosenVilla.id,
+      villaName: chosenVilla.name,
+      roomNumber: chosenVilla.roomNumber,
+      checkIn,
+      checkOut,
+      guests,
+      fullName,
+      email,
+      phone,
+      country,
+      specialRequests,
+      airportTransfer,
+    };
+
+    // Dispatch instant Hostinger SMTP email alert to hotel management
+    fetch('/api/support/booking-alert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bookingPayload),
+    }).catch((err) => console.warn('Booking alert dispatch notice:', err));
+
     setTimeout(() => {
       setIsSubmitting(false);
       setIsSuccess(true);
-    }, 1000);
+    }, 800);
   };
 
   return (

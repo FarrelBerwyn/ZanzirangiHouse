@@ -21,8 +21,8 @@ export const VillaDetailModal: React.FC<VillaDetailModalProps> = ({
 }) => {
   if (!rawVilla) return null;
 
-  // Ensure fully localized villa object
-  const villa = getLocalizedVilla(rawVilla.id, currentLang) || rawVilla;
+  // Show the received (CMS) villa; built-in translations only fill fields still at their English default
+  const villa = getLocalizedVilla(rawVilla, currentLang) || rawVilla;
 
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
   const [activeImageIndex, setActiveImageIndex] = useState(0);

@@ -2,14 +2,22 @@ import React, { useState } from 'react';
 import { Star, Quote, ChevronLeft, ChevronRight, CheckCircle, AlertCircle } from 'lucide-react';
 import { Review, Language } from '../types';
 import { REVIEWS_UI_TRANSLATIONS, getLocalizedReviews } from '../data/reviewsTranslations';
+import { HomeSectionContent, cmsText } from '../data/homeSectionsCms';
 
 interface ReviewsSectionProps {
   currentLang: Language;
   reviews?: Review[];
+  cmsContent?: HomeSectionContent;
 }
 
-export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ currentLang, reviews: customReviews }) => {
-  const ui = REVIEWS_UI_TRANSLATIONS[currentLang] || REVIEWS_UI_TRANSLATIONS.en;
+export const ReviewsSection: React.FC<ReviewsSectionProps> = ({ currentLang, reviews: customReviews, cmsContent }) => {
+  const baseUi = REVIEWS_UI_TRANSLATIONS[currentLang] || REVIEWS_UI_TRANSLATIONS.en;
+  const ui = {
+    ...baseUi,
+    eyebrow: cmsText(cmsContent?.eyebrow, baseUi.eyebrow),
+    heading: cmsText(cmsContent?.heading, baseUi.heading),
+    subhead: cmsText(cmsContent?.subhead, baseUi.subhead),
+  };
   const reviews = getLocalizedReviews(currentLang, customReviews || undefined);
   const [activeIdx, setActiveIdx] = useState(0);
 

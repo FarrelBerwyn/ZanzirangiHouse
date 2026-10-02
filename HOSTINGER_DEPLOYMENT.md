@@ -1,3 +1,5 @@
+> **Superseded (2026-10-01):** the authoritative procedure is [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) with the CI/CD pipeline in [docs/CICD.md](docs/CICD.md). This file is kept for history; parts are outdated. Do not copy infrastructure identifiers from it.
+
 # Hostinger Deployment Guide: Zanzirangi House
 ## SEO & GEO Sitelinks-Ready Deployment
 

@@ -10,23 +10,26 @@ export const PROPERTY_CONFIG: PropertyConfig = {
   tagline: 'YOUR PRIVATE GATEWAY TO ZANZIBAR',
   subTagline: 'Stay, explore and experience the island — with Tanzania beyond.',
   destination: 'Zanzibar, Tanzania',
-  address: 'Kizimkazi Dimbani, South Coast',
+  address: 'Kwa Lila 31, Bwejuu 72111',
   city: 'Zanzibar',
   country: 'Tanzania',
-  locationDetails: 'Nestled between ancient baobab groves and pristine turquoise coral lagoons on the peaceful southern coast of Unguja Island.',
+  locationDetails: 'Nestled between ancient baobab groves and pristine turquoise coral lagoons on the peaceful east coast of Unguja Island, in Bwejuu.',
+  // Google Maps place: Zanzirangi House, Kwa Lila 31, Bwejuu 72111 (https://maps.app.goo.gl/4rkgUt9tPLa1dZQw5)
   coordinates: {
-    lat: -6.4429,
-    lng: 39.4678,
-    embedUrl: 'https://maps.google.com/maps?q=-6.4429,39.4678&hl=en&z=14&output=embed',
+    lat: -6.2345748,
+    lng: 39.5311679,
+    embedUrl:
+      'https://maps.google.com/maps?q=Zanzirangi%20House%2C%20Kwa%20Lila%2031%2C%20Bwejuu&ll=-6.2345748,39.5311679&hl=en&z=15&output=embed',
   },
+  // Placeholder contact details; the live values come from Admin → Contact & WhatsApp (see applyCmsContact).
   phone: '+255 777 890 123',
   displayPhone: '+255 (0) 777 890 123',
   whatsappNumber: '255777890123',
   whatsappMessage: 'Hello, I would like to inquire about availability and rates at Zanzirangi House.',
-  email: 'concierge@zanzirangihouse.com',
+  email: 'info@zanzirangihouse.com',
   contact: {
     phone: '+255 777 890 123',
-    email: 'concierge@zanzirangihouse.com',
+    email: 'info@zanzirangihouse.com',
     whatsapp: '+255 777 890 123',
   },
   stats: {
@@ -77,3 +80,33 @@ export const OTA_CHANNELS = [
     description: 'VIP Access Preferred Property',
   },
 ];
+
+/**
+ * Applies the contact details managed in Admin → Contact & WhatsApp (homepage.contact) to
+ * PROPERTY_CONFIG, so every WhatsApp link, phone number and email on the site follows the CMS.
+ * Called by App before it re-renders with freshly fetched homepage content.
+ */
+export const applyCmsContact = (contact?: {
+  phone?: string;
+  email?: string;
+  whatsappNumber?: string;
+  address?: string;
+}) => {
+  if (!contact) return;
+  const phone = contact.phone?.trim();
+  const email = contact.email?.trim();
+  const whatsappDigits = contact.whatsappNumber?.replace(/[^0-9]/g, '');
+  if (phone) {
+    PROPERTY_CONFIG.phone = phone;
+    PROPERTY_CONFIG.displayPhone = phone;
+    PROPERTY_CONFIG.contact.phone = phone;
+  }
+  if (email) {
+    PROPERTY_CONFIG.email = email;
+    PROPERTY_CONFIG.contact.email = email;
+  }
+  if (whatsappDigits) {
+    PROPERTY_CONFIG.whatsappNumber = whatsappDigits;
+    PROPERTY_CONFIG.contact.whatsapp = `+${whatsappDigits}`;
+  }
+};

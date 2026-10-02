@@ -21,8 +21,20 @@ import {
   RefreshCw,
   Info,
   Check,
+  Bell,
+  BellOff,
+  Volume2,
+  VolumeX,
+  Camera,
+  Image as ImageIcon,
+  Smartphone,
+  ShieldAlert,
+  Radio,
 } from 'lucide-react';
 import { supportApi } from '../../services/supportApi';
+import { contentApi } from '../../services/contentApi';
+import { DEFAULT_SETTINGS } from '../../data/seedDefaults';
+import { ImageCropperModal } from '../components/ImageCropperModal';
 import {
   SupportConversationRecord,
   SupportMessageRecord,
@@ -32,8 +44,19 @@ import {
   SupportConversationStatus,
 } from '../../../server/database/supportTypes';
 
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 export const AdminSupportInbox: React.FC = () => {
-  const [activeSubTab, setActiveSubTab] = useState<'inbox' | 'knowledge' | 'analytics'>('inbox');
+  const [activeSubTab, setActiveSubTab] = useState<'inbox' | 'knowledge' | 'analytics' | 'profile'>('inbox');
 
   // -------------------------------------------------------------
   // INBOX STATE
@@ -93,6 +116,291 @@ export const AdminSupportInbox: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(true);
   const threadEndRef = useRef<HTMLDivElement>(null);
+  const prevWaitingCountRef = useRef<number>(0);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('zanzirangi_admin_sound') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  const [hasNotificationPermission, setHasNotificationPermission] = useState<boolean>(
+    typeof Notification !== 'undefined' && Notification.permission === 'granted'
+  );
+
+  // -------------------------------------------------------------
+  // STAFF ON-DUTY & MOBILE PUSH STATE
+  // -------------------------------------------------------------
+  const [isOnDuty, setIsOnDuty] = useState<boolean>(true);
+  const [staffDutyList, setStaffDutyList] = useState<any[]>([]);
+  const [hasAgentOnline, setHasAgentOnline] = useState<boolean>(true);
+  const [isPushSubscribed, setIsPushSubscribed] = useState<boolean>(false);
+  const [isPushLoading, setIsPushLoading] = useState<boolean>(false);
+  const [pushStatusMessage, setPushStatusMessage] = useState<string | null>(null);
+
+  // -------------------------------------------------------------
+  // SUPPORT AVATAR & PROFILE STATE
+  // -------------------------------------------------------------
+  const [supportAvatar, setSupportAvatar] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('zanzirangi_support_profile');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed?.supportAvatar) return parsed.supportAvatar;
+        }
+      } catch {}
+    }
+    return DEFAULT_SETTINGS.supportAvatar || '/uploads/avatar-1790937078607_1790937078818_0381644b.jpg';
+  });
+  const [supportName, setSupportName] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('zanzirangi_support_profile');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed?.supportName) return parsed.supportName;
+        }
+      } catch {}
+    }
+    return DEFAULT_SETTINGS.supportName || 'Elena';
+  });
+  const [supportTitle, setSupportTitle] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('zanzirangi_support_profile');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed?.supportTitle) return parsed.supportTitle;
+        }
+      } catch {}
+    }
+    return DEFAULT_SETTINGS.supportTitle || 'Customer Support';
+  });
+  const [supportStatus, setSupportStatus] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('zanzirangi_support_profile');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed?.supportStatus) return parsed.supportStatus;
+        }
+      } catch {}
+    }
+    return DEFAULT_SETTINGS.supportStatus || 'Active 24/7';
+  });
+  const [isCropperOpen, setIsCropperOpen] = useState(false);
+  const [selectedCropFile, setSelectedCropFile] = useState<File | null>(null);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadSupportSettings = async () => {
+    try {
+      const s = await contentApi.getAdminSettings();
+      if (s.supportAvatar) setSupportAvatar(s.supportAvatar);
+      if (s.supportName) setSupportName(s.supportName);
+      if (s.supportTitle) setSupportTitle(s.supportTitle);
+      if (s.supportStatus) setSupportStatus(s.supportStatus);
+    } catch (e) {
+      console.error('Failed to load support profile settings', e);
+    }
+  };
+
+  useEffect(() => {
+    loadSupportSettings();
+  }, []);
+
+  const handleSaveProfile = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    try {
+      setProfileSaving(true);
+      setProfileMessage(null);
+      await contentApi.updateSettings({
+        supportAvatar,
+        supportName,
+        supportTitle,
+        supportStatus,
+      });
+      setProfileMessage('✓ Avatar & Customer Support profile updated successfully!');
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(
+            'zanzirangi_support_profile',
+            JSON.stringify({ supportAvatar, supportName, supportTitle, supportStatus })
+          );
+        } catch {}
+        window.dispatchEvent(
+          new CustomEvent('zanzirangi-support-profile-updated', {
+            detail: { supportAvatar, supportName, supportTitle, supportStatus },
+          })
+        );
+      }
+      setTimeout(() => setProfileMessage(null), 4000);
+    } catch (err: any) {
+      setProfileMessage(`Error: ${err.message || 'Failed to save support profile'}`);
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const playChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+
+      // Note 1 (D5)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(587.33, now);
+      gain1.gain.setValueAtTime(0.2, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.6);
+
+      // Note 2 (A5)
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(880, now + 0.12);
+      gain2.gain.setValueAtTime(0.25, now + 0.12);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.12);
+      osc2.stop(now + 0.8);
+    } catch (e) {
+      console.warn('Audio chime warning:', e);
+    }
+  };
+
+  const toggleSound = () => {
+    setSoundEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('zanzirangi_admin_sound', String(next));
+      } catch {}
+      if (next) playChime();
+      return next;
+    });
+  };
+
+  const requestDesktopPermission = async () => {
+    if (typeof Notification === 'undefined') return;
+    try {
+      const res = await Notification.requestPermission();
+      setHasNotificationPermission(res === 'granted');
+      if (res === 'granted') {
+        new Notification('Zanzirangi House Alerts Enabled', {
+          body: 'You will receive desktop alerts when a guest requests human assistance or submits a booking.',
+          icon: '/favicon-32x32.png',
+        });
+      }
+    } catch (e) {
+      console.warn('Notification permission error:', e);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // Staff On-Duty & Mobile Web Push Handlers
+  // -------------------------------------------------------------
+  const loadDutyStatus = async () => {
+    try {
+      const res = await supportApi.getDutyStatus();
+      setIsOnDuty(res.isOnDuty);
+      setStaffDutyList(res.staff || []);
+      setHasAgentOnline(res.hasAgentOnline);
+    } catch (e) {
+      console.warn('Duty status error:', e);
+    }
+  };
+
+  const handleToggleDuty = async () => {
+    try {
+      const next = !isOnDuty;
+      const res = await supportApi.toggleDutyStatus(next);
+      setIsOnDuty(res.duty.is_on_duty);
+      setStaffDutyList(res.staff || []);
+      setHasAgentOnline(res.hasAgentOnline);
+    } catch (err: any) {
+      alert('Gagal mengubah status tugas: ' + err.message);
+    }
+  };
+
+  const checkExistingPushSubscription = async () => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      return;
+    }
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) {
+        const sub = await reg.pushManager.getSubscription();
+        setIsPushSubscribed(Boolean(sub));
+      }
+    } catch (e) {}
+  };
+
+  const enableMobileWebPush = async () => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      alert('Browser atau perangkat HP ini belum mendukung Web Push Notifications.');
+      return;
+    }
+
+    setIsPushLoading(true);
+    setPushStatusMessage(null);
+
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') {
+        alert('Izin notifikasi ditolak. Mohon izinkan notifikasi pada pengaturan browser/HP Anda.');
+        setIsPushLoading(false);
+        return;
+      }
+      setHasNotificationPermission(true);
+
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+
+      const vapidKey = await supportApi.getVapidPublicKey();
+      const convertedKey = urlBase64ToUint8Array(vapidKey);
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: convertedKey,
+      });
+
+      const success = await supportApi.subscribePush(sub.toJSON());
+      if (success) {
+        setIsPushSubscribed(true);
+        setPushStatusMessage('HP Staff Berhasil Terhubung! Notifikasi akan langsung masuk ke HP saat ada pesan.');
+        setTimeout(() => setPushStatusMessage(null), 6000);
+      }
+    } catch (err: any) {
+      console.error('Push setup failed:', err);
+      alert('Gagal mengaktifkan push HP: ' + err.message);
+    } finally {
+      setIsPushLoading(false);
+    }
+  };
+
+  const handleTestPush = async () => {
+    try {
+      setPushStatusMessage('Mengirim notifikasi alert ke HP...');
+      const res = await supportApi.testPushNotification();
+      if (res.sent > 0) {
+        setPushStatusMessage(`Notifikasi terkirim ke ${res.sent} HP/perangkat! Periksa layar HP Anda.`);
+      } else {
+        setPushStatusMessage('Belum ada HP yang terhubung. Klik "Hubungkan HP" terlebih dahulu.');
+      }
+      setTimeout(() => setPushStatusMessage(null), 6000);
+    } catch (err: any) {
+      alert('Gagal mengirim test push: ' + err.message);
+    }
+  };
 
   // -------------------------------------------------------------
   // Data Loaders
@@ -103,6 +411,21 @@ export const AdminSupportInbox: React.FC = () => {
         status: filterStatus === 'ALL' ? undefined : filterStatus,
         search: searchQuery || undefined,
       });
+
+      // Check if waiting human count has increased (New urgent guest!)
+      if (!autoSelect && res.counts.waiting > prevWaitingCountRef.current) {
+        if (soundEnabled) {
+          playChime();
+        }
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          new Notification('🏨 Zanzirangi Guest Alert', {
+            body: `${res.counts.waiting} guest(s) waiting for human response or booking inquiry!`,
+            icon: '/favicon-32x32.png',
+          });
+        }
+      }
+      prevWaitingCountRef.current = res.counts.waiting;
+
       setConversations(res.conversations);
       setCounts(res.counts);
 
@@ -168,6 +491,11 @@ export const AdminSupportInbox: React.FC = () => {
   };
 
   useEffect(() => {
+    loadDutyStatus();
+    checkExistingPushSubscription();
+  }, []);
+
+  useEffect(() => {
     loadConversations(true);
   }, [filterStatus]);
 
@@ -191,6 +519,7 @@ export const AdminSupportInbox: React.FC = () => {
 
     const interval = setInterval(() => {
       loadConversations(false);
+      loadDutyStatus();
       if (selectedConvId) {
         supportApi.adminGetConversation(selectedConvId).then((res) => {
           setSelectedConv(res.conversation);
@@ -330,14 +659,14 @@ export const AdminSupportInbox: React.FC = () => {
         );
       case 'RESOLVED':
         return (
-          <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-[#22211F] border border-[#3C3B38] text-[#8C8880] flex items-center space-x-1">
+          <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-adm-raised border border-adm-line-strong text-adm-muted flex items-center space-x-1">
             <CheckCircle2 className="w-3 h-3" />
             <span>Resolved</span>
           </span>
         );
       case 'CLOSED':
         return (
-          <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-[#181716] border border-[#2C2B28] text-[#6B6862]">
+          <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-adm-panel border border-adm-line text-adm-faint">
             Closed
           </span>
         );
@@ -349,34 +678,67 @@ export const AdminSupportInbox: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* ---------------- Top Section Header & Sub-Tabs ---------------- */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-[#2C2B28] gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-adm-line gap-4">
         <div>
           <div className="flex items-center space-x-2">
-            <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-[#C4A27A]">
+            <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-adm-accent">
               CONCIERGE & SUPPORT
             </span>
             {counts.waiting > 0 && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-500 text-[#141413] font-bold animate-bounce">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-500 text-adm-on-accent font-bold animate-bounce">
                 {counts.waiting} Waiting
               </span>
             )}
           </div>
-          <h1 className="font-serif text-2xl sm:text-3xl text-[#FAF8F5] tracking-wide mt-1">
+          <h1 className="font-serif text-2xl sm:text-3xl text-adm-text tracking-wide mt-1">
             Customer Support Platform
           </h1>
-          <p className="text-xs text-[#8E8B85] mt-0.5">
+          <p className="text-xs text-adm-muted mt-0.5">
             Unified AI Concierge + Human Support Inbox with booking context and live knowledge base.
           </p>
         </div>
 
-        {/* Sub-Tabs: Inbox | Knowledge Base | Analytics */}
-        <div className="flex items-center bg-[#1C1B1A] border border-[#2C2B28] p-1 rounded-xl space-x-1">
+        {/* Right side controls: Alerts & Sub-Tabs */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Audio Chime & Browser Notification Toggles */}
+          <div className="flex items-center bg-adm-surface border border-adm-line p-1 rounded-xl space-x-1">
+            <button
+              type="button"
+              onClick={toggleSound}
+              title={soundEnabled ? 'Alert Chime Sound: ON' : 'Alert Chime Sound: MUTED'}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                soundEnabled
+                  ? 'bg-emerald-950/50 text-emerald-300 border border-emerald-800/40'
+                  : 'text-adm-muted hover:text-adm-text'
+              }`}
+            >
+              {soundEnabled ? <Volume2 className="w-3.5 h-3.5 text-emerald-400" /> : <VolumeX className="w-3.5 h-3.5" />}
+              <span className="text-[11px] font-mono hidden sm:inline">{soundEnabled ? 'Chime ON' : 'Muted'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={requestDesktopPermission}
+              title={hasNotificationPermission ? 'Desktop Alerts: ENABLED' : 'Click to Enable Desktop Push Alerts'}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                hasNotificationPermission
+                  ? 'bg-sky-950/50 text-sky-300 border border-sky-800/40'
+                  : 'text-adm-muted hover:text-adm-text'
+              }`}
+            >
+              {hasNotificationPermission ? <Bell className="w-3.5 h-3.5 text-sky-400" /> : <BellOff className="w-3.5 h-3.5" />}
+              <span className="text-[11px] font-mono hidden sm:inline">{hasNotificationPermission ? 'Desktop ON' : 'Enable Push'}</span>
+            </button>
+          </div>
+
+          {/* Sub-Tabs: Inbox | Knowledge Base | Analytics */}
+          <div className="flex items-center bg-adm-surface border border-adm-line p-1 rounded-xl space-x-1">
           <button
             onClick={() => setActiveSubTab('inbox')}
             className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer ${
               activeSubTab === 'inbox'
-                ? 'bg-[#B8966C] text-[#141413] shadow'
-                : 'text-[#D8CCB8] hover:text-[#FAF8F5]'
+                ? 'bg-adm-accent-fill text-adm-on-accent shadow'
+                : 'text-adm-text-2 hover:text-adm-text'
             }`}
           >
             <MessageSquare className="w-3.5 h-3.5" />
@@ -392,8 +754,8 @@ export const AdminSupportInbox: React.FC = () => {
             onClick={() => setActiveSubTab('knowledge')}
             className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer ${
               activeSubTab === 'knowledge'
-                ? 'bg-[#B8966C] text-[#141413] shadow'
-                : 'text-[#D8CCB8] hover:text-[#FAF8F5]'
+                ? 'bg-adm-accent-fill text-adm-on-accent shadow'
+                : 'text-adm-text-2 hover:text-adm-text'
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
@@ -404,15 +766,123 @@ export const AdminSupportInbox: React.FC = () => {
             onClick={() => setActiveSubTab('analytics')}
             className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer ${
               activeSubTab === 'analytics'
-                ? 'bg-[#B8966C] text-[#141413] shadow'
-                : 'text-[#D8CCB8] hover:text-[#FAF8F5]'
+                ? 'bg-adm-accent-fill text-adm-on-accent shadow'
+                : 'text-adm-text-2 hover:text-adm-text'
             }`}
           >
             <BarChart3 className="w-3.5 h-3.5" />
             <span>Analytics</span>
           </button>
+
+          <button
+            onClick={() => setActiveSubTab('profile')}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer ${
+              activeSubTab === 'profile'
+                ? 'bg-adm-accent-fill text-adm-on-accent shadow'
+                : 'text-adm-text-2 hover:text-adm-text'
+            }`}
+          >
+            <Camera className="w-3.5 h-3.5" />
+            <span>Avatar & Profile</span>
+          </button>
         </div>
       </div>
+
+      {/* ---------------- MULTI-TIER NOTIFICATION & ON-DUTY COMMAND BAR ---------------- */}
+      <div className="bg-adm-surface border border-adm-line rounded-2xl p-4 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          {/* Left: On Duty Status & Staff List */}
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleToggleDuty}
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer shadow-sm ${
+                isOnDuty
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                  : 'bg-adm-card hover:bg-adm-card-hover text-adm-muted border border-adm-line'
+              }`}
+              title="Klik untuk mengubah status tugas Anda"
+            >
+              <span className={`w-2 h-2 rounded-full ${isOnDuty ? 'bg-white animate-pulse' : 'bg-zinc-500'}`} />
+              <span>{isOnDuty ? '🟢 Saya ON DUTY' : '⚪ Saya OFF DUTY'}</span>
+            </button>
+
+            <div className="flex items-center space-x-2 text-xs">
+              <span className="text-adm-muted">Status Tim:</span>
+              {hasAgentOnline ? (
+                <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/40 border border-emerald-800/40 text-emerald-300 font-medium text-[11px]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                  <span>
+                    Staff Siaga:{' '}
+                    {staffDutyList
+                      .filter((s) => s.is_on_duty)
+                      .map((s) => s.name)
+                      .join(', ') || '1 Agent'}
+                  </span>
+                </div>
+              ) : (
+                <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-rose-950/50 border border-rose-800/40 text-rose-300 font-medium text-[11px]">
+                  <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Tidak ada staff online • Auto-Escalation & Push HP Aktif</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right: HP Push Notification & Test Button */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={enableMobileWebPush}
+              disabled={isPushLoading}
+              className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer ${
+                isPushSubscribed
+                  ? 'bg-sky-950/50 text-sky-300 border border-sky-800/50'
+                  : 'bg-amber-600 hover:bg-amber-500 text-white shadow-sm'
+              }`}
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>{isPushSubscribed ? '📱 HP Push Terhubung' : '📱 Hubungkan Notifikasi HP'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleTestPush}
+              className="px-3 py-2 rounded-xl text-xs font-medium text-adm-text-2 bg-adm-card hover:bg-adm-card-hover border border-adm-line flex items-center space-x-1.5 transition-all cursor-pointer"
+              title="Kirim notifikasi uji coba ke HP yang terdaftar"
+            >
+              <Radio className="w-3.5 h-3.5 text-adm-accent" />
+              <span>Tes Push HP</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Live Notification Feedback Toast */}
+        {pushStatusMessage && (
+          <div className="mt-3 p-2.5 bg-adm-card border border-adm-accent/40 rounded-xl text-xs text-adm-accent flex items-center justify-between animate-fadeIn">
+            <span>{pushStatusMessage}</span>
+            <button
+              type="button"
+              onClick={() => setPushStatusMessage(null)}
+              className="text-xs text-adm-muted hover:text-adm-text ml-3 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Multi-Tier Notification Architecture Bar */}
+        <div className="mt-3 pt-3 border-t border-adm-line/60 flex flex-wrap items-center justify-between text-[11px] text-adm-muted gap-2">
+          <div className="flex items-center space-x-1.5">
+            <span className="font-semibold text-adm-text">4 Lapisan Notifikasi:</span>
+            <span>🔔 Web Chime • 📱 Web Push HP • 📧 Email info@zanzirangihouse.com • ⏱️ Escalation 2m/5m/10m</span>
+          </div>
+          <div className="text-[10px] font-mono text-adm-muted">
+            Pertanyaan simpel dijawab AI • Pertanyaan detail langsung ke HP Staff
+          </div>
+        </div>
+      </div>
+    </div>
 
       {/* ============================================================= */}
       {/* VIEW 1: SUPPORT INBOX (3-COLUMN LAYOUT)                       */}
@@ -420,11 +890,11 @@ export const AdminSupportInbox: React.FC = () => {
       {activeSubTab === 'inbox' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 h-[calc(100vh-230px)] min-h-[640px]">
           {/* ---------------- LEFT PANEL: Conversation List (3.5 cols) ---------------- */}
-          <div className="lg:col-span-4 xl:col-span-3 bg-[#1C1B1A] border border-[#2C2B28] rounded-2xl flex flex-col overflow-hidden shadow-xl">
+          <div className="lg:col-span-4 xl:col-span-3 bg-adm-surface border border-adm-line rounded-2xl flex flex-col overflow-hidden shadow-xl">
             {/* Filter Tabs & Search */}
-            <div className="p-3.5 border-b border-[#2C2B28] space-y-3 bg-[#171615]">
+            <div className="p-3.5 border-b border-adm-line space-y-3 bg-adm-panel">
               <div className="relative">
-                <Search className="w-3.5 h-3.5 text-[#8C8880] absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-3.5 h-3.5 text-adm-muted absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   placeholder="Search guests, email, villa..."
@@ -433,7 +903,7 @@ export const AdminSupportInbox: React.FC = () => {
                     setSearchQuery(e.target.value);
                     loadConversations();
                   }}
-                  className="w-full bg-[#141413] border border-[#2C2B28] rounded-xl pl-9 pr-3 py-1.5 text-xs text-[#FAF8F5] placeholder-[#8C8880] focus:outline-none focus:border-[#C4A27A]"
+                  className="w-full bg-adm-bg border border-adm-line rounded-xl pl-9 pr-3 py-1.5 text-xs text-adm-text placeholder-adm-faint focus:outline-none focus:border-adm-accent"
                 />
               </div>
 
@@ -451,8 +921,8 @@ export const AdminSupportInbox: React.FC = () => {
                     onClick={() => setFilterStatus(f.key)}
                     className={`px-2.5 py-1 rounded-lg font-medium whitespace-nowrap transition-all cursor-pointer flex items-center space-x-1 ${
                       filterStatus === f.key
-                        ? 'bg-[#B8966C] text-[#141413] font-bold shadow'
-                        : 'bg-[#141413] text-[#A09C94] hover:text-[#FAF8F5]'
+                        ? 'bg-adm-accent-fill text-adm-on-accent font-bold shadow'
+                        : 'bg-adm-bg text-adm-muted hover:text-adm-text'
                     }`}
                   >
                     <span>{f.label}</span>
@@ -463,9 +933,9 @@ export const AdminSupportInbox: React.FC = () => {
             </div>
 
             {/* Conversation Items List */}
-            <div className="flex-1 overflow-y-auto divide-y divide-[#242321]">
+            <div className="flex-1 overflow-y-auto divide-y divide-adm-raised">
               {conversations.length === 0 ? (
-                <div className="p-8 text-center text-[#8C8880] text-xs">
+                <div className="p-8 text-center text-adm-muted text-xs">
                   <p>No conversations found.</p>
                 </div>
               ) : (
@@ -482,23 +952,23 @@ export const AdminSupportInbox: React.FC = () => {
                       onClick={() => setSelectedConvId(c.id)}
                       className={`p-3.5 cursor-pointer transition-all ${
                         isSelected
-                          ? 'bg-[#22211F] border-l-4 border-l-[#C4A27A]'
-                          : 'hover:bg-[#1F1E1D]'
+                          ? 'bg-adm-raised border-l-4 border-l-adm-accent'
+                          : 'hover:bg-adm-surface'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center space-x-2">
-                          <span className="font-semibold text-xs text-[#FAF8F5] truncate max-w-[130px]">
+                          <span className="font-semibold text-xs text-adm-text truncate max-w-[130px]">
                             {c.metadata?.fullName || `Visitor ${c.visitor_id.substring(4, 9)}`}
                           </span>
-                          <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-[#2C2B28] text-[#C4A27A] font-mono">
+                          <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-adm-line text-adm-accent font-mono">
                             {c.language}
                           </span>
                         </div>
-                        <span className="text-[10px] text-[#8C8880] font-mono">{time}</span>
+                        <span className="text-[10px] text-adm-muted font-mono">{time}</span>
                       </div>
 
-                      <p className="text-xs text-[#A09C94] line-clamp-1 mb-2">
+                      <p className="text-xs text-adm-muted line-clamp-1 mb-2">
                         {c.lastMessageText || 'Conversation started'}
                       </p>
 
@@ -519,23 +989,23 @@ export const AdminSupportInbox: React.FC = () => {
           </div>
 
           {/* ---------------- CENTER PANEL: Conversation Thread (5.5 cols) ---------------- */}
-          <div className="lg:col-span-5 xl:col-span-6 bg-[#1C1B1A] border border-[#2C2B28] rounded-2xl flex flex-col overflow-hidden shadow-xl">
+          <div className="lg:col-span-5 xl:col-span-6 bg-adm-surface border border-adm-line rounded-2xl flex flex-col overflow-hidden shadow-xl">
             {selectedConv ? (
               <>
                 {/* Thread Header with Take Over & Return to AI Controls */}
-                <div className="px-5 py-3.5 bg-[#171615] border-b border-[#2C2B28] flex items-center justify-between flex-wrap gap-2">
+                <div className="px-5 py-3.5 bg-adm-panel border-b border-adm-line flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 rounded-full bg-[#2C2B28] border border-[#C4A27A]/50 flex items-center justify-center text-[#C4A27A]">
+                    <div className="w-8 h-8 rounded-full bg-adm-line border border-adm-accent/50 flex items-center justify-center text-adm-accent">
                       <User className="w-4 h-4" />
                     </div>
                     <div>
                       <div className="flex items-center space-x-2">
-                        <h3 className="font-semibold text-xs sm:text-sm text-[#FAF8F5]">
+                        <h3 className="font-semibold text-xs sm:text-sm text-adm-text">
                           {selectedConv.metadata?.fullName || `Visitor (${selectedConv.visitor_id})`}
                         </h3>
                         {getStatusBadge(selectedConv.status)}
                       </div>
-                      <span className="text-[10px] text-[#8C8880] font-mono">
+                      <span className="text-[10px] text-adm-muted font-mono">
                         Page: {selectedConv.current_page} • Lang: {selectedConv.language.toUpperCase()}
                       </span>
                     </div>
@@ -568,7 +1038,7 @@ export const AdminSupportInbox: React.FC = () => {
                     {selectedConv.status !== 'RESOLVED' ? (
                       <button
                         onClick={() => handleStatusChange('RESOLVED')}
-                        className="px-3 py-1.5 bg-[#2C2B28] hover:bg-[#3C3B38] text-[#FAF8F5] rounded-lg text-xs font-medium flex items-center space-x-1 transition-all cursor-pointer"
+                        className="px-3 py-1.5 bg-adm-line hover:bg-adm-line-strong text-adm-text rounded-lg text-xs font-medium flex items-center space-x-1 transition-all cursor-pointer"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                         <span>Resolve</span>
@@ -576,7 +1046,7 @@ export const AdminSupportInbox: React.FC = () => {
                     ) : (
                       <button
                         onClick={() => handleStatusChange('HUMAN_ACTIVE')}
-                        className="px-3 py-1.5 bg-[#2C2B28] hover:bg-[#3C3B38] text-[#D8CCB8] rounded-lg text-xs font-medium cursor-pointer"
+                        className="px-3 py-1.5 bg-adm-line hover:bg-adm-line-strong text-adm-text-2 rounded-lg text-xs font-medium cursor-pointer"
                       >
                         Re-open
                       </button>
@@ -585,7 +1055,7 @@ export const AdminSupportInbox: React.FC = () => {
                 </div>
 
                 {/* Message Bubbles Container */}
-                <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-[#0F0E0E]/90 text-xs">
+                <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-adm-bg/90 text-xs">
                   {messages.map((m) => {
                     const time = new Date(m.created_at).toLocaleTimeString([], {
                       hour: '2-digit',
@@ -595,7 +1065,7 @@ export const AdminSupportInbox: React.FC = () => {
                     if (m.sender_type === 'SYSTEM') {
                       return (
                         <div key={m.id} className="text-center py-1">
-                          <span className="text-[10px] font-mono text-[#8C8880] bg-[#1C1B1A] border border-[#2C2B28] px-3 py-1 rounded-full inline-block">
+                          <span className="text-[10px] font-mono text-adm-muted bg-adm-surface border border-adm-line px-3 py-1 rounded-full inline-block">
                             {m.message}
                           </span>
                         </div>
@@ -614,22 +1084,22 @@ export const AdminSupportInbox: React.FC = () => {
                         <div
                           className={`max-w-[85%] p-3.5 rounded-2xl leading-relaxed shadow ${
                             isVisitor
-                              ? 'bg-[#22211F] text-[#FAF8F5] border border-[#2C2B28] rounded-tl-none'
+                              ? 'bg-adm-raised text-adm-text border border-adm-line rounded-tl-none'
                               : isAdmin
-                              ? 'bg-[#B8966C] text-[#141413] font-medium rounded-tr-none'
-                              : 'bg-[#181716] text-[#D8CCB8] border border-[#2C2B28] rounded-tr-none'
+                              ? 'bg-adm-accent-fill text-adm-on-accent font-medium rounded-tr-none'
+                              : 'bg-adm-panel text-adm-text-2 border border-adm-line rounded-tr-none'
                           }`}
                         >
                           <div className="flex items-center space-x-1.5 mb-1 opacity-75 text-[10px] font-mono">
                             {isVisitor && <span>Visitor</span>}
                             {isAi && (
-                              <span className="flex items-center space-x-1 text-[#C4A27A]">
+                              <span className="flex items-center space-x-1 text-adm-accent">
                                 <Sparkles className="w-2.5 h-2.5" />
                                 <span>Juma AI</span>
                               </span>
                             )}
                             {isAdmin && (
-                              <span className="flex items-center space-x-1 text-[#141413] font-bold">
+                              <span className="flex items-center space-x-1 text-adm-on-accent font-bold">
                                 <UserCheck className="w-2.5 h-2.5" />
                                 <span>Staff Concierge ({m.sender_id})</span>
                               </span>
@@ -645,7 +1115,7 @@ export const AdminSupportInbox: React.FC = () => {
                           )}
                         </div>
 
-                        <span className="text-[9px] text-[#6B6862] mt-1 px-1 font-mono">{time}</span>
+                        <span className="text-[9px] text-adm-faint mt-1 px-1 font-mono">{time}</span>
                       </div>
                     );
                   })}
@@ -654,9 +1124,9 @@ export const AdminSupportInbox: React.FC = () => {
 
                 {/* AI Suggested Reply Banner (Appears when HUMAN_ACTIVE or WAITING_HUMAN) */}
                 {suggestedReply && (
-                  <div className="p-3 bg-gradient-to-r from-[#1E1B18] via-[#24211D] to-[#1E1B18] border-t border-[#C4A27A]/40 text-xs">
+                  <div className="p-3 bg-gradient-to-r from-adm-surface via-adm-raised to-adm-surface border-t border-adm-accent/40 text-xs">
                     <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center space-x-1.5 text-[#C4A27A]">
+                      <div className="flex items-center space-x-1.5 text-adm-accent">
                         <Sparkles className="w-3.5 h-3.5" />
                         <span className="font-semibold text-[11px] uppercase tracking-wider font-mono">
                           AI Suggested Reply
@@ -667,21 +1137,21 @@ export const AdminSupportInbox: React.FC = () => {
                           onClick={() => {
                             setReplyText(suggestedReply);
                           }}
-                          className="px-2.5 py-1 bg-[#2C2B28] hover:bg-[#3C3B38] text-[#D8CCB8] text-[11px] font-mono rounded flex items-center space-x-1 cursor-pointer"
+                          className="px-2.5 py-1 bg-adm-line hover:bg-adm-line-strong text-adm-text-2 text-[11px] font-mono rounded flex items-center space-x-1 cursor-pointer"
                         >
                           <Edit2 className="w-3 h-3" />
                           <span>Edit</span>
                         </button>
                         <button
                           onClick={() => handleSendMessage(undefined, suggestedReply)}
-                          className="px-3 py-1 bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-[11px] font-bold rounded flex items-center space-x-1 cursor-pointer shadow"
+                          className="px-3 py-1 bg-adm-accent-fill hover:bg-adm-accent-hover text-adm-on-accent text-[11px] font-bold rounded flex items-center space-x-1 cursor-pointer shadow"
                         >
                           <Check className="w-3 h-3" />
                           <span>Use Reply</span>
                         </button>
                       </div>
                     </div>
-                    <p className="text-[#FAF8F5]/90 italic bg-[#141413]/60 p-2 rounded-lg border border-[#2C2B28]">
+                    <p className="text-adm-text/90 italic bg-adm-bg/60 p-2 rounded-lg border border-adm-line">
                       "{suggestedReply}"
                     </p>
                   </div>
@@ -707,7 +1177,7 @@ export const AdminSupportInbox: React.FC = () => {
                           <>
                             <button
                               onClick={() => setKnowledgeCandidatePrompt(null)}
-                              className="text-[#8C8880] hover:text-white text-[11px] cursor-pointer"
+                              className="text-adm-muted hover:text-adm-text text-[11px] cursor-pointer"
                             >
                               Ignore
                             </button>
@@ -721,18 +1191,18 @@ export const AdminSupportInbox: React.FC = () => {
                         )}
                       </div>
                     </div>
-                    <p className="text-[11px] text-[#A09C94] mt-1 truncate">
+                    <p className="text-[11px] text-adm-muted mt-1 truncate">
                       Q: {knowledgeCandidatePrompt.question}
                     </p>
                   </div>
                 )}
 
                 {/* Reply Input Bar with Contextual Quick Link Attachments */}
-                <form onSubmit={handleSendMessage} className="p-3 bg-[#171615] border-t border-[#2C2B28] space-y-2">
+                <form onSubmit={handleSendMessage} className="p-3 bg-adm-panel border-t border-adm-line space-y-2">
                   {/* Contextual Link Buttons */}
-                  <div className="flex items-center space-x-1.5 text-[10px] font-mono text-[#8C8880] overflow-x-auto no-scrollbar">
+                  <div className="flex items-center space-x-1.5 text-[10px] font-mono text-adm-muted overflow-x-auto no-scrollbar">
                     <span className="flex items-center space-x-1 flex-shrink-0">
-                      <LinkIcon className="w-3 h-3 text-[#C4A27A]" />
+                      <LinkIcon className="w-3 h-3 text-adm-accent" />
                       <span>Quick Link:</span>
                     </span>
                     {[
@@ -746,7 +1216,7 @@ export const AdminSupportInbox: React.FC = () => {
                         key={lnk.label}
                         type="button"
                         onClick={() => setReplyText((prev) => `${prev} ${lnk.link}`.trim())}
-                        className="px-2 py-0.5 bg-[#1C1B1A] hover:bg-[#2C2B28] border border-[#2C2B28] rounded text-[#D8CCB8] hover:text-white transition-colors flex-shrink-0 cursor-pointer"
+                        className="px-2 py-0.5 bg-adm-surface hover:bg-adm-line border border-adm-line rounded text-adm-text-2 hover:text-adm-text transition-colors flex-shrink-0 cursor-pointer"
                       >
                         {lnk.label}
                       </button>
@@ -759,12 +1229,12 @@ export const AdminSupportInbox: React.FC = () => {
                       placeholder={`Reply as staff concierge (${selectedConv.language.toUpperCase()})...`}
                       value={replyText}
                       onChange={(e) => setReplyText(e.target.value)}
-                      className="flex-1 bg-[#141413] border border-[#2C2B28] rounded-xl px-3.5 py-2.5 text-xs text-[#FAF8F5] placeholder-[#8C8880] focus:outline-none focus:border-[#C4A27A]"
+                      className="flex-1 bg-adm-bg border border-adm-line rounded-xl px-3.5 py-2.5 text-xs text-adm-text placeholder-adm-faint focus:outline-none focus:border-adm-accent"
                     />
                     <button
                       type="submit"
                       disabled={!replyText.trim() || isSending}
-                      className="px-4 py-2.5 bg-[#B8966C] hover:bg-[#C4A27A] disabled:opacity-40 disabled:cursor-not-allowed text-[#141413] font-bold rounded-xl text-xs flex items-center space-x-1.5 transition-colors cursor-pointer shadow"
+                      className="px-4 py-2.5 bg-adm-accent-fill hover:bg-adm-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-adm-on-accent font-bold rounded-xl text-xs flex items-center space-x-1.5 transition-colors cursor-pointer shadow"
                     >
                       <Send className="w-3.5 h-3.5" />
                       <span>Send</span>
@@ -773,7 +1243,7 @@ export const AdminSupportInbox: React.FC = () => {
                 </form>
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center p-8 text-center text-[#8C8880] text-xs">
+              <div className="flex-1 flex items-center justify-center p-8 text-center text-adm-muted text-xs">
                 Select a conversation from the left to view messages and reply.
               </div>
             )}
@@ -784,37 +1254,37 @@ export const AdminSupportInbox: React.FC = () => {
             {selectedConv ? (
               <>
                 {/* Visitor Profile Card */}
-                <div className="bg-[#1C1B1A] border border-[#2C2B28] rounded-2xl p-4 space-y-3 shadow-xl text-xs">
-                  <div className="flex items-center space-x-2 pb-2 border-b border-[#2C2B28]">
-                    <User className="w-4 h-4 text-[#C4A27A]" />
-                    <h3 className="font-semibold text-xs uppercase tracking-wider text-[#FAF8F5] font-mono">
+                <div className="bg-adm-surface border border-adm-line rounded-2xl p-4 space-y-3 shadow-xl text-xs">
+                  <div className="flex items-center space-x-2 pb-2 border-b border-adm-line">
+                    <User className="w-4 h-4 text-adm-accent" />
+                    <h3 className="font-semibold text-xs uppercase tracking-wider text-adm-text font-mono">
                       Visitor Context
                     </h3>
                   </div>
 
-                  <div className="space-y-1.5 font-mono text-[11px] text-[#A09C94]">
+                  <div className="space-y-1.5 font-mono text-[11px] text-adm-muted">
                     <p>
-                      <strong className="text-[#FAF8F5]">Visitor ID:</strong> {selectedConv.visitor_id}
+                      <strong className="text-adm-text">Visitor ID:</strong> {selectedConv.visitor_id}
                     </p>
                     <p>
-                      <strong className="text-[#FAF8F5]">Language:</strong> {selectedConv.language.toUpperCase()}
+                      <strong className="text-adm-text">Language:</strong> {selectedConv.language.toUpperCase()}
                     </p>
                     <p>
-                      <strong className="text-[#FAF8F5]">Current Page:</strong> {selectedConv.current_page}
+                      <strong className="text-adm-text">Current Page:</strong> {selectedConv.current_page}
                     </p>
                     <p>
-                      <strong className="text-[#FAF8F5]">Started:</strong>{' '}
+                      <strong className="text-adm-text">Started:</strong>{' '}
                       {new Date(selectedConv.created_at).toLocaleString([], {
                         dateStyle: 'short',
                         timeStyle: 'short',
                       })}
                     </p>
                     <p>
-                      <strong className="text-[#FAF8F5]">Status:</strong> {selectedConv.status}
+                      <strong className="text-adm-text">Status:</strong> {selectedConv.status}
                     </p>
                     {selectedConv.assigned_admin_id && (
                       <p>
-                        <strong className="text-[#FAF8F5]">Assigned:</strong> {selectedConv.assigned_admin_id}
+                        <strong className="text-adm-text">Assigned:</strong> {selectedConv.assigned_admin_id}
                       </p>
                     )}
                   </div>
@@ -822,11 +1292,11 @@ export const AdminSupportInbox: React.FC = () => {
 
                 {/* Booking Context Card (if attached) */}
                 {selectedConv.metadata && (selectedConv.metadata.villaName || selectedConv.metadata.checkIn) && (
-                  <div className="bg-gradient-to-br from-[#1C1B1A] to-[#24211D] border border-[#C4A27A]/50 rounded-2xl p-4 space-y-3 shadow-xl text-xs">
-                    <div className="flex items-center justify-between pb-2 border-b border-[#2C2B28]">
+                  <div className="bg-gradient-to-br from-adm-surface to-adm-raised border border-adm-accent/50 rounded-2xl p-4 space-y-3 shadow-xl text-xs">
+                    <div className="flex items-center justify-between pb-2 border-b border-adm-line">
                       <div className="flex items-center space-x-2">
-                        <Home className="w-4 h-4 text-[#C4A27A]" />
-                        <h3 className="font-semibold text-xs uppercase tracking-wider text-[#FAF8F5] font-mono">
+                        <Home className="w-4 h-4 text-adm-accent" />
+                        <h3 className="font-semibold text-xs uppercase tracking-wider text-adm-text font-mono">
                           Booking Inquiry
                         </h3>
                       </div>
@@ -838,56 +1308,56 @@ export const AdminSupportInbox: React.FC = () => {
                     <div className="space-y-2 font-mono text-[11px]">
                       {selectedConv.metadata.villaName && (
                         <div>
-                          <span className="text-[#8C8880] block text-[10px]">VILLA:</span>
-                          <span className="text-[#FAF8F5] font-semibold">{selectedConv.metadata.villaName}</span>
+                          <span className="text-adm-muted block text-[10px]">VILLA:</span>
+                          <span className="text-adm-text font-semibold">{selectedConv.metadata.villaName}</span>
                         </div>
                       )}
 
                       {(selectedConv.metadata.checkIn || selectedConv.metadata.checkOut) && (
                         <div className="flex items-center space-x-3">
                           <div>
-                            <span className="text-[#8C8880] block text-[10px]">CHECK-IN:</span>
-                            <span className="text-[#FAF8F5]">{selectedConv.metadata.checkIn}</span>
+                            <span className="text-adm-muted block text-[10px]">CHECK-IN:</span>
+                            <span className="text-adm-text">{selectedConv.metadata.checkIn}</span>
                           </div>
                           <div>
-                            <span className="text-[#8C8880] block text-[10px]">CHECK-OUT:</span>
-                            <span className="text-[#FAF8F5]">{selectedConv.metadata.checkOut}</span>
+                            <span className="text-adm-muted block text-[10px]">CHECK-OUT:</span>
+                            <span className="text-adm-text">{selectedConv.metadata.checkOut}</span>
                           </div>
                         </div>
                       )}
 
                       {selectedConv.metadata.guests && (
                         <div>
-                          <span className="text-[#8C8880] block text-[10px]">GUESTS:</span>
-                          <span className="text-[#FAF8F5]">{selectedConv.metadata.guests} Guests</span>
+                          <span className="text-adm-muted block text-[10px]">GUESTS:</span>
+                          <span className="text-adm-text">{selectedConv.metadata.guests} Guests</span>
                         </div>
                       )}
 
                       {selectedConv.metadata.fullName && (
                         <div>
-                          <span className="text-[#8C8880] block text-[10px]">CONTACT NAME:</span>
-                          <span className="text-[#FAF8F5]">{selectedConv.metadata.fullName}</span>
+                          <span className="text-adm-muted block text-[10px]">CONTACT NAME:</span>
+                          <span className="text-adm-text">{selectedConv.metadata.fullName}</span>
                         </div>
                       )}
 
                       {selectedConv.metadata.email && (
                         <div>
-                          <span className="text-[#8C8880] block text-[10px]">EMAIL:</span>
-                          <span className="text-[#C4A27A]">{selectedConv.metadata.email}</span>
+                          <span className="text-adm-muted block text-[10px]">EMAIL:</span>
+                          <span className="text-adm-accent">{selectedConv.metadata.email}</span>
                         </div>
                       )}
 
                       {selectedConv.metadata.phone && (
                         <div>
-                          <span className="text-[#8C8880] block text-[10px]">PHONE:</span>
-                          <span className="text-[#FAF8F5]">{selectedConv.metadata.phone}</span>
+                          <span className="text-adm-muted block text-[10px]">PHONE:</span>
+                          <span className="text-adm-text">{selectedConv.metadata.phone}</span>
                         </div>
                       )}
 
                       {selectedConv.metadata.specialRequests && (
                         <div>
-                          <span className="text-[#8C8880] block text-[10px]">SPECIAL REQUESTS:</span>
-                          <p className="text-[#D8CCB8] italic bg-[#141413]/70 p-2 rounded border border-[#2C2B28]">
+                          <span className="text-adm-muted block text-[10px]">SPECIAL REQUESTS:</span>
+                          <p className="text-adm-text-2 italic bg-adm-bg/70 p-2 rounded border border-adm-line">
                             "{selectedConv.metadata.specialRequests}"
                           </p>
                         </div>
@@ -897,22 +1367,22 @@ export const AdminSupportInbox: React.FC = () => {
                 )}
 
                 {/* AI Decision Audit Trail */}
-                <div className="bg-[#1C1B1A] border border-[#2C2B28] rounded-2xl p-4 space-y-3 shadow-xl text-xs">
-                  <div className="flex items-center space-x-2 pb-2 border-b border-[#2C2B28]">
-                    <Sparkles className="w-4 h-4 text-[#C4A27A]" />
-                    <h3 className="font-semibold text-xs uppercase tracking-wider text-[#FAF8F5] font-mono">
+                <div className="bg-adm-surface border border-adm-line rounded-2xl p-4 space-y-3 shadow-xl text-xs">
+                  <div className="flex items-center space-x-2 pb-2 border-b border-adm-line">
+                    <Sparkles className="w-4 h-4 text-adm-accent" />
+                    <h3 className="font-semibold text-xs uppercase tracking-wider text-adm-text font-mono">
                       AI Audit Trail ({aiEvents.length})
                     </h3>
                   </div>
 
                   <div className="space-y-2 max-h-[220px] overflow-y-auto font-mono text-[10px]">
                     {aiEvents.length === 0 ? (
-                      <p className="text-[#8C8880] italic">No AI decision events logged.</p>
+                      <p className="text-adm-muted italic">No AI decision events logged.</p>
                     ) : (
                       aiEvents.map((e) => (
-                        <div key={e.id} className="p-2 bg-[#141413] rounded-lg border border-[#2C2B28] space-y-1">
+                        <div key={e.id} className="p-2 bg-adm-bg rounded-lg border border-adm-line space-y-1">
                           <div className="flex items-center justify-between">
-                            <span className="text-[#C4A27A] font-bold">{e.intent}</span>
+                            <span className="text-adm-accent font-bold">{e.intent}</span>
                             <span
                               className={`px-1 rounded text-[9px] ${
                                 e.decision === 'AUTO_ANSWER'
@@ -923,7 +1393,7 @@ export const AdminSupportInbox: React.FC = () => {
                               {e.decision}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between text-[#8C8880]">
+                          <div className="flex items-center justify-between text-adm-muted">
                             <span>Conf: {(e.confidence * 100).toFixed(0)}%</span>
                             <span>{new Date(e.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                           </div>
@@ -934,7 +1404,7 @@ export const AdminSupportInbox: React.FC = () => {
                 </div>
               </>
             ) : (
-              <div className="bg-[#1C1B1A] border border-[#2C2B28] rounded-2xl p-6 text-center text-[#8C8880] text-xs">
+              <div className="bg-adm-surface border border-adm-line rounded-2xl p-6 text-center text-adm-muted text-xs">
                 No conversation selected.
               </div>
             )}
@@ -957,14 +1427,14 @@ export const AdminSupportInbox: React.FC = () => {
                   setKbSearch(e.target.value);
                   loadKnowledgeBase();
                 }}
-                className="bg-[#1C1B1A] border border-[#2C2B28] rounded-xl px-3.5 py-2 text-xs text-[#FAF8F5] placeholder-[#8C8880] focus:outline-none focus:border-[#C4A27A] w-64"
+                className="bg-adm-surface border border-adm-line rounded-xl px-3.5 py-2 text-xs text-adm-text placeholder-adm-faint focus:outline-none focus:border-adm-accent w-64"
               />
 
               {/* Category Filter */}
               <select
                 value={kbCategoryFilter}
                 onChange={(e) => setKbCategoryFilter(e.target.value)}
-                className="bg-[#1C1B1A] border border-[#2C2B28] rounded-xl px-3 py-2 text-xs text-[#FAF8F5] focus:outline-none focus:border-[#C4A27A]"
+                className="bg-adm-surface border border-adm-line rounded-xl px-3 py-2 text-xs text-adm-text focus:outline-none focus:border-adm-accent"
               >
                 <option value="ALL">All Categories</option>
                 <option value="Check-in">Check-in</option>
@@ -991,7 +1461,7 @@ export const AdminSupportInbox: React.FC = () => {
                 });
                 setIsKbModalOpen(true);
               }}
-              className="px-4 py-2 bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all shadow cursor-pointer self-start sm:self-auto"
+              className="px-4 py-2 bg-adm-accent-fill hover:bg-adm-accent-hover text-adm-on-accent rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all shadow cursor-pointer self-start sm:self-auto"
             >
               <Plus className="w-4 h-4" />
               <span>Add Knowledge Item</span>
@@ -999,16 +1469,16 @@ export const AdminSupportInbox: React.FC = () => {
           </div>
 
           {/* Knowledge Items Table / Grid */}
-          <div className="bg-[#1C1B1A] border border-[#2C2B28] rounded-2xl overflow-hidden shadow-xl">
-            <div className="divide-y divide-[#2C2B28]">
+          <div className="bg-adm-surface border border-adm-line rounded-2xl overflow-hidden shadow-xl">
+            <div className="divide-y divide-adm-line">
               {kbItems.map((item) => (
-                <div key={item.id} className="p-4 hover:bg-[#201F1E] transition-colors flex items-start justify-between gap-4">
+                <div key={item.id} className="p-4 hover:bg-adm-surface transition-colors flex items-start justify-between gap-4">
                   <div className="space-y-1.5 flex-1">
                     <div className="flex items-center space-x-2">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-[#2C2B28] text-[#C4A27A] font-semibold">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-adm-line text-adm-accent font-semibold">
                         {item.category}
                       </span>
-                      <span className="text-[10px] font-mono uppercase text-[#8C8880]">
+                      <span className="text-[10px] font-mono uppercase text-adm-muted">
                         {item.language}
                       </span>
                       <span
@@ -1026,8 +1496,8 @@ export const AdminSupportInbox: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    <h4 className="font-serif text-sm text-[#FAF8F5] font-medium">{item.question}</h4>
-                    <p className="text-xs text-[#A09C94] leading-relaxed">{item.answer}</p>
+                    <h4 className="font-serif text-sm text-adm-text font-medium">{item.question}</h4>
+                    <p className="text-xs text-adm-muted leading-relaxed">{item.answer}</p>
                   </div>
 
                   <div className="flex items-center space-x-1 flex-shrink-0">
@@ -1036,14 +1506,14 @@ export const AdminSupportInbox: React.FC = () => {
                         setEditingKbItem(item);
                         setIsKbModalOpen(true);
                       }}
-                      className="p-1.5 rounded-lg hover:bg-[#2C2B28] text-[#D8CCB8] hover:text-white transition-colors cursor-pointer"
+                      className="p-1.5 rounded-lg hover:bg-adm-line text-adm-text-2 hover:text-adm-text transition-colors cursor-pointer"
                       title="Edit Item"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDeleteKbItem(item.id)}
-                      className="p-1.5 rounded-lg hover:bg-red-950/50 text-[#8C8880] hover:text-red-400 transition-colors cursor-pointer"
+                      className="p-1.5 rounded-lg hover:bg-red-950/50 text-adm-muted hover:text-red-400 transition-colors cursor-pointer"
                       title="Delete Item"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -1057,14 +1527,14 @@ export const AdminSupportInbox: React.FC = () => {
           {/* Modal for Create / Edit Knowledge Item */}
           {isKbModalOpen && editingKbItem && (
             <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-              <div className="bg-[#1C1B1A] border border-[#2C2B28] rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
-                <h3 className="font-serif text-lg text-[#FAF8F5]">
+              <div className="bg-adm-surface border border-adm-line rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
+                <h3 className="font-serif text-lg text-adm-text">
                   {editingKbItem.id ? 'Edit Knowledge Base Item' : 'New Knowledge Base Item'}
                 </h3>
 
                 <form onSubmit={handleSaveKbItem} className="space-y-4">
                   <div>
-                    <label className="text-[11px] font-mono uppercase text-[#A09C94] block mb-1">
+                    <label className="text-[11px] font-mono uppercase text-adm-muted block mb-1">
                       Question / Visitor Query
                     </label>
                     <input
@@ -1073,12 +1543,12 @@ export const AdminSupportInbox: React.FC = () => {
                       value={editingKbItem.question || ''}
                       onChange={(e) => setEditingKbItem({ ...editingKbItem, question: e.target.value })}
                       placeholder="e.g. Can we arrange airport pickup at 11 PM?"
-                      className="w-full bg-[#141413] border border-[#2C2B28] rounded-xl px-3 py-2 text-xs text-[#FAF8F5] focus:outline-none focus:border-[#C4A27A]"
+                      className="w-full bg-adm-bg border border-adm-line rounded-xl px-3 py-2 text-xs text-adm-text focus:outline-none focus:border-adm-accent"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-mono uppercase text-[#A09C94] block mb-1">
+                    <label className="text-[11px] font-mono uppercase text-adm-muted block mb-1">
                       Authoritative Answer
                     </label>
                     <textarea
@@ -1087,19 +1557,19 @@ export const AdminSupportInbox: React.FC = () => {
                       value={editingKbItem.answer || ''}
                       onChange={(e) => setEditingKbItem({ ...editingKbItem, answer: e.target.value })}
                       placeholder="Provide precise, authoritative answer for Juma AI to utilize..."
-                      className="w-full bg-[#141413] border border-[#2C2B28] rounded-xl px-3 py-2 text-xs text-[#FAF8F5] focus:outline-none focus:border-[#C4A27A]"
+                      className="w-full bg-adm-bg border border-adm-line rounded-xl px-3 py-2 text-xs text-adm-text focus:outline-none focus:border-adm-accent"
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[11px] font-mono uppercase text-[#A09C94] block mb-1">
+                      <label className="text-[11px] font-mono uppercase text-adm-muted block mb-1">
                         Category
                       </label>
                       <select
                         value={editingKbItem.category || 'General'}
                         onChange={(e) => setEditingKbItem({ ...editingKbItem, category: e.target.value })}
-                        className="w-full bg-[#141413] border border-[#2C2B28] rounded-xl px-3 py-2 text-xs text-[#FAF8F5] focus:outline-none focus:border-[#C4A27A]"
+                        className="w-full bg-adm-bg border border-adm-line rounded-xl px-3 py-2 text-xs text-adm-text focus:outline-none focus:border-adm-accent"
                       >
                         <option value="Check-in">Check-in</option>
                         <option value="Pricing">Pricing</option>
@@ -1115,13 +1585,13 @@ export const AdminSupportInbox: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="text-[11px] font-mono uppercase text-[#A09C94] block mb-1">
+                      <label className="text-[11px] font-mono uppercase text-adm-muted block mb-1">
                         Status
                       </label>
                       <select
                         value={editingKbItem.status || 'PUBLISHED'}
                         onChange={(e) => setEditingKbItem({ ...editingKbItem, status: e.target.value as any })}
-                        className="w-full bg-[#141413] border border-[#2C2B28] rounded-xl px-3 py-2 text-xs text-[#FAF8F5] focus:outline-none focus:border-[#C4A27A]"
+                        className="w-full bg-adm-bg border border-adm-line rounded-xl px-3 py-2 text-xs text-adm-text focus:outline-none focus:border-adm-accent"
                       >
                         <option value="PUBLISHED">Published</option>
                         <option value="DRAFT">Draft</option>
@@ -1130,17 +1600,17 @@ export const AdminSupportInbox: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-end space-x-2 pt-3 border-t border-[#2C2B28]">
+                  <div className="flex items-center justify-end space-x-2 pt-3 border-t border-adm-line">
                     <button
                       type="button"
                       onClick={() => setIsKbModalOpen(false)}
-                      className="px-4 py-2 border border-[#2C2B28] hover:bg-[#2C2B28] rounded-xl text-xs text-[#D8CCB8] cursor-pointer"
+                      className="px-4 py-2 border border-adm-line hover:bg-adm-line rounded-xl text-xs text-adm-text-2 cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2 bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] font-bold rounded-xl text-xs cursor-pointer shadow"
+                      className="px-5 py-2 bg-adm-accent-fill hover:bg-adm-accent-hover text-adm-on-accent font-bold rounded-xl text-xs cursor-pointer shadow"
                     >
                       Save Knowledge Item
                     </button>
@@ -1159,38 +1629,38 @@ export const AdminSupportInbox: React.FC = () => {
         <div className="space-y-6">
           {/* Key KPI Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="bg-[#1C1B1A] border border-[#2C2B28] p-4 rounded-2xl shadow">
-              <span className="text-[10px] font-mono uppercase text-[#8C8880] block">Total Conversations</span>
-              <span className="font-serif text-3xl text-[#FAF8F5] mt-1 block font-light">
+            <div className="bg-adm-surface border border-adm-line p-4 rounded-2xl shadow">
+              <span className="text-[10px] font-mono uppercase text-adm-muted block">Total Conversations</span>
+              <span className="font-serif text-3xl text-adm-text mt-1 block font-light">
                 {analytics.totalConversations}
               </span>
             </div>
 
-            <div className="bg-[#1C1B1A] border border-[#2C2B28] p-4 rounded-2xl shadow">
-              <span className="text-[10px] font-mono uppercase text-[#8C8880] block">AI Resolution Rate</span>
+            <div className="bg-adm-surface border border-adm-line p-4 rounded-2xl shadow">
+              <span className="text-[10px] font-mono uppercase text-adm-muted block">AI Resolution Rate</span>
               <span className="font-serif text-3xl text-emerald-400 mt-1 block font-light">
                 {analytics.aiResolutionRate}%
               </span>
             </div>
 
-            <div className="bg-[#1C1B1A] border border-[#2C2B28] p-4 rounded-2xl shadow">
-              <span className="text-[10px] font-mono uppercase text-[#8C8880] block">Human Assisted</span>
-              <span className="font-serif text-3xl text-[#C4A27A] mt-1 block font-light">
+            <div className="bg-adm-surface border border-adm-line p-4 rounded-2xl shadow">
+              <span className="text-[10px] font-mono uppercase text-adm-muted block">Human Assisted</span>
+              <span className="font-serif text-3xl text-adm-accent mt-1 block font-light">
                 {analytics.humanAssisted}
               </span>
             </div>
 
-            <div className="bg-[#1C1B1A] border border-[#2C2B28] p-4 rounded-2xl shadow">
-              <span className="text-[10px] font-mono uppercase text-[#8C8880] block">Avg AI Speed</span>
-              <span className="font-serif text-3xl text-[#FAF8F5] mt-1 block font-light">
+            <div className="bg-adm-surface border border-adm-line p-4 rounded-2xl shadow">
+              <span className="text-[10px] font-mono uppercase text-adm-muted block">Avg AI Speed</span>
+              <span className="font-serif text-3xl text-adm-text mt-1 block font-light">
                 {analytics.avgAiResponseTimeSec}s
               </span>
             </div>
           </div>
 
           {/* Top Question Categories Breakdown */}
-          <div className="bg-[#1C1B1A] border border-[#2C2B28] rounded-2xl p-6 shadow-xl space-y-4">
-            <h3 className="font-serif text-base text-[#FAF8F5]">
+          <div className="bg-adm-surface border border-adm-line rounded-2xl p-6 shadow-xl space-y-4">
+            <h3 className="font-serif text-base text-adm-text">
               Top Inquired Topics & Categories
             </h3>
 
@@ -1198,14 +1668,14 @@ export const AdminSupportInbox: React.FC = () => {
               {analytics.categories.map((cat) => (
                 <div key={cat.category} className="space-y-1">
                   <div className="flex items-center justify-between text-xs font-mono">
-                    <span className="text-[#D8CCB8]">{cat.category}</span>
-                    <span className="text-[#C4A27A] font-bold">
+                    <span className="text-adm-text-2">{cat.category}</span>
+                    <span className="text-adm-accent font-bold">
                       {cat.count} inquiries ({cat.percentage}%)
                     </span>
                   </div>
-                  <div className="w-full h-2 bg-[#141413] rounded-full overflow-hidden border border-[#2C2B28]">
+                  <div className="w-full h-2 bg-adm-bg rounded-full overflow-hidden border border-adm-line">
                     <div
-                      className="h-full bg-gradient-to-r from-[#B8966C] to-[#C4A27A] rounded-full"
+                      className="h-full bg-gradient-to-r from-adm-accent-fill to-adm-accent rounded-full"
                       style={{ width: `${Math.max(cat.percentage, 4)}%` }}
                     />
                   </div>
@@ -1215,6 +1685,216 @@ export const AdminSupportInbox: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ============================================================= */}
+      {/* VIEW 4: CUSTOMER SUPPORT AVATAR & WIDGET PROFILE              */}
+      {/* ============================================================= */}
+      {activeSubTab === 'profile' && (
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="bg-adm-surface border border-adm-line rounded-2xl p-6 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-adm-line gap-3">
+              <div>
+                <h2 className="font-serif text-xl text-adm-text">
+                  Customer Support Profile & Avatar
+                </h2>
+                <p className="text-xs text-adm-muted mt-0.5">
+                  Customize the floating concierge avatar, agent name, and active badge displayed on the website.
+                </p>
+              </div>
+
+              {profileMessage && (
+                <div
+                  className={`text-xs font-mono px-3 py-1.5 rounded-lg flex items-center space-x-1.5 ${
+                    profileMessage.startsWith('✓')
+                      ? 'bg-emerald-950/70 text-emerald-300 border border-emerald-800/60'
+                      : 'bg-red-950/70 text-red-300 border border-red-800/60'
+                  }`}
+                >
+                  <Check className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>{profileMessage}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+              {/* Left Column: Avatar & 1:1 Cropper Trigger */}
+              <div className="md:col-span-5 flex flex-col items-center p-6 bg-adm-panel rounded-2xl border border-adm-line space-y-4 text-center">
+                <span className="text-[11px] font-mono uppercase tracking-wider text-adm-text-2">
+                  Live Avatar Preview
+                </span>
+
+                {/* Glowing Circle Avatar with Golden Ring */}
+                <div className="relative">
+                  <div className="w-28 h-28 rounded-full overflow-hidden p-1 bg-gradient-to-tr from-[#B8966C] via-[#C4A27A] to-[#FAF8F5] shadow-2xl">
+                    <div className="w-full h-full rounded-full overflow-hidden bg-[#141413]">
+                      <img
+                        src={supportAvatar}
+                        alt={supportName}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Active pulsing radar indicator */}
+                  <span className="absolute top-1 right-1 flex h-6 w-6">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-80" />
+                    <span className="relative inline-flex rounded-full h-6 w-6 bg-emerald-500 border-2 border-[#141413] shadow-[0_0_8px_#10b981]" />
+                  </span>
+                </div>
+
+                <div className="space-y-2 w-full pt-2">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/png,image/jpeg,image/webp,image/avif"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setSelectedCropFile(file);
+                        setIsCropperOpen(true);
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full py-2.5 px-4 bg-adm-accent-fill hover:bg-adm-accent-hover text-adm-on-accent text-xs font-mono font-bold uppercase tracking-wider rounded-xl shadow flex items-center justify-center space-x-2 transition-all cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>Upload Photo</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSupportAvatar(
+                        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80'
+                      );
+                    }}
+                    className="w-full py-1.5 text-[11px] font-mono text-adm-muted hover:text-adm-text hover:bg-adm-bg rounded-lg transition-colors cursor-pointer"
+                  >
+                    Restore Default Juma Photo
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Column: Name, Title & Status Settings */}
+              <div className="md:col-span-7 space-y-4">
+                <div>
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1.5">
+                    Concierge / Agent Name
+                  </label>
+                  <input
+                    type="text"
+                    value={supportName}
+                    onChange={(e) => setSupportName(e.target.value)}
+                    placeholder="e.g. Juma"
+                    className="w-full px-3.5 py-2.5 bg-adm-bg border border-adm-line rounded-xl text-xs font-mono text-adm-text focus:outline-none focus:border-adm-accent"
+                  />
+                  <span className="text-[10px] text-adm-muted mt-1 block">
+                    Displayed on mobile widget pill and greeting message.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1.5">
+                    Widget Badge Title
+                  </label>
+                  <input
+                    type="text"
+                    value={supportTitle}
+                    onChange={(e) => setSupportTitle(e.target.value)}
+                    placeholder="e.g. Customer Support"
+                    className="w-full px-3.5 py-2.5 bg-adm-bg border border-adm-line rounded-xl text-xs font-mono text-adm-text focus:outline-none focus:border-adm-accent"
+                  />
+                  <span className="text-[10px] text-adm-muted mt-1 block">
+                    Main title displayed on desktop floating pill and chat window top bar.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1.5">
+                    Active Availability Subtitle
+                  </label>
+                  <input
+                    type="text"
+                    value={supportStatus}
+                    onChange={(e) => setSupportStatus(e.target.value)}
+                    placeholder="e.g. Active 24/7 or Online • Juma"
+                    className="w-full px-3.5 py-2.5 bg-adm-bg border border-adm-line rounded-xl text-xs font-mono text-adm-text focus:outline-none focus:border-adm-accent"
+                  />
+                  <span className="text-[10px] text-adm-muted mt-1 block">
+                    Subtitle beside the pulsing green dot indicating live concierge presence.
+                  </span>
+                </div>
+
+                <div className="pt-4 border-t border-adm-line flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={() => handleSaveProfile()}
+                    disabled={profileSaving}
+                    className="inline-flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-adm-accent-fill hover:bg-adm-accent-hover text-adm-on-accent text-xs font-mono uppercase tracking-widest font-bold shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {profileSaving ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Saving Changes...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span>Save Support Profile</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 1:1 Image Cropper Modal */}
+      <ImageCropperModal
+        isOpen={isCropperOpen}
+        onClose={() => setIsCropperOpen(false)}
+        imageFile={selectedCropFile}
+        initialImageUrl={supportAvatar}
+        supportName={supportName}
+        supportTitle={supportTitle}
+        supportStatus={supportStatus}
+        onCroppedAndUploaded={(url) => {
+          setSupportAvatar(url);
+          // Auto save immediately so the admin does not need to click twice
+          contentApi.updateSettings({
+            supportAvatar: url,
+            supportName,
+            supportTitle,
+            supportStatus,
+          }).then(() => {
+            setProfileMessage('✓ Avatar cropped, uploaded, and saved successfully!');
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem(
+                  'zanzirangi_support_profile',
+                  JSON.stringify({ supportAvatar: url, supportName, supportTitle, supportStatus })
+                );
+              } catch {}
+              window.dispatchEvent(
+                new CustomEvent('zanzirangi-support-profile-updated', {
+                  detail: { supportAvatar: url, supportName, supportTitle, supportStatus },
+                })
+              );
+            }
+            setTimeout(() => setProfileMessage(null), 4000);
+          }).catch((err) => {
+            setProfileMessage(`Error: ${err?.message || 'Failed to save avatar'}`);
+          });
+        }}
+      />
     </div>
   );
 };

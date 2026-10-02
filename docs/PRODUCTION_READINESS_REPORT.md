@@ -113,7 +113,7 @@ BACKUP
 
 ROLLBACK
 [PASS]
-- Comprehensive recovery manual created in docs/ROLLBACK_PLAN.md covering code, database, and media rollback scenarios.
+- Comprehensive recovery manual created in docs/ROLLBACK.md covering code, database, and media rollback scenarios.
 
 ================================================
 OVERALL STATUS: READY

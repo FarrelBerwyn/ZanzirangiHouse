@@ -6,6 +6,9 @@ import {
   SupportAiEventRecord,
   SupportAnalyticsSummary,
   SupportConversationStatus,
+  SupportPushSubscriptionRecord,
+  SupportStaffDutyRecord,
+  SupportEscalationItemRecord,
 } from '../supportTypes.ts';
 
 function toIso(val: any): string {
@@ -570,6 +573,222 @@ class SupportRepository {
       avgHumanResponseTimeMin: 4.2,
       categories,
     };
+  }
+
+  // -------------------------------------------------------------
+  // Web Push Subscriptions
+  // -------------------------------------------------------------
+  async savePushSubscription(data: {
+    user_email: string;
+    role: string;
+    endpoint: string;
+    p256dh: string;
+    auth: string;
+    user_agent?: string | null;
+  }): Promise<SupportPushSubscriptionRecord> {
+    const pool = getMysqlPool();
+    const id = `push_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    // Upsert based on endpoint
+    await pool.query(
+      `INSERT INTO support_push_subscriptions (id, user_email, role, endpoint, p256dh, auth, user_agent, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+       ON DUPLICATE KEY UPDATE 
+         user_email = VALUES(user_email),
+         role = VALUES(role),
+         p256dh = VALUES(p256dh),
+         auth = VALUES(auth),
+         user_agent = VALUES(user_agent),
+         updated_at = NOW()`,
+      [id, data.user_email, data.role || 'STAFF', data.endpoint, data.p256dh, data.auth, data.user_agent || null]
+    );
+
+    return {
+      id,
+      user_email: data.user_email,
+      role: data.role || 'STAFF',
+      endpoint: data.endpoint,
+      p256dh: data.p256dh,
+      auth: data.auth,
+      user_agent: data.user_agent,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  async deletePushSubscription(endpoint: string): Promise<void> {
+    const pool = getMysqlPool();
+    await pool.query('DELETE FROM support_push_subscriptions WHERE endpoint = ?', [endpoint]);
+  }
+
+  async getPushSubscriptions(role?: string): Promise<SupportPushSubscriptionRecord[]> {
+    const pool = getMysqlPool();
+    let query = 'SELECT * FROM support_push_subscriptions';
+    const params: any[] = [];
+
+    if (role && role !== 'ALL') {
+      query += ' WHERE role = ? OR role = "SUPER_ADMIN"';
+      params.push(role);
+    }
+
+    const [rows]: any = await pool.query(query, params);
+    return rows.map((r: any) => ({
+      id: r.id,
+      user_email: r.user_email,
+      role: r.role,
+      endpoint: r.endpoint,
+      p256dh: r.p256dh,
+      auth: r.auth,
+      user_agent: r.user_agent,
+      created_at: toIso(r.created_at),
+      updated_at: toIso(r.updated_at),
+    }));
+  }
+
+  // -------------------------------------------------------------
+  // Staff Duty Tracking (On Duty / Off Duty)
+  // -------------------------------------------------------------
+  async getStaffDutyList(): Promise<SupportStaffDutyRecord[]> {
+    const pool = getMysqlPool();
+    const [rows]: any = await pool.query('SELECT * FROM support_staff_duty ORDER BY is_on_duty DESC, name ASC');
+    return rows.map((r: any) => ({
+      id: r.id,
+      user_email: r.user_email,
+      name: r.name,
+      role: r.role,
+      is_on_duty: Boolean(r.is_on_duty),
+      last_active_at: toIso(r.last_active_at),
+      updated_at: toIso(r.updated_at),
+    }));
+  }
+
+  async getOnDutyStaff(): Promise<SupportStaffDutyRecord[]> {
+    const pool = getMysqlPool();
+    const [rows]: any = await pool.query('SELECT * FROM support_staff_duty WHERE is_on_duty = TRUE');
+    return rows.map((r: any) => ({
+      id: r.id,
+      user_email: r.user_email,
+      name: r.name,
+      role: r.role,
+      is_on_duty: true,
+      last_active_at: toIso(r.last_active_at),
+      updated_at: toIso(r.updated_at),
+    }));
+  }
+
+  async updateStaffDuty(
+    email: string,
+    isOnDuty: boolean,
+    name?: string,
+    role: string = 'STAFF'
+  ): Promise<SupportStaffDutyRecord> {
+    const pool = getMysqlPool();
+    const displayName = name || email.split('@')[0];
+    const id = `duty_${Buffer.from(email).toString('hex').slice(0, 16)}`;
+
+    await pool.query(
+      `INSERT INTO support_staff_duty (id, user_email, name, role, is_on_duty, last_active_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+       ON DUPLICATE KEY UPDATE
+         is_on_duty = VALUES(is_on_duty),
+         name = IF(VALUES(name) != '', VALUES(name), name),
+         role = IF(VALUES(role) != '', VALUES(role), role),
+         last_active_at = NOW(),
+         updated_at = NOW()`,
+      [id, email, displayName, role, isOnDuty]
+    );
+
+    return {
+      id,
+      user_email: email,
+      name: displayName,
+      role,
+      is_on_duty: isOnDuty,
+      last_active_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  // -------------------------------------------------------------
+  // Support Escalation Queue (Multi-Tier Escalation)
+  // -------------------------------------------------------------
+  async createEscalationQueueItem(conversationId: string, visitorMessage: string): Promise<SupportEscalationItemRecord> {
+    const pool = getMysqlPool();
+    const id = `esc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    await pool.query(
+      `INSERT INTO support_escalation_queue 
+       (id, conversation_id, visitor_message, triggered_at, reminder_2m_sent, reminder_5m_sent, reminder_10m_sent, resolved_at)
+       VALUES (?, ?, ?, NOW(), FALSE, FALSE, FALSE, NULL)`,
+      [id, conversationId, visitorMessage]
+    );
+
+    return {
+      id,
+      conversation_id: conversationId,
+      visitor_message: visitorMessage,
+      triggered_at: new Date().toISOString(),
+      reminder_2m_sent: false,
+      reminder_5m_sent: false,
+      reminder_10m_sent: false,
+      resolved_at: null,
+    };
+  }
+
+  async resolveEscalationQueueItem(conversationId: string): Promise<void> {
+    const pool = getMysqlPool();
+    await pool.query(
+      `UPDATE support_escalation_queue 
+       SET resolved_at = NOW() 
+       WHERE conversation_id = ? AND resolved_at IS NULL`,
+      [conversationId]
+    );
+  }
+
+  async getPendingEscalations(): Promise<SupportEscalationItemRecord[]> {
+    const pool = getMysqlPool();
+    const [rows]: any = await pool.query(
+      `SELECT * FROM support_escalation_queue 
+       WHERE resolved_at IS NULL 
+       ORDER BY triggered_at ASC`
+    );
+    return rows.map((r: any) => ({
+      id: r.id,
+      conversation_id: r.conversation_id,
+      visitor_message: r.visitor_message,
+      triggered_at: toIso(r.triggered_at),
+      reminder_2m_sent: Boolean(r.reminder_2m_sent),
+      reminder_5m_sent: Boolean(r.reminder_5m_sent),
+      reminder_10m_sent: Boolean(r.reminder_10m_sent),
+      resolved_at: r.resolved_at ? toIso(r.resolved_at) : null,
+    }));
+  }
+
+  async updateEscalationReminders(
+    id: string,
+    fields: { reminder_2m_sent?: boolean; reminder_5m_sent?: boolean; reminder_10m_sent?: boolean }
+  ): Promise<void> {
+    const pool = getMysqlPool();
+    const sets: string[] = [];
+    const vals: any[] = [];
+
+    if (fields.reminder_2m_sent !== undefined) {
+      sets.push('reminder_2m_sent = ?');
+      vals.push(fields.reminder_2m_sent);
+    }
+    if (fields.reminder_5m_sent !== undefined) {
+      sets.push('reminder_5m_sent = ?');
+      vals.push(fields.reminder_5m_sent);
+    }
+    if (fields.reminder_10m_sent !== undefined) {
+      sets.push('reminder_10m_sent = ?');
+      vals.push(fields.reminder_10m_sent);
+    }
+
+    if (sets.length > 0) {
+      vals.push(id);
+      await pool.query(`UPDATE support_escalation_queue SET ${sets.join(', ')} WHERE id = ?`, vals);
+    }
   }
 }
 

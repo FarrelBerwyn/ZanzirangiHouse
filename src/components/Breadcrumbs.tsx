@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronRight, Home } from 'lucide-react';
+import { Language } from '../types';
 
 export interface BreadcrumbItem {
   name: string;
@@ -9,9 +10,21 @@ export interface BreadcrumbItem {
 interface BreadcrumbsProps {
   items: BreadcrumbItem[];
   onNavigate?: (url: string) => void;
+  currentLang?: Language;
 }
 
-export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items, onNavigate }) => {
+const BREADCRUMB_ARIA: Record<Language, string> = {
+  en: 'Breadcrumb',
+  pl: 'Ścieżka nawigacji',
+  ar: 'مسار التنقل',
+  zh: '页面导航路径',
+  fr: "Fil d'Ariane",
+  sw: 'Njia ya urambazaji',
+  es: 'Ruta de navegación',
+  it: 'Percorso di navigazione',
+};
+
+export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items, onNavigate, currentLang = 'en' }) => {
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>, url: string) => {
     if (onNavigate && url.startsWith('/')) {
       e.preventDefault();
@@ -36,7 +49,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items, onNavigate }) =
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaData) }}
       />
-      <nav aria-label="Breadcrumb" className="py-3 px-4 sm:px-0">
+      <nav aria-label={BREADCRUMB_ARIA[currentLang] || BREADCRUMB_ARIA.en} className="py-3 px-4 sm:px-0">
         <ol className="flex items-center flex-wrap gap-1.5 text-xs text-[#8E8B85]">
           {items.map((item, index) => {
             const isLast = index === items.length - 1;

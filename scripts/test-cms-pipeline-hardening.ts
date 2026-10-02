@@ -81,6 +81,8 @@ async function runHardeningTests() {
       email: 'info@zanzirangihouse.com',
       name: 'Zanzirangi Administrator',
       role: 'superadmin',
+      status: 'active' as const,
+      permissions: [] as string[],
     };
     const validToken = generateToken(adminUser);
     const authHeaders = {

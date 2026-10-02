@@ -1,33 +1,47 @@
 import React from 'react';
 import { Breadcrumbs } from '../components/Breadcrumbs';
+import { PROPERTY_CONFIG } from '../data/propertyConfig';
+import { PageContentModel } from '../services/contentApi';
+import { Language } from '../types';
+import { PAGE_HEADERS, PAGE_NAMES } from '../data/pageTranslations';
+import { LegalPageLayout } from './pageSections';
 
 interface LegalPageProps {
   onNavigate: (url: string) => void;
+  pageContent?: PageContentModel | null;
+  currentLang?: Language;
 }
 
-export const TermsPage: React.FC<LegalPageProps> = ({ onNavigate }) => {
+export const TermsPage: React.FC<LegalPageProps> = ({ onNavigate, pageContent, currentLang = 'en' }) => {
+  const pageNames = PAGE_NAMES[currentLang] || PAGE_NAMES.en;
+  const headers = PAGE_HEADERS[currentLang] || PAGE_HEADERS.en;
+
   return (
-    <div className="pt-24 sm:pt-28 pb-16 bg-[#FAF8F5]">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-8">
+    <LegalPageLayout
+      slug="terms"
+      pageContent={pageContent}
+      fallbackEyebrow={headers.termsEyebrow}
+      fallbackTitle={pageNames.terms}
+      fallbackLastUpdated={headers.lastUpdated}
+      lastUpdatedPrefix={headers.lastUpdatedPrefix}
+      breadcrumbs={
         <Breadcrumbs
           items={[
-            { name: 'Home', url: '/' },
-            { name: 'Terms & Conditions', url: '/terms' },
+            { name: pageNames.home, url: '/' },
+            { name: pageNames.terms, url: '/terms' },
           ]}
           onNavigate={onNavigate}
+          currentLang={currentLang}
         />
-
-        <header className="pt-6 pb-8 border-b border-[#E7DFD2]">
-          <span className="text-xs font-mono tracking-[0.25em] uppercase text-[#A07E54] block mb-2">
-            HOSPITALITY POLICIES & TERMS
-          </span>
-          <h1 className="font-serif text-3xl sm:text-4xl text-[#1C1B1A]">Terms & Conditions</h1>
-          <p className="text-xs text-[#6B6862] mt-2 font-mono">Last Updated: September 2026</p>
-        </header>
-
-        <article className="prose prose-stone max-w-none pt-8 space-y-6 text-sm text-[#4A4742] leading-relaxed">
+      }
+      fallbackBody={
+        <>
           <p>
-            Welcome to <strong>Zanzirangi House</strong>. By accessing our website (<a href="https://zanzirangihouse.com/" className="text-[#A07E54] underline">https://zanzirangihouse.com/</a>) or submitting accommodation and excursion requests, you agree to comply with the following hospitality terms and reservation guidelines.
+            Welcome to <strong>Zanzirangi House</strong>. By accessing our website (
+            <a href="https://zanzirangihouse.com/" className="text-[#A07E54] underline">
+              https://zanzirangihouse.com/
+            </a>
+            ) or submitting accommodation and excursion requests, you agree to comply with the following hospitality terms and reservation guidelines.
           </p>
 
           <h2 className="font-serif text-xl text-[#1C1B1A] pt-4">1. Reservations & Payments</h2>
@@ -47,10 +61,14 @@ export const TermsPage: React.FC<LegalPageProps> = ({ onNavigate }) => {
 
           <h2 className="font-serif text-xl text-[#1C1B1A] pt-4">4. Inquiries & Cancellations</h2>
           <p>
-            To modify or cancel a reservation, contact our concierge directly via email at <a href="mailto:concierge@zanzirangihouse.com" className="text-[#A07E54] underline">concierge@zanzirangihouse.com</a> or WhatsApp at +255 777 890 123.
+            To modify or cancel a reservation, contact our concierge directly via email at{' '}
+            <a href={`mailto:${PROPERTY_CONFIG.email}`} className="text-[#A07E54] underline">
+              {PROPERTY_CONFIG.email}
+            </a>{' '}
+            or WhatsApp at {PROPERTY_CONFIG.contact.whatsapp}.
           </p>
-        </article>
-      </div>
-    </div>
+        </>
+      }
+    />
   );
 };

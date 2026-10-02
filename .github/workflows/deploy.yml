@@ -1,48 +1,253 @@
-name: Deploy to GitHub Pages
+name: Deploy
+
+# Controlled, traceable deployment to Hostinger. Replaces the former GitHub Pages workflow
+# (12/12 runs failed; Pages was never enabled and could not run the API).
+#
+# Mechanism (docs/CICD.md, docs/DEPLOYMENT.md): Hostinger's Node.js "Git deployment" builds the app
+# from a dedicated, append-only deploy branch:
+#     deploy/staging     ← staging site      deploy/production  ← https://zanzirangihouse.com
+# Only this workflow writes those branches. Each deployment is ONE new commit (fast-forward, never a
+# force push) whose tree is exactly the verified source commit plus release.json (tag, commit, CI run).
+# No Hostinger credentials or application secrets are stored in GitHub; app secrets stay in hPanel.
+#
+# Gates: CI (re-run on the exact commit) → migration review → GitHub Environment approval
+#        → push deploy commit → wait until /api/health reports the new commit → smoke test.
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        options: [staging, production]
+        required: true
+      ref:
+        description: "production: release tag (e.g. v1.2.0). staging: branch, tag or commit SHA."
+        type: string
+        required: true
+      reason:
+        description: "Why: release / hotfix / rollback to vX.Y.Z (recorded in the deploy commit)"
+        type: string
+        required: true
+      migrations_applied:
+        description: Pending SQL migrations were reviewed, the DB was backed up and they are applied (see docs/DEPLOYMENT.md)
+        type: boolean
+        default: false
+      allow_destructive_migrations:
+        description: I explicitly approve DESTRUCTIVE migrations (DROP/DELETE/MODIFY…) for this deployment
+        type: boolean
+        default: false
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [staging]
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: 'pages'
-  cancel-in-progress: true
+  group: deploy-${{ inputs.environment || 'staging' }}
+  cancel-in-progress: false
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  plan:
+    name: Plan & safety checks
+    # Staging auto-deploys only after a green CI run on a push to `staging`, and only once staging exists.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       vars.STAGING_ENABLED == 'true')
     runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.resolve.outputs.environment }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      version: ${{ steps.resolve.outputs.version }}
+      url: ${{ steps.resolve.outputs.url }}
+      live_version: ${{ steps.live.outputs.live_version }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
         with:
-          node-version: 22
+          fetch-depth: 0
 
-      - name: Install dependencies
-        run: npm install
+      - name: Resolve target
+        id: resolve
+        env:
+          EVENT: ${{ github.event_name }}
+          IN_ENV: ${{ inputs.environment }}
+          IN_REF: ${{ inputs.ref }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+          STAGING_URL: ${{ vars.STAGING_URL }}
+          STAGING_ENABLED: ${{ vars.STAGING_ENABLED }}
+          PRODUCTION_DEPLOY_ENABLED: ${{ vars.PRODUCTION_DEPLOY_ENABLED }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+          if [ "$EVENT" = "workflow_run" ]; then ENVIRONMENT=staging; REF="$RUN_SHA"; else ENVIRONMENT="$IN_ENV"; REF="$IN_REF"; fi
+          git fetch --tags --force origin
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
+          if [ "$ENVIRONMENT" = "production" ]; then
+            [ "$PRODUCTION_DEPLOY_ENABLED" = "true" ] || fail "Production deployment is not enabled. Complete docs/DEPLOYMENT.md §4 and set the repository variable PRODUCTION_DEPLOY_ENABLED=true."
+            [ -n "$PRODUCTION_URL" ] || fail "Repository variable PRODUCTION_URL is not set."
+            [[ "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "Production only deploys release tags (vX.Y.Z). Got '$REF'."
+            git rev-parse -q --verify "refs/tags/$REF" >/dev/null || fail "Tag $REF does not exist on origin."
+            SHA=$(git rev-parse "$REF^{commit}")
+            git merge-base --is-ancestor "$SHA" origin/main || fail "Tag $REF is not on main. Release tags must be created on main."
+            PKG_VERSION=$(git show "$SHA:package.json" | node -pe "JSON.parse(require('fs').readFileSync(0)).version")
+            [ "v$PKG_VERSION" = "$REF" ] || fail "package.json at $REF says $PKG_VERSION."
+            TAG="$REF"; URL="$PRODUCTION_URL"
+          elif [ "$ENVIRONMENT" = "staging" ]; then
+            [ "$STAGING_ENABLED" = "true" ] || fail "Staging environment not currently implemented. See docs/ENVIRONMENTS.md."
+            [ -n "$STAGING_URL" ] || fail "Repository variable STAGING_URL is not set."
+            SHA=$(git rev-parse "$REF^{commit}" 2>/dev/null || git rev-parse "origin/$REF^{commit}") || fail "Cannot resolve '$REF'."
+            PKG_VERSION=$(git show "$SHA:package.json" | node -pe "JSON.parse(require('fs').readFileSync(0)).version")
+            TAG=$(git tag --points-at "$SHA" | grep -E '^v[0-9]' | head -n1 || true); URL="$STAGING_URL"
+          else
+            fail "Unknown environment '$ENVIRONMENT'."
+          fi
+          {
+            echo "environment=$ENVIRONMENT"; echo "sha=$SHA"; echo "tag=$TAG"
+            echo "version=$PKG_VERSION"; echo "url=${URL%/}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Target: $ENVIRONMENT ← ${TAG:-$SHA} ($SHA), version $PKG_VERSION"
 
-      - name: Build site
-        run: npm run build
+      - name: Read currently live release
+        id: live
+        env:
+          URL: ${{ steps.resolve.outputs.url }}
+        run: |
+          LIVE=$(curl -fsS --max-time 20 "$URL/api/health" | node -pe "try{JSON.parse(require('fs').readFileSync(0)).version}catch{''}" || true)
+          echo "live_version=$LIVE" >> "$GITHUB_OUTPUT"
+          echo "Live version: ${LIVE:-unknown}"
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Migration gate
+        env:
+          SHA: ${{ steps.resolve.outputs.sha }}
+          LIVE: ${{ steps.live.outputs.live_version }}
+          APPLIED: ${{ inputs.migrations_applied || 'false' }}
+          DESTRUCTIVE_OK: ${{ inputs.allow_destructive_migrations || 'false' }}
+        run: |
+          set -euo pipefail
+          git checkout -q "$SHA"
+          # Compare against the live release tag; unknown/untagged live version ⇒ every migration needs review.
+          REPORT=$(node scripts/check-migrations.mjs --since "v${LIVE:-unknown}" --json)
+          node scripts/check-migrations.mjs --since "v${LIVE:-unknown}"
+          REQUIRED=$(echo "$REPORT" | node -pe "JSON.parse(require('fs').readFileSync(0)).migrationRequired")
+          DESTRUCTIVE=$(echo "$REPORT" | node -pe "JSON.parse(require('fs').readFileSync(0)).destructive")
+          if [ "$DESTRUCTIVE" = "true" ] && [ "$DESTRUCTIVE_OK" != "true" ]; then
+            echo "::error::Destructive migrations detected. Back up, review, apply manually, then re-run with allow_destructive_migrations=true."; exit 1
+          fi
+          if [ "$REQUIRED" = "true" ] && [ "$APPLIED" != "true" ]; then
+            echo "::error::Migrations are pending relative to the live release. Back up the database, apply them (docs/DEPLOYMENT.md §5), then re-run with migrations_applied=true."; exit 1
+          fi
+          echo "Migration gate passed (required=$REQUIRED, destructive=$DESTRUCTIVE)."
+
+  verify:
+    name: CI on the exact commit
+    needs: plan
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.plan.outputs.sha }}
+
+  deploy:
+    name: Deploy to ${{ needs.plan.outputs.environment }}
+    needs: [plan, verify]
+    runs-on: ubuntu-latest
+    # GitHub Environment = approval gate + deployment history. Required reviewers must be configured
+    # in Settings → Environments (docs/CICD.md §5); they are NOT created by this file.
+    environment:
+      name: ${{ needs.plan.outputs.environment }}
+      url: ${{ needs.plan.outputs.url }}
+    permissions:
+      contents: write # push the deploy/<environment> branch only
+    outputs:
+      deploy_commit: ${{ steps.push.outputs.deploy_commit }}
+    steps:
+      - uses: actions/checkout@v4
         with:
-          path: './dist'
+          ref: ${{ needs.plan.outputs.sha }}
+          fetch-depth: 0
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Create deployment commit and push deploy/${{ needs.plan.outputs.environment }}
+        id: push
+        env:
+          ENVIRONMENT: ${{ needs.plan.outputs.environment }}
+          SHA: ${{ needs.plan.outputs.sha }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          REASON: ${{ inputs.reason || 'staging auto-deploy after green CI' }}
+          ACTOR: ${{ github.actor }}
+          RUN: ${{ github.run_id }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          BRANCH="deploy/$ENVIRONMENT"
+          git config user.name "tks-deploy-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          node -e '
+            const e = process.env;
+            require("fs").writeFileSync("release.json", JSON.stringify({
+              version: e.VERSION, tag: e.TAG || null, commit: e.SHA, build: e.RUN_NUMBER, run: e.RUN,
+              environment: e.ENVIRONMENT, deployedAt: new Date().toISOString(), deployedBy: e.ACTOR,
+            }, null, 2) + "\n");'
+          git add -f release.json
+          TREE=$(git write-tree)
+          PARENTS=""
+          if git fetch -q origin "refs/heads/$BRANCH:refs/remotes/origin/$BRANCH" 2>/dev/null; then
+            PARENTS="-p origin/$BRANCH"
+          fi
+          MSG=$(printf 'deploy(%s): %s\n\nSource: %s\nVersion: %s\nReason: %s\nCI run: %s/%s/actions/runs/%s\nApproved/started by: %s' \
+            "$ENVIRONMENT" "${TAG:-$SHA}" "$SHA" "$VERSION" "$REASON" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$RUN" "$ACTOR")
+          COMMIT=$(git commit-tree "$TREE" $PARENTS -p "$SHA" -m "$MSG")
+          git push origin "$COMMIT:refs/heads/$BRANCH"   # fast-forward only — never --force
+          echo "deploy_commit=$COMMIT" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Deployment started — $ENVIRONMENT"
+            echo "| Field | Value |"; echo "|---|---|"
+            echo "| Version | ${TAG:-$VERSION} |"; echo "| Source commit | \`$SHA\` |"
+            echo "| Deploy commit | \`$COMMIT\` on \`$BRANCH\` |"; echo "| CI build | #$RUN_NUMBER |"
+            echo "| Started by | $ACTOR |"; echo "| Reason | $REASON |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  verify-deployment:
+    name: Health check & smoke test (${{ needs.plan.outputs.environment }})
+    needs: [plan, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Wait for the new build to go live, then smoke test
+        run: >-
+          node scripts/smoke-test-deployment.mjs
+          --url "${{ needs.plan.outputs.url }}"
+          --expect-commit "${{ needs.plan.outputs.sha }}"
+          --wait 900
+
+      - name: Record success
+        if: success()
+        run: |
+          {
+            echo "### ✅ ${{ needs.plan.outputs.environment }} is running ${{ needs.plan.outputs.tag || needs.plan.outputs.version }}"
+            echo "Next (production): add the row to docs/releases/DEPLOYMENT_LOG.md, complete the technical record and send the client release notes."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Failure — rollback instructions
+        if: failure()
+        run: |
+          {
+            echo "### ❌ Deployment verification FAILED (${{ needs.plan.outputs.environment }})"
+            echo "Previously live version: ${{ needs.plan.outputs.live_version || 'unknown' }}"
+            echo "1. Check Hostinger hPanel → Node.js → build logs for the deploy commit."
+            echo "2. Roll back: run this workflow with environment=${{ needs.plan.outputs.environment }}, ref=v${{ needs.plan.outputs.live_version }} (the previous tag), reason='rollback'."
+            echo "3. Database: no automatic reversal — follow docs/ROLLBACK.md §4."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::Deployment verification failed — follow docs/ROLLBACK.md"

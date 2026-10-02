@@ -6,12 +6,14 @@ import { getLocalizedVillas } from '../data/villaTranslations';
 import { TRANSLATIONS } from '../data/translations';
 import { VILLA_CATEGORY_TRANSLATIONS } from '../data/villaCategoryTranslations';
 import { ScrollReveal } from './ScrollReveal';
+import { HomeSectionContent, cmsText } from '../data/homeSectionsCms';
 
 interface VillasSectionProps {
   currentLang: Language;
   onSelectVilla: (villa: Villa) => void;
   onRequestBooking: (villaId: string) => void;
   villas?: Villa[];
+  cmsContent?: HomeSectionContent;
 }
 
 export const VillasSection: React.FC<VillasSectionProps> = ({
@@ -19,6 +21,7 @@ export const VillasSection: React.FC<VillasSectionProps> = ({
   onSelectVilla,
   onRequestBooking,
   villas: customVillas,
+  cmsContent,
 }) => {
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
   const categoryI18n = VILLA_CATEGORY_TRANSLATIONS[currentLang] || VILLA_CATEGORY_TRANSLATIONS.en;
@@ -323,17 +326,20 @@ export const VillasSection: React.FC<VillasSectionProps> = ({
           <div className="max-w-xl">
             <div className="inline-flex items-center space-x-2 text-[11px] tracking-[0.3em] uppercase text-[#A07E54] font-semibold mb-3">
               <span className="w-5 h-[1px] bg-[#A07E54]" />
-              <span>{t.villas?.featuredTag || 'Sanctuary Accommodations'}</span>
+              <span>{cmsText(cmsContent?.eyebrow, t.villas?.featuredTag || 'Sanctuary Accommodations')}</span>
             </div>
             <h2
               id="villas-heading"
               className="font-serif text-3xl sm:text-5xl md:text-6xl font-light tracking-[0.04em] uppercase text-[#141413]"
             >
-              {t.villas?.heading || 'STAY YOUR WAY'}
+              {cmsText(cmsContent?.heading, t.villas?.heading || 'STAY YOUR WAY')}
             </h2>
             <p className="text-[#6B6862] text-sm sm:text-base font-normal mt-2 leading-relaxed">
-              {t.villas?.subhead ||
-                'From oceanfront pool villas to peaceful garden bungalows, each sanctuary is sculpted with local materials, open cross-breezes, and discreet hospitality.'}
+              {cmsText(
+                cmsContent?.subhead,
+                t.villas?.subhead ||
+                  'From oceanfront pool villas to peaceful garden bungalows, each sanctuary is sculpted with local materials, open cross-breezes, and discreet hospitality.'
+              )}
             </p>
           </div>
 

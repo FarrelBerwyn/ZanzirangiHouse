@@ -5,7 +5,7 @@
   <p><strong>A private luxury sanctuary in Zanzibar with curated island experiences, dining, safari connections, and personalized AI concierge services.</strong></p>
 
   <p>
-    <a href="https://zanzirangi.com"><img src="https://img.shields.io/badge/Website-zanzirangi.com-1E1E1E?style=for-the-badge&logo=google-chrome&logoColor=white" alt="Live Website" /></a>
+    <a href="https://zanzirangihouse.com"><img src="https://img.shields.io/badge/Website-zanzirangihouse.com-1E1E1E?style=for-the-badge&logo=google-chrome&logoColor=white" alt="Live Website" /></a>
     <img src="https://img.shields.io/badge/React-19.0.1-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 19" />
     <img src="https://img.shields.io/badge/Vite-6.x-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite 6" />
     <img src="https://img.shields.io/badge/Tailwind_CSS-v4.1-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind CSS v4" />
@@ -13,6 +13,24 @@
     <img src="https://img.shields.io/badge/AI_Powered-Google_Gemini-4285F4?style=for-the-badge&logo=google-gemini&logoColor=white" alt="Google Gemini" />
   </p>
 </div>
+
+---
+
+## 🏷️ Versioning & Releases (TKS)
+
+This project is maintained by **TKS (Teknologi Kecerdasan Sinergi)** for Zanzirangi House.
+
+| | |
+|---|---|
+| Current version | see `package.json` → `version` (live version: `GET /api/health` or the admin dashboard footer) |
+| Change history | [`CHANGELOG.md`](CHANGELOG.md) |
+| Git workflow & commit convention | [`docs/GIT_WORKFLOW.md`](docs/GIT_WORKFLOW.md), [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| Release process & deployment record | [`docs/RELEASE_PROCESS.md`](docs/RELEASE_PROCESS.md), [`docs/releases/DEPLOYMENT_LOG.md`](docs/releases/DEPLOYMENT_LOG.md) |
+| Rollback | [`docs/ROLLBACK.md`](docs/ROLLBACK.md) |
+
+> ⚠️ Parts of this README predate the CMS/MySQL server architecture (e.g. "static SPA" hosting and the
+> Gemini key). The current setup is: `npm ci` → copy `.env.example` to `.env` → `npm run dev`; production
+> runs `server.js` (Express + MySQL). See `CONTRIBUTING.md`.
 
 ---
 

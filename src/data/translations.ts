@@ -294,7 +294,7 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
     },
     map: {
       heading: 'FIND US',
-      subhead: 'Kizimkazi Dimbani • South Coast, Zanzibar • Tanzania',
+      subhead: 'Zanzirangi House • Kwa Lila 31, Bwejuu 72111 • Zanzibar, Tanzania',
       address: 'Property Address',
       phone: 'Direct Telephone',
       email: 'Concierge Inquiries',
@@ -461,7 +461,7 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
     },
     map: {
       heading: 'NOUS TROUVER',
-      subhead: 'Kizimkazi Dimbani • Côte Sud, Zanzibar • Tanzanie',
+      subhead: 'Zanzirangi House • Kwa Lila 31, Bwejuu 72111 • Zanzibar, Tanzanie',
       address: 'Adresse de la Propriété',
       phone: 'Téléphone Direct',
       email: 'Email Conciergerie',
@@ -628,7 +628,7 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
     },
     map: {
       heading: 'TUTAFUTE',
-      subhead: 'Kizimkazi Dimbani • Pwani ya Kusini, Zanzibar • Tanzania',
+      subhead: 'Zanzirangi House • Kwa Lila 31, Bwejuu 72111 • Zanzibar, Tanzania',
       address: 'Anwani ya Eneo',
       phone: 'Simu ya Moja kwa Moja',
       email: 'Barua Pepe ya Concierge',
@@ -795,7 +795,7 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
     },
     map: {
       heading: 'DÓNDE ESTAMOS',
-      subhead: 'Kizimkazi Dimbani • Costa Sur, Zanzíbar • Tanzania',
+      subhead: 'Zanzirangi House • Kwa Lila 31, Bwejuu 72111 • Zanzíbar, Tanzania',
       address: 'Dirección',
       phone: 'Teléfono Directo',
       email: 'Correo Concierge',
@@ -962,7 +962,7 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
     },
     map: {
       heading: 'DOVE SIAMO',
-      subhead: 'Kizimkazi Dimbani • Costa Sud, Zanzibar • Tanzania',
+      subhead: 'Zanzirangi House • Kwa Lila 31, Bwejuu 72111 • Zanzibar, Tanzania',
       address: 'Indirizzo',
       phone: 'Telefono Diretto',
       email: 'Email Concierge',
@@ -1129,7 +1129,7 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
     },
     map: {
       heading: 'الموقع والاتصال',
-      subhead: 'كيزيمكازي ديمباني • الساحل الجنوبي، زنجبار • تنزانيا',
+      subhead: 'Zanzirangi House • Kwa Lila 31, Bwejuu 72111 • زنجبار، تنزانيا',
       address: 'العنوان',
       phone: 'الهاتف',
       email: 'البريد الإلكتروني',
@@ -1296,7 +1296,7 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
     },
     map: {
       heading: '地理位置与联络方式',
-      subhead: '基济姆卡齐迪姆巴尼 • 南岸，桑给巴尔 • 坦桑尼亚',
+      subhead: 'Zanzirangi House • Kwa Lila 31, Bwejuu 72111 • 坦桑尼亚桑给巴尔',
       address: '详细地址',
       phone: '贵宾专线',
       email: '电子邮箱',
@@ -1463,7 +1463,7 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
     },
     map: {
       heading: 'LOKALIZACJA I DOJAZD',
-      subhead: 'Kizimkazi Dimbani, spokojne południowe wybrzeże Zanzibaru',
+      subhead: 'Zanzirangi House • Kwa Lila 31, Bwejuu 72111 • Zanzibar, Tanzania',
       address: 'Adres',
       phone: 'Telefon',
       email: 'E-mail',
@@ -1480,7 +1480,7 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
       brandStatement: 'Kameralna luksusowa rezydencja na Zanzibarze, będąca bramą do odkrywania wyspy i wypraw safari w głąb Tanzanii.',
       quickLinks: 'Nawigacja',
       contactConcierge: 'Konsjerż i Kontakt',
-      sanctuaryAddress: 'Kizimkazi Dimbani, Południowe Wybrzeże, Zanzibar, Tanzania',
+      sanctuaryAddress: 'Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania',
       allRightsReserved: 'Wszelkie prawa zastrzeżone.',
       clientDemoNotice: 'Wersja demonstracyjna platformy Zanzirangi House.',
     },

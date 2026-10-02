@@ -58,8 +58,8 @@ export const AdminSeoManager: React.FC = () => {
   if (isLoading || !seo) {
     return (
       <div className="py-24 text-center">
-        <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin text-[#C4A27A]" />
-        <p className="font-mono text-xs uppercase tracking-widest text-[#D8CCB8]">Loading SEO...</p>
+        <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin text-adm-accent" />
+        <p className="font-mono text-xs uppercase tracking-widest text-adm-text-2">Loading SEO...</p>
       </div>
     );
   }
@@ -87,20 +87,20 @@ export const AdminSeoManager: React.FC = () => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-[#2C2B28] gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-adm-line gap-4">
         <div>
           <div className="flex items-center space-x-2">
-            <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-[#C4A27A]">
+            <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-adm-accent">
               SEARCH VISIBILITY
             </span>
             <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase bg-emerald-950/60 border border-emerald-700/60 text-emerald-300">
               LIVE
             </span>
           </div>
-          <h1 className="font-serif text-2xl sm:text-3xl text-[#FAF8F5] tracking-wide mt-1">
+          <h1 className="font-serif text-2xl sm:text-3xl text-adm-text tracking-wide mt-1">
             SEO & Metadata Manager
           </h1>
-          <p className="text-xs text-[#8E8B85] mt-0.5">
+          <p className="text-xs text-adm-muted mt-0.5">
             Configure global search defaults, OpenGraph social cards, canonical URLs, and per-page meta tags.
           </p>
         </div>
@@ -116,7 +116,7 @@ export const AdminSeoManager: React.FC = () => {
             >
               {saveStatus === 'success' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
               {saveStatus === 'error' && <AlertTriangle className="w-3.5 h-3.5 text-red-400" />}
-              {saveStatus === 'saving' && <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#C4A27A]" />}
+              {saveStatus === 'saving' && <RefreshCw className="w-3.5 h-3.5 animate-spin text-adm-accent" />}
               <span>{statusMessage}</span>
             </div>
           )}
@@ -124,7 +124,7 @@ export const AdminSeoManager: React.FC = () => {
           <button
             onClick={() => handleSave()}
             disabled={saveStatus === 'saving'}
-            className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-lg bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-xs font-mono uppercase tracking-widest font-bold shadow-lg transition-all cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-lg bg-adm-accent-fill hover:bg-adm-accent-hover text-adm-on-accent text-xs font-mono uppercase tracking-widest font-bold shadow-lg transition-all cursor-pointer disabled:opacity-50"
           >
             <Save className="w-4 h-4" />
             <span>Save SEO</span>
@@ -133,41 +133,41 @@ export const AdminSeoManager: React.FC = () => {
       </div>
 
       {/* Global Defaults */}
-      <div className="bg-[#181716] p-6 rounded-xl border border-[#2C2B28] space-y-4">
-        <h3 className="font-serif text-lg text-[#FAF8F5]">Global Site Search Defaults</h3>
+      <div className="bg-adm-panel p-6 rounded-xl border border-adm-line space-y-4">
+        <h3 className="font-serif text-lg text-adm-text">Global Site Search Defaults</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+            <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
               Global Default Page Title
             </label>
             <input
               type="text"
               value={seo.siteTitle}
               onChange={(e) => setSeo({ ...seo, siteTitle: e.target.value })}
-              className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+              className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+            <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
               Default OpenGraph Social Image URL
             </label>
             <input
               type="text"
               value={seo.defaultOgImage}
               onChange={(e) => setSeo({ ...seo, defaultOgImage: e.target.value })}
-              className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+              className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
             />
           </div>
         </div>
       </div>
 
       {/* Per Route Tabs & Editor */}
-      <div className="bg-[#181716] p-6 rounded-xl border border-[#2C2B28] space-y-5">
-        <div className="flex items-center justify-between pb-3 border-b border-[#2C2B28]">
-          <h3 className="font-serif text-lg text-[#FAF8F5]">Per-Page Organic Meta Tags</h3>
-          <span className="text-xs font-mono text-[#C4A27A]">
-            Selected: <code className="text-[#FAF8F5]">{selectedRoute}</code>
+      <div className="bg-adm-panel p-6 rounded-xl border border-adm-line space-y-5">
+        <div className="flex items-center justify-between pb-3 border-b border-adm-line">
+          <h3 className="font-serif text-lg text-adm-text">Per-Page Organic Meta Tags</h3>
+          <span className="text-xs font-mono text-adm-accent">
+            Selected: <code className="text-adm-text">{selectedRoute}</code>
           </span>
         </div>
 
@@ -179,8 +179,8 @@ export const AdminSeoManager: React.FC = () => {
               onClick={() => setSelectedRoute(path)}
               className={`px-3 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider transition-colors cursor-pointer ${
                 selectedRoute === path
-                  ? 'bg-[#B8966C] text-[#141413] font-bold'
-                  : 'bg-[#141413] text-[#D8CCB8] hover:bg-[#22211F] border border-[#2C2B28]'
+                  ? 'bg-adm-accent-fill text-adm-on-accent font-bold'
+                  : 'bg-adm-bg text-adm-text-2 hover:bg-adm-raised border border-adm-line'
               }`}
             >
               {path === '/' ? 'Homepage (/)' : path}
@@ -192,10 +192,10 @@ export const AdminSeoManager: React.FC = () => {
         <div className="space-y-4 pt-2">
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8]">
+              <label className="text-[11px] font-mono uppercase tracking-wider text-adm-text-2">
                 Page Title Tag (&lt;title&gt;)
               </label>
-              <span className="text-[10px] font-mono text-[#8E8B85]">
+              <span className="text-[10px] font-mono text-adm-muted">
                 {currentRouteSeo.title.length} / 65 chars
               </span>
             </div>
@@ -203,16 +203,16 @@ export const AdminSeoManager: React.FC = () => {
               type="text"
               value={currentRouteSeo.title}
               onChange={(e) => handleUpdateRoute('title', e.target.value)}
-              className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+              className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
             />
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8]">
+              <label className="text-[11px] font-mono uppercase tracking-wider text-adm-text-2">
                 Meta Description
               </label>
-              <span className="text-[10px] font-mono text-[#8E8B85]">
+              <span className="text-[10px] font-mono text-adm-muted">
                 {currentRouteSeo.description.length} / 160 chars
               </span>
             </div>
@@ -220,31 +220,31 @@ export const AdminSeoManager: React.FC = () => {
               rows={3}
               value={currentRouteSeo.description}
               onChange={(e) => handleUpdateRoute('description', e.target.value)}
-              className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs text-[#FAF8F5] focus:border-[#C4A27A] outline-none leading-relaxed"
+              className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs text-adm-text focus:border-adm-accent outline-none leading-relaxed"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                 Canonical URL
               </label>
               <input
                 type="text"
                 value={currentRouteSeo.canonical}
                 onChange={(e) => handleUpdateRoute('canonical', e.target.value)}
-                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                 Robots Indexing Directive
               </label>
               <select
                 value={currentRouteSeo.robots}
                 onChange={(e) => handleUpdateRoute('robots', e.target.value)}
-                className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
               >
                 <option value="index, follow">index, follow (Standard Public)</option>
                 <option value="noindex, nofollow">noindex, nofollow (Private / Admin)</option>
@@ -254,17 +254,17 @@ export const AdminSeoManager: React.FC = () => {
 
           {/* Google Search Result Preview Simulation */}
           <div className="pt-3">
-            <span className="text-[10px] font-mono tracking-wider text-[#8E8B85] uppercase block mb-2">
+            <span className="text-[10px] font-mono tracking-wider text-adm-muted uppercase block mb-2">
               Google SERP Snippet Preview:
             </span>
-            <div className="p-4 rounded-xl bg-[#141413] border border-[#2C2B28] max-w-2xl">
-              <span className="text-[11px] text-[#8E8B85] block truncate">
+            <div className="p-4 rounded-xl bg-adm-bg border border-adm-line max-w-2xl">
+              <span className="text-[11px] text-adm-muted block truncate">
                 {currentRouteSeo.canonical || 'https://zanzirangihouse.com'}
               </span>
               <h4 className="text-base text-[#8AB4F8] hover:underline cursor-pointer truncate mt-0.5">
                 {currentRouteSeo.title || 'Zanzibar Luxury Villa - Zanzirangi House'}
               </h4>
-              <p className="text-xs text-[#BDC1C6] line-clamp-2 mt-1 leading-relaxed">
+              <p className="text-xs text-adm-text-2 line-clamp-2 mt-1 leading-relaxed">
                 {currentRouteSeo.description || 'Experience Zanzibar luxury villas with private plunge pools at Zanzirangi House in Kizimkazi.'}
               </p>
             </div>

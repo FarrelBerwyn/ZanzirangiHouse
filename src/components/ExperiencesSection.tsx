@@ -1,22 +1,30 @@
 import React, { useState } from 'react';
 import { Compass, Clock, ArrowRight, MessageSquare, Sparkles, X } from 'lucide-react';
 import { Language } from '../types';
-import { Experience } from '../data/experiences';
-import { getLocalizedExperiences, EXPERIENCES_UI_TRANSLATIONS } from '../data/experienceTranslations';
+import { Experience, EXPERIENCES_DATA } from '../data/experiences';
+import {
+  getLocalizedExperiences,
+  EXPERIENCES_UI_TRANSLATIONS,
+  EXPERIENCE_TRANSLATIONS,
+} from '../data/experienceTranslations';
 import { TRANSLATIONS } from '../data/translations';
 import { ScrollFadeContainer } from './ScrollFadeContainer';
 import { ScrollReveal, StaggerContainer, StaggerItem } from './ScrollReveal';
+
+import { ExperienceModel } from '../services/contentApi';
 
 interface ExperiencesSectionProps {
   currentLang: Language;
   onOpenBooking: () => void;
   onOpenSupportChat?: (query?: string) => void;
+  dynamicExperiences?: ExperienceModel[] | null;
 }
 
 export const ExperiencesSection: React.FC<ExperiencesSectionProps> = ({
   currentLang,
   onOpenBooking,
   onOpenSupportChat,
+  dynamicExperiences,
 }) => {
   const t = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
   const ui = EXPERIENCES_UI_TRANSLATIONS[currentLang] || EXPERIENCES_UI_TRANSLATIONS.en;
@@ -34,7 +42,52 @@ export const ExperiencesSection: React.FC<ExperiencesSectionProps> = ({
 
   const localizedExperiences = getLocalizedExperiences(currentLang);
 
-  const filteredExperiences = localizedExperiences.filter((exp) => {
+  const toExperienceCategory = (value: string | undefined, fallback?: Experience['category']): Experience['category'] => {
+    // Canonical keys pass straight through; older free-text categories are mapped to the closest filter tab.
+    const cat = (value || '').toLowerCase();
+    if (!cat) return fallback || 'adventure';
+    if (cat.includes('marine') || cat.includes('ocean') || cat.includes('reef')) return 'marine';
+    if (cat.includes('cultur') || cat.includes('heritage')) return 'cultural';
+    if (cat.includes('sail') || cat.includes('dhow')) return 'sailing';
+    if (cat.includes('nature') || cat.includes('spice') || cat.includes('wildlife')) return 'nature';
+    return 'adventure';
+  };
+
+  // CMS experiences win; built-in translations only fill fields that are empty or still at their English default.
+  // Empty fields of built-in items are left blank so getLocalizedExperiences fills them per language.
+  const visibleCms = (dynamicExperiences || [])
+    .filter((e) => e && e.visible !== false)
+    .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+  const experiencesList: Experience[] =
+    visibleCms.length > 0
+      ? getLocalizedExperiences(
+          currentLang,
+          visibleCms.map((e) => {
+            const seed = EXPERIENCES_DATA.find((s) => s.id === e.id);
+            const descriptionEdited =
+              !seed ||
+              (!!e.description &&
+                e.description !== seed.description &&
+                e.description !== EXPERIENCE_TRANSLATIONS.en[e.id]?.description);
+            return {
+              id: e.id,
+              title: e.title || '',
+              category: toExperienceCategory(e.category, seed?.category),
+              duration: e.duration || '',
+              tag: e.tag || '',
+              priceNote: e.priceNote || '',
+              // Card text falls back to the full description when only that was written.
+              shortDescription: e.shortDescription || (descriptionEdited ? e.description || '' : ''),
+              description: e.description || '',
+              // Rows saved by the old editor kept the photo under `image`.
+              image: e.imageUrl || (typeof e.image === 'string' ? e.image : '') || seed?.image || '',
+              whatsappMessage: e.whatsappMessage || '',
+            };
+          })
+        )
+      : localizedExperiences;
+
+  const filteredExperiences = experiencesList.filter((exp) => {
     if (selectedCategory === 'all') return true;
     return exp.category === selectedCategory;
   });
@@ -93,6 +146,15 @@ export const ExperiencesSection: React.FC<ExperiencesSectionProps> = ({
     pl: (title) => `Dzień dobry Zanzirangi Concierge, poproszę o szczegóły oraz dostępność atrakcji: ${title}.`,
     ar: (title) => `مرحبًا كونسيرج زانزيرانجي، أود الاستفسار عن تفاصيل وتوافر ${title}.`,
     zh: (title) => `您好 Zanzirangi 私人管家，我想了解关于“${title}”的详细行程与预订名额。`,
+  };
+
+  /** A concierge message written in the CMS wins; the built-in (unedited) message is replaced by the localized prompt. */
+  const inquiryPrompt = (exp: Experience) => {
+    const custom = (exp.whatsappMessage || '').trim();
+    const builtIn = EXPERIENCES_DATA.find((s) => s.id === exp.id)?.whatsappMessage;
+    if (custom && custom !== builtIn) return custom;
+    const promptFn = experiencePrompts[currentLang] || experiencePrompts.en;
+    return promptFn(exp.title);
   };
 
   return (
@@ -158,21 +220,27 @@ export const ExperiencesSection: React.FC<ExperiencesSectionProps> = ({
                   className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                   loading="lazy"
                 />
-                <div className="absolute top-4 left-4 px-3 py-1 bg-black/75 backdrop-blur-md rounded text-[10px] tracking-widest font-mono uppercase text-[#C4A27A]">
-                  {exp.tag}
-                </div>
-                <div className="absolute bottom-3 right-3 px-3 py-1 bg-[#141413]/85 backdrop-blur text-[#D8CCB8] text-[10px] font-mono tracking-wider uppercase rounded">
-                  {exp.priceNote}
-                </div>
+                {exp.tag && (
+                  <div className="absolute top-4 left-4 px-3 py-1 bg-black/75 backdrop-blur-md rounded text-[10px] tracking-widest font-mono uppercase text-[#C4A27A]">
+                    {exp.tag}
+                  </div>
+                )}
+                {exp.priceNote && (
+                  <div className="absolute bottom-3 right-3 px-3 py-1 bg-[#141413]/85 backdrop-blur text-[#D8CCB8] text-[10px] font-mono tracking-wider uppercase rounded">
+                    {exp.priceNote}
+                  </div>
+                )}
               </div>
 
               {/* Body */}
               <div className="p-7 flex flex-col flex-1 justify-between">
                 <div>
-                  <div className="flex items-center space-x-1.5 text-xs text-[#A07E54] font-mono mb-2">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>{exp.duration}</span>
-                  </div>
+                  {exp.duration && (
+                    <div className="flex items-center space-x-1.5 text-xs text-[#A07E54] font-mono mb-2">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>{exp.duration}</span>
+                    </div>
+                  )}
 
                   <h3 className="font-serif text-xl sm:text-2xl font-normal text-[#141413] mb-3 group-hover:text-[#A07E54] transition-colors leading-snug">
                     {exp.title}
@@ -195,7 +263,7 @@ export const ExperiencesSection: React.FC<ExperiencesSectionProps> = ({
 
                   <button
                     onClick={() => {
-                      const prompt = `Hello Zanzirangi Concierge, I would like to inquire about the ${exp.title} experience.`;
+                      const prompt = inquiryPrompt(exp);
                       if (onOpenSupportChat) {
                         onOpenSupportChat(prompt);
                       } else {
@@ -236,19 +304,23 @@ export const ExperiencesSection: React.FC<ExperiencesSectionProps> = ({
               >
                 <X className="w-5 h-5" />
               </button>
-              <div className="absolute bottom-4 left-4 px-3 py-1 bg-black/75 backdrop-blur rounded text-xs font-mono text-[#C4A27A] uppercase">
-                {activeModalExp.tag}
-              </div>
+              {activeModalExp.tag && (
+                <div className="absolute bottom-4 left-4 px-3 py-1 bg-black/75 backdrop-blur rounded text-xs font-mono text-[#C4A27A] uppercase">
+                  {activeModalExp.tag}
+                </div>
+              )}
             </div>
 
             <div className="p-6 sm:p-8 space-y-6">
               <div>
-                <div className="flex items-center space-x-2 text-xs font-mono text-[#A07E54] mb-2">
-                  <Clock className="w-4 h-4" />
-                  <span>{activeModalExp.duration}</span>
-                  <span>•</span>
-                  <span>{activeModalExp.priceNote}</span>
-                </div>
+                {(activeModalExp.duration || activeModalExp.priceNote) && (
+                  <div className="flex items-center space-x-2 text-xs font-mono text-[#A07E54] mb-2">
+                    <Clock className="w-4 h-4" />
+                    {activeModalExp.duration && <span>{activeModalExp.duration}</span>}
+                    {activeModalExp.duration && activeModalExp.priceNote && <span>•</span>}
+                    {activeModalExp.priceNote && <span>{activeModalExp.priceNote}</span>}
+                  </div>
+                )}
                 <h3 className="font-serif text-2xl sm:text-3xl font-light text-[#141413]">
                   {activeModalExp.title}
                 </h3>
@@ -270,8 +342,7 @@ export const ExperiencesSection: React.FC<ExperiencesSectionProps> = ({
               <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
                 <button
                   onClick={() => {
-                    const promptFn = experiencePrompts[currentLang] || experiencePrompts.en;
-                    const prompt = promptFn(activeModalExp.title);
+                    const prompt = inquiryPrompt(activeModalExp);
                     setActiveModalExp(null);
                     if (onOpenSupportChat) {
                       onOpenSupportChat(prompt);

@@ -7,17 +7,49 @@ import {
   EXPLORE_UI_TRANSLATIONS,
 } from '../data/destinationTranslations';
 import { PROPERTY_CONFIG } from '../data/propertyConfig';
+import { HomeSectionContent, cmsList, cmsText } from '../data/homeSectionsCms';
 
 interface ExploreZanzibarSectionProps {
   currentLang: Language;
   onOpenBooking: () => void;
+  cmsContent?: HomeSectionContent;
 }
 
 export const ExploreZanzibarSection: React.FC<ExploreZanzibarSectionProps> = ({
   currentLang,
+  cmsContent,
 }) => {
-  const ui = EXPLORE_UI_TRANSLATIONS[currentLang] || EXPLORE_UI_TRANSLATIONS.en;
-  const destinations = getLocalizedZanzibarDestinations(currentLang);
+  const baseUi = EXPLORE_UI_TRANSLATIONS[currentLang] || EXPLORE_UI_TRANSLATIONS.en;
+  const ui = {
+    ...baseUi,
+    eyebrow: cmsText(cmsContent?.eyebrow, baseUi.eyebrow),
+    heading: cmsText(cmsContent?.heading, baseUi.heading),
+    subhead: cmsText(cmsContent?.subhead, baseUi.subhead),
+    whatsappPrompt: cmsText(cmsContent?.whatsappPrompt, baseUi.whatsappPrompt),
+  };
+  const builtInDestinations = getLocalizedZanzibarDestinations(currentLang);
+  const destinations: ZanzibarDestination[] = cmsList<any>(cmsContent?.destinations, builtInDestinations).map(
+    (item, idx) => {
+      const builtIn = builtInDestinations.find((d) => d.id === item.id) || builtInDestinations[idx] || builtInDestinations[0];
+      // Highlights are edited in the CMS as one comma/line separated string.
+      const highlights = Array.isArray(item.highlights)
+        ? item.highlights
+        : typeof item.highlights === 'string' && item.highlights.trim()
+          ? item.highlights.split(/[,\n]/).map((h: string) => h.trim()).filter(Boolean)
+          : builtIn.highlights;
+      return {
+        ...builtIn,
+        id: item.id || `dest-${idx}`,
+        name: cmsText(item.name, builtIn.name),
+        theme: cmsText(item.theme, builtIn.theme),
+        location: cmsText(item.location, builtIn.location),
+        image: cmsText(item.image, builtIn.image),
+        shortDescription: cmsText(item.shortDescription, builtIn.shortDescription),
+        ctaLabel: cmsText(item.ctaLabel, builtIn.ctaLabel),
+        highlights,
+      };
+    }
+  );
 
   const handleExploreDestination = (dest: ZanzibarDestination) => {
     const text = `${ui.whatsappPrompt} ${dest.name} (${dest.theme}).`;

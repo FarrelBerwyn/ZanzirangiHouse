@@ -1,5 +1,24 @@
 import mysql from 'mysql2/promise';
-import { DatabaseAdapter, UserRecord, AuditLogRecord } from './adapter.ts';
+import {
+  DatabaseAdapter,
+  UserRecord,
+  AuditLogRecord,
+  PageContentRecord,
+  ChauffeurConfigRecord,
+  WhyStayConfigRecord,
+  DiningConfigRecord,
+  DiningCategoryRecord,
+  ExperienceRecord,
+  SafariDestinationRecord,
+  GlobalContentRecord,
+  ContentTranslationRecord,
+  PageSectionConfig,
+  TransferSpecItem,
+  WhyStayPillar,
+  DiningMoment,
+  SignatureDishItem,
+  NavLinkItem,
+} from './adapter.ts';
 import { getMysqlPool, closeMysqlPool } from './connection.ts';
 import { env } from '../config/env.ts';
 import {
@@ -15,6 +34,29 @@ import {
   DashboardStats,
 } from '../../src/services/contentApi.ts';
 
+// Record fields that map to dedicated columns; everything else goes to extras_json.
+const CHAUFFEUR_COLUMN_FIELDS = [
+  'eyebrow', 'heading', 'subhead', 'routeLabel', 'routeTitle', 'vehicleImage', 'specsEyebrow', 'cardTitle',
+  'airportTitle', 'airportDesc', 'shuttleTitle', 'shuttleDesc', 'vehicleTypeTitle', 'vehicleTypeDesc',
+  'passengerLuggageTitle', 'passengerLuggageDesc', 'amenitiesNote', 'ctaRequestLabel', 'ctaAddBookingLabel', 'specItems',
+];
+const WHY_STAY_COLUMN_FIELDS = ['eyebrow', 'heading', 'subhead', 'pillars'];
+const DINING_CONFIG_COLUMN_FIELDS = [
+  'eyebrow', 'heading', 'subhead', 'intro', 'gardenEyebrow', 'gardenBadge', 'gardenTitle', 'gardenDesc',
+  'tagZeroMiles', 'tagSpices', 'tagSeafood', 'moments',
+];
+const GLOBAL_COLUMN_FIELDS = [
+  'brandName', 'navLinks', 'ctaPlanStayLabel', 'ctaPlanStayLink', 'footerTagline', 'footerCopyright',
+  'contactPhone', 'contactEmail', 'contactWhatsapp', 'contactAddress', 'socials',
+];
+const EXPERIENCE_COLUMN_FIELDS = [
+  'title', 'category', 'duration', 'tag', 'priceNote', 'shortDescription', 'description', 'imageUrl', 'whatsappMessage', 'order', 'visible',
+];
+const SAFARI_COLUMN_FIELDS = [
+  'name', 'tagline', 'region', 'flightTimeFromZanzibar', 'heroImage', 'description', 'highlights', 'bestFor', 'safariType', 'order', 'visible',
+];
+const DINING_CATEGORY_COLUMN_FIELDS = ['name', 'tabLabel', 'subtitle', 'description', 'imageUrl', 'signatureDishes', 'order', 'visible'];
+
 export class MysqlDatabaseAdapter implements DatabaseAdapter {
   public provider: 'mysql' = 'mysql';
 
@@ -28,7 +70,7 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
       const conn = await pool.getConnection();
       conn.release();
       const host = process.env.DB_HOST || env.MYSQL_HOST || 'localhost';
-      const db = process.env.DB_NAME || env.MYSQL_DATABASE || 'u170555096_Zanzirangi';
+      const db = process.env.DB_NAME || env.MYSQL_DATABASE || '';
       console.log(`🐬 Connected to Hostinger MySQL Database [${db}@${host}]`);
 
       // Safe verification without automatic reset or seed overwrite
@@ -73,6 +115,7 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
   // --- Homepage ---
   async getHomepage(): Promise<HomepageContent> {
     const pool = this.getPool();
+    await this.ensureExtrasColumn('homepage_config');
     const [cfgRows]: any = await pool.query('SELECT * FROM homepage_config WHERE id = 1 LIMIT 1');
     const [slideRows]: any = await pool.query('SELECT * FROM hero_slides ORDER BY sort_order ASC');
     const [secRows]: any = await pool.query('SELECT * FROM homepage_sections ORDER BY sort_order ASC');
@@ -116,6 +159,8 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
           secondaryCtaText: s.secondary_cta_text,
           secondaryCtaLink: s.secondary_cta_link,
           imageUrl: s.image_url,
+          // The admin editor and HeroSection read/write `heroImage`.
+          heroImage: s.image_url,
           videoUrl: s.video_url,
           alignment: s.alignment || 'center',
           overlayOpacity: parseFloat(s.overlay_opacity || '0.4'),
@@ -130,9 +175,10 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
       },
       contact: {
         phone: cfg.contact_phone || '+255 777 890 123',
-        email: cfg.contact_email || 'concierge@zanzirangihouse.com',
+        email: cfg.contact_email || 'info@zanzirangihouse.com',
         whatsappNumber: cfg.contact_whatsapp || '255777890123',
-        address: cfg.contact_address || 'Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania',
+        address: cfg.contact_address || 'Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania',
+        googleMapsUrl: this.parseExtras(cfg.extras_json).contactGoogleMapsUrl || undefined,
       },
       sections: secRows.map((sec: any) => ({
         id: sec.id,
@@ -155,6 +201,8 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
 
   async updateHomepage(data: Partial<HomepageContent>, userEmail: string): Promise<HomepageContent> {
     const pool = this.getPool();
+    // DDL (if the extras column is missing) must run before the transaction starts.
+    await this.ensureExtrasColumn('homepage_config');
     const conn = await pool.getConnection();
 
     try {
@@ -202,7 +250,7 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
                 s.primaryCtaLink,
                 s.secondaryCtaText,
                 s.secondaryCtaLink,
-                s.imageUrl || s.heroImage || '',
+                s.heroImage || s.imageUrl || '',
                 s.videoUrl,
                 s.alignment || 'center',
                 s.overlayOpacity || 0.4,
@@ -226,6 +274,12 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
           'UPDATE homepage_config SET contact_phone = ?, contact_email = ?, contact_whatsapp = ?, contact_address = ? WHERE id = 1',
           [data.contact.phone, data.contact.email, data.contact.whatsappNumber, data.contact.address]
         );
+        if (data.contact.googleMapsUrl !== undefined) {
+          const [extraRows]: any = await conn.query('SELECT extras_json FROM homepage_config WHERE id = 1');
+          const extras = this.parseExtras(extraRows[0]?.extras_json);
+          extras.contactGoogleMapsUrl = data.contact.googleMapsUrl || undefined;
+          await conn.query('UPDATE homepage_config SET extras_json = ? WHERE id = 1', [JSON.stringify(extras)]);
+        }
       }
 
       if (data.socials) {
@@ -553,6 +607,16 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
     return facility;
   }
 
+  async deleteFacility(id: string, userEmail: string): Promise<boolean> {
+    const pool = this.getPool();
+    const [res]: any = await pool.query('DELETE FROM facilities WHERE id = ?', [id]);
+    if (res.affectedRows > 0) {
+      await this.addAuditLog({ action: 'FACILITY_DELETED', userEmail, details: `Removed facility ${id}` });
+      return true;
+    }
+    return false;
+  }
+
   // --- Testimonials ---
   async getTestimonials(): Promise<Review[]> {
     const pool = this.getPool();
@@ -806,7 +870,7 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
       email: r.email || 'info@zanzirangihouse.com',
       reservationNotificationEmail: r.reservation_notification_email || 'reservations@zanzirangihouse.com',
       reservationEmail: r.reservation_email || r.reservation_notification_email || 'reservations@zanzirangihouse.com',
-      address: r.address || 'Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania',
+      address: r.address || 'Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania',
       instagram: r.instagram || 'https://instagram.com/zanzirangi.house',
       facebook: r.facebook || 'https://facebook.com/zanzirangihouse',
       youtube: r.youtube || 'https://youtube.com/@zanzirangihouse',
@@ -814,6 +878,10 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
       logo: r.logo || '/src/assets/zanzirangi-logo-new.jpeg',
       favicon: r.favicon || '/favicon.svg',
       maintenanceMode: Boolean(r.maintenance_mode),
+      supportAvatar: r.support_avatar || '/uploads/avatar-1790937078607_1790937078818_0381644b.jpg',
+      supportName: r.support_name || 'Elena',
+      supportTitle: r.support_title || 'Customer Support',
+      supportStatus: r.support_status || 'Active 24/7',
     };
   }
 
@@ -826,8 +894,8 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
       `INSERT INTO site_settings 
         (id, site_name, tagline, phone, concierge_phone, whatsapp, email, reservation_notification_email, 
          reservation_email, address, instagram, facebook, youtube, booking_url, currency, default_currency, 
-         default_language, logo, favicon, maintenance_mode) 
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
+         default_language, logo, favicon, maintenance_mode, support_avatar, support_name, support_title, support_status) 
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
        ON DUPLICATE KEY UPDATE 
         site_name = VALUES(site_name), tagline = VALUES(tagline), phone = VALUES(phone), 
         concierge_phone = VALUES(concierge_phone), whatsapp = VALUES(whatsapp), email = VALUES(email), 
@@ -836,7 +904,9 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
         instagram = VALUES(instagram), facebook = VALUES(facebook), youtube = VALUES(youtube), 
         booking_url = VALUES(booking_url), currency = VALUES(currency), default_currency = VALUES(default_currency), 
         default_language = VALUES(default_language), logo = VALUES(logo), favicon = VALUES(favicon), 
-        maintenance_mode = VALUES(maintenance_mode)`,
+        maintenance_mode = VALUES(maintenance_mode), support_avatar = VALUES(support_avatar),
+        support_name = VALUES(support_name), support_title = VALUES(support_title),
+        support_status = VALUES(support_status)`,
       [
         merged.siteName || 'Zanzirangi House',
         merged.tagline || '',
@@ -846,7 +916,7 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
         merged.email || 'info@zanzirangihouse.com',
         merged.reservationNotificationEmail || 'reservations@zanzirangihouse.com',
         merged.reservationEmail || merged.reservationNotificationEmail || 'reservations@zanzirangihouse.com',
-        merged.address || 'Kizimkazi Dimbani, South Coast, Zanzibar, Tanzania',
+        merged.address || 'Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania',
         merged.instagram || 'https://instagram.com/zanzirangi.house',
         merged.facebook || 'https://facebook.com/zanzirangihouse',
         merged.youtube || 'https://youtube.com/@zanzirangihouse',
@@ -857,6 +927,10 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
         merged.logo || '/src/assets/zanzirangi-logo-new.jpeg',
         merged.favicon || '/favicon.svg',
         merged.maintenanceMode ? 1 : 0,
+        merged.supportAvatar || '/uploads/avatar-1790937078607_1790937078818_0381644b.jpg',
+        merged.supportName || 'Elena',
+        merged.supportTitle || 'Customer Support',
+        merged.supportStatus || 'Active 24/7',
       ]
     );
 
@@ -869,7 +943,7 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
     return this.getSettings();
   }
 
-  // --- Users & Auth ---
+  // --- Users & Admin Access Management ---
   async findUserByEmail(email: string): Promise<UserRecord | null> {
     const pool = this.getPool();
     const [rows]: any = await pool.query('SELECT * FROM users WHERE LOWER(email) = ? LIMIT 1', [
@@ -877,11 +951,49 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
     ]);
     if (!rows || rows.length === 0) return null;
     const u = rows[0];
+    let perms: string[] = [];
+    if (u.permissions) {
+      try {
+        perms = typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions;
+      } catch {
+        perms = [];
+      }
+    }
     return {
       id: u.id,
       email: u.email,
       name: u.name,
       role: u.role,
+      status: u.status || 'active',
+      permissions: perms,
+      tokenVersion: u.token_version ?? 1,
+      passwordHash: u.password_hash,
+      createdAt: u.created_at ? new Date(u.created_at).toISOString() : new Date().toISOString(),
+      lastLogin: u.last_login ? new Date(u.last_login).toISOString() : undefined,
+    };
+  }
+
+  async findUserById(id: string): Promise<UserRecord | null> {
+    const pool = this.getPool();
+    const [rows]: any = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
+    if (!rows || rows.length === 0) return null;
+    const u = rows[0];
+    let perms: string[] = [];
+    if (u.permissions) {
+      try {
+        perms = typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions;
+      } catch {
+        perms = [];
+      }
+    }
+    return {
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      role: u.role,
+      status: u.status || 'active',
+      permissions: perms,
+      tokenVersion: u.token_version ?? 1,
       passwordHash: u.password_hash,
       createdAt: u.created_at ? new Date(u.created_at).toISOString() : new Date().toISOString(),
       lastLogin: u.last_login ? new Date(u.last_login).toISOString() : undefined,
@@ -890,17 +1002,22 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
 
   async saveUser(user: UserRecord): Promise<void> {
     const pool = this.getPool();
+    const permsJson = JSON.stringify(user.permissions || []);
     await pool.query(
-      `INSERT INTO users (id, email, name, role, password_hash, created_at, last_login) 
-       VALUES (?, ?, ?, ?, ?, ?, ?) 
+      `INSERT INTO users (id, email, name, role, status, permissions, token_version, password_hash, created_at, last_login) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
        ON DUPLICATE KEY UPDATE 
-        name = VALUES(name), role = VALUES(role), password_hash = VALUES(password_hash), 
-        last_login = VALUES(last_login)`,
+        name = VALUES(name), role = VALUES(role), status = VALUES(status), 
+        permissions = VALUES(permissions), token_version = VALUES(token_version),
+        password_hash = VALUES(password_hash), last_login = VALUES(last_login)`,
       [
         user.id,
-        user.email.toLowerCase(),
+        user.email.toLowerCase().trim(),
         user.name,
         user.role,
+        user.status || 'active',
+        permsJson,
+        user.tokenVersion ?? 1,
         user.passwordHash,
         user.createdAt || new Date(),
         user.lastLogin || null,
@@ -910,15 +1027,797 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
 
   async listUsers(): Promise<Omit<UserRecord, 'passwordHash'>[]> {
     const pool = this.getPool();
-    const [rows]: any = await pool.query('SELECT id, email, name, role, created_at, last_login FROM users');
-    return rows.map((u: any) => ({
-      id: u.id,
-      email: u.email,
-      name: u.name,
-      role: u.role,
-      createdAt: u.created_at ? new Date(u.created_at).toISOString() : new Date().toISOString(),
-      lastLogin: u.last_login ? new Date(u.last_login).toISOString() : undefined,
+    const [rows]: any = await pool.query('SELECT id, email, name, role, status, permissions, token_version, created_at, last_login FROM users ORDER BY created_at ASC');
+    return rows.map((u: any) => {
+      let perms: string[] = [];
+      if (u.permissions) {
+        try {
+          perms = typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions;
+        } catch {
+          perms = [];
+        }
+      }
+      return {
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role: u.role,
+        status: u.status || 'active',
+        permissions: perms,
+        tokenVersion: u.token_version ?? 1,
+        createdAt: u.created_at ? new Date(u.created_at).toISOString() : new Date().toISOString(),
+        lastLogin: u.last_login ? new Date(u.last_login).toISOString() : undefined,
+      };
+    });
+  }
+
+  async createUser(user: UserRecord): Promise<UserRecord> {
+    const pool = this.getPool();
+    const permsJson = JSON.stringify(user.permissions || []);
+    await pool.query(
+      `INSERT INTO users (id, email, name, role, status, permissions, token_version, password_hash, created_at, last_login)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        user.id,
+        user.email.toLowerCase().trim(),
+        user.name,
+        user.role,
+        user.status || 'active',
+        permsJson,
+        user.tokenVersion ?? 1,
+        user.passwordHash,
+        user.createdAt || new Date(),
+        user.lastLogin || null,
+      ]
+    );
+    return user;
+  }
+
+  async updateUser(id: string, data: Partial<UserRecord>): Promise<UserRecord> {
+    const pool = this.getPool();
+    const existing = await this.findUserById(id);
+    if (!existing) throw new Error(`User with ID ${id} not found.`);
+
+    const merged: UserRecord = {
+      ...existing,
+      name: data.name !== undefined ? data.name : existing.name,
+      role: data.role !== undefined ? data.role : existing.role,
+      status: data.status !== undefined ? data.status : existing.status,
+      permissions: data.permissions !== undefined ? data.permissions : existing.permissions,
+    };
+    // Only access-relevant changes invalidate existing sessions (a name edit should not log the user out).
+    const accessChanged =
+      merged.role !== existing.role ||
+      merged.status !== existing.status ||
+      JSON.stringify(merged.permissions || []) !== JSON.stringify(existing.permissions || []);
+    merged.tokenVersion = (existing.tokenVersion ?? 1) + (accessChanged ? 1 : 0);
+
+    await pool.query(
+      `UPDATE users 
+       SET name = ?, role = ?, status = ?, permissions = ?, token_version = ?
+       WHERE id = ?`,
+      [
+        merged.name,
+        merged.role,
+        merged.status || 'active',
+        JSON.stringify(merged.permissions || []),
+        merged.tokenVersion,
+        id,
+      ]
+    );
+    return merged;
+  }
+
+  async disableUser(id: string): Promise<void> {
+    const pool = this.getPool();
+    await pool.query('UPDATE users SET status = "disabled", token_version = token_version + 1 WHERE id = ?', [id]);
+  }
+
+  async enableUser(id: string): Promise<void> {
+    const pool = this.getPool();
+    await pool.query('UPDATE users SET status = "active", token_version = token_version + 1 WHERE id = ?', [id]);
+  }
+
+  async resetPassword(id: string, newPasswordHash: string): Promise<void> {
+    const pool = this.getPool();
+    await pool.query('UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE id = ?', [
+      newPasswordHash,
+      id,
+    ]);
+  }
+
+  async getActiveUserCount(): Promise<number> {
+    const pool = this.getPool();
+    // Anything that is not explicitly disabled can log in, so it counts toward the active limit.
+    const [rows]: any = await pool.query("SELECT COUNT(*) as activeCount FROM users WHERE COALESCE(status, 'active') <> 'disabled'");
+    return Number(rows[0]?.activeCount || 0);
+  }
+
+  async updateLastLogin(id: string): Promise<void> {
+    await this.getPool().query('UPDATE users SET last_login = NOW() WHERE id = ?', [id]);
+  }
+
+  async revokeUserSessions(id: string): Promise<void> {
+    await this.getPool().query('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [id]);
+  }
+
+  // --- Extended CMS Coverage: Pages ---
+  async getPageContent(id: string): Promise<PageContentRecord | null> {
+    const pool = this.getPool();
+    const [rows]: any = await pool.query('SELECT * FROM page_contents WHERE id = ? OR slug = ? LIMIT 1', [id, id]);
+    if (!rows || rows.length === 0) return null;
+    const r = rows[0];
+    let sectionsConfig: PageSectionConfig[] = [];
+    let contentJson: any = null;
+    if (r.sections_config) {
+      try {
+        sectionsConfig = typeof r.sections_config === 'string' ? JSON.parse(r.sections_config) : r.sections_config;
+      } catch {}
+    }
+    if (r.content_json) {
+      try {
+        contentJson = typeof r.content_json === 'string' ? JSON.parse(r.content_json) : r.content_json;
+      } catch {}
+    }
+    return {
+      id: r.id,
+      slug: r.slug,
+      title: r.title,
+      eyebrow: r.eyebrow,
+      heading: r.heading,
+      subheading: r.subheading,
+      description: r.description,
+      heroImage: r.hero_image,
+      sectionsConfig,
+      contentJson,
+      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
+      updatedBy: r.updated_by,
+    };
+  }
+
+  async getAllPages(): Promise<PageContentRecord[]> {
+    const pool = this.getPool();
+    const [rows]: any = await pool.query('SELECT * FROM page_contents ORDER BY id ASC');
+    return rows.map((r: any) => {
+      let sectionsConfig: PageSectionConfig[] = [];
+      let contentJson: any = null;
+      if (r.sections_config) {
+        try {
+          sectionsConfig = typeof r.sections_config === 'string' ? JSON.parse(r.sections_config) : r.sections_config;
+        } catch {}
+      }
+      if (r.content_json) {
+        try {
+          contentJson = typeof r.content_json === 'string' ? JSON.parse(r.content_json) : r.content_json;
+        } catch {}
+      }
+      return {
+        id: r.id,
+        slug: r.slug,
+        title: r.title,
+        eyebrow: r.eyebrow,
+        heading: r.heading,
+        subheading: r.subheading,
+        description: r.description,
+        heroImage: r.hero_image,
+        sectionsConfig,
+        contentJson,
+        updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
+        updatedBy: r.updated_by,
+      };
+    });
+  }
+
+  async updatePageContent(id: string, data: Partial<PageContentRecord>, userEmail: string): Promise<PageContentRecord> {
+    const pool = this.getPool();
+    const existing = await this.getPageContent(id);
+    if (!existing) throw new Error(`Page '${id}' not found.`);
+
+    const merged: PageContentRecord = {
+      ...existing,
+      ...data,
+      id: existing.id,
+      slug: data.slug || existing.slug,
+      updatedBy: userEmail,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await pool.query(
+      `UPDATE page_contents 
+       SET title = ?, eyebrow = ?, heading = ?, subheading = ?, description = ?, hero_image = ?, sections_config = ?, content_json = ?, updated_by = ?
+       WHERE id = ?`,
+      [
+        merged.title,
+        merged.eyebrow || null,
+        merged.heading || null,
+        merged.subheading || null,
+        merged.description || null,
+        merged.heroImage || null,
+        JSON.stringify(merged.sectionsConfig || []),
+        merged.contentJson ? JSON.stringify(merged.contentJson) : null,
+        userEmail,
+        // `id` may be a slug (e.g. 'home' for row 'page_home'); always target the resolved row id.
+        existing.id,
+      ]
+    );
+
+    await this.addAuditLog({
+      action: 'PAGE_UPDATED',
+      userEmail,
+      details: `Updated page content for ${id} (${merged.title})`,
+    });
+
+    return merged;
+  }
+
+  // --- Extended CMS Coverage: Chauffeur & Transfers ---
+  async getChauffeurConfig(): Promise<ChauffeurConfigRecord> {
+    const pool = this.getPool();
+    await this.ensureExtrasColumn('chauffeur_config');
+    const [rows]: any = await pool.query('SELECT * FROM chauffeur_config WHERE id = 1 LIMIT 1');
+    const r = rows[0] || {};
+    let specItems: TransferSpecItem[] = [];
+    if (r.spec_items_json) {
+      try {
+        specItems = typeof r.spec_items_json === 'string' ? JSON.parse(r.spec_items_json) : r.spec_items_json;
+      } catch {}
+    }
+    return {
+      ...this.parseExtras(r.extras_json),
+      id: 1,
+      eyebrow: r.eyebrow || 'VIP CHAUFFEUR & TRANSFERS',
+      heading: r.heading || "ARRIVE. RELAX. WE'LL TAKE CARE OF THE REST.",
+      subhead: r.subhead || 'From the moment your flight touches down in Zanzibar, our private chauffeur service ensures your transition to Zanzirangi House is completely effortless, serene, and secure.',
+      routeLabel: r.route_label || "ABEID AMANI KARUME INT'L (ZNZ) → ZANZIRANGI HOUSE",
+      routeTitle: r.route_title || 'Private Coastal Chauffeur Service',
+      vehicleImage: r.vehicle_image || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1600&q=85',
+      specsEyebrow: r.specs_eyebrow || 'TRANSFER SPECIFICATIONS',
+      cardTitle: r.card_title || 'Private Sanctuary Chauffeur',
+      airportTitle: r.airport_title || 'AIRPORT TRANSFER',
+      airportDesc: r.airport_desc || 'Direct tarmac welcome and luggage assistance upon arrival.',
+      shuttleTitle: r.shuttle_title || 'PRIVATE SHUTTLE',
+      shuttleDesc: r.shuttle_desc || 'Exclusive vehicles reserved solely for your traveling party.',
+      vehicleTypeTitle: r.vehicle_type_title || 'VEHICLE TYPE',
+      vehicleTypeDesc: r.vehicle_type_desc || 'Executive SUV / Luxury Van (Details available on request)',
+      passengerLuggageTitle: r.passenger_luggage_title || 'PASSENGER & LUGGAGE',
+      passengerLuggageDesc: r.passenger_luggage_desc || 'Tailored to group size (Details available on request)',
+      amenitiesNote: r.amenities_note || 'Complimentary chilled mineral water, cool hand towels, and high-speed in-car Wi-Fi provided for every transfer.',
+      ctaRequestLabel: r.cta_request_label || 'REQUEST AIRPORT TRANSFER',
+      ctaAddBookingLabel: r.cta_add_booking_label || 'ADD TO BOOKING',
+      specItems,
+      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
+      updatedBy: r.updated_by,
+    };
+  }
+
+  async updateChauffeurConfig(data: Partial<ChauffeurConfigRecord>, userEmail: string): Promise<ChauffeurConfigRecord> {
+    const pool = this.getPool();
+    const current = await this.getChauffeurConfig();
+    const merged: ChauffeurConfigRecord = {
+      ...current,
+      ...this.definedOnly(data),
+      updatedBy: userEmail,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await pool.query(
+      `UPDATE chauffeur_config 
+       SET eyebrow = ?, heading = ?, subhead = ?, route_label = ?, route_title = ?, vehicle_image = ?,
+           specs_eyebrow = ?, card_title = ?, airport_title = ?, airport_desc = ?, shuttle_title = ?, shuttle_desc = ?,
+           vehicle_type_title = ?, vehicle_type_desc = ?, passenger_luggage_title = ?, passenger_luggage_desc = ?,
+           amenities_note = ?, cta_request_label = ?, cta_add_booking_label = ?, spec_items_json = ?, extras_json = ?, updated_by = ?
+       WHERE id = 1`,
+      [
+        merged.eyebrow,
+        merged.heading,
+        merged.subhead,
+        merged.routeLabel,
+        merged.routeTitle,
+        merged.vehicleImage,
+        merged.specsEyebrow,
+        merged.cardTitle,
+        merged.airportTitle,
+        merged.airportDesc,
+        merged.shuttleTitle,
+        merged.shuttleDesc,
+        merged.vehicleTypeTitle,
+        merged.vehicleTypeDesc,
+        merged.passengerLuggageTitle,
+        merged.passengerLuggageDesc,
+        merged.amenitiesNote,
+        merged.ctaRequestLabel,
+        merged.ctaAddBookingLabel,
+        JSON.stringify(merged.specItems || []),
+        this.collectExtras(merged, CHAUFFEUR_COLUMN_FIELDS),
+        userEmail,
+      ]
+    );
+
+    await this.addAuditLog({
+      action: 'TRANSFERS_UPDATED',
+      userEmail,
+      details: 'Updated VIP Chauffeur & Transfers configuration',
+    });
+
+    return merged;
+  }
+
+  // --- Extended CMS Coverage: Why Stay / Pillars ---
+  async getWhyStayConfig(): Promise<WhyStayConfigRecord> {
+    const pool = this.getPool();
+    await this.ensureExtrasColumn('why_stay_config');
+    const [rows]: any = await pool.query('SELECT * FROM why_stay_config WHERE id = 1 LIMIT 1');
+    const r = rows[0] || {};
+    let pillars: WhyStayPillar[] = [];
+    if (r.pillars_json) {
+      try {
+        pillars = typeof r.pillars_json === 'string' ? JSON.parse(r.pillars_json) : r.pillars_json;
+      } catch {}
+    }
+    return {
+      ...this.parseExtras(r.extras_json),
+      id: 1,
+      eyebrow: r.eyebrow || 'THE SANCTUARY DIFFERENCE',
+      heading: r.heading || 'WHY ZANZIRANGI HOUSE',
+      subhead: r.subhead || 'Four guiding values define every moment at our retreat, creating a rare atmosphere of calm, exclusivity, and profound connection to Tanzania.',
+      pillars,
+      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
+      updatedBy: r.updated_by,
+    };
+  }
+
+  async updateWhyStayConfig(data: Partial<WhyStayConfigRecord>, userEmail: string): Promise<WhyStayConfigRecord> {
+    const pool = this.getPool();
+    const current = await this.getWhyStayConfig();
+    const merged: WhyStayConfigRecord = {
+      ...current,
+      ...this.definedOnly(data),
+      updatedBy: userEmail,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await pool.query(
+      `UPDATE why_stay_config 
+       SET eyebrow = ?, heading = ?, subhead = ?, pillars_json = ?, extras_json = ?, updated_by = ?
+       WHERE id = 1`,
+      [
+        merged.eyebrow,
+        merged.heading,
+        merged.subhead,
+        JSON.stringify(merged.pillars || []),
+        this.collectExtras(merged, WHY_STAY_COLUMN_FIELDS),
+        userEmail,
+      ]
+    );
+
+    await this.addAuditLog({
+      action: 'WHY_STAY_UPDATED',
+      userEmail,
+      details: 'Updated Why Stay / Sanctuary Difference configuration',
+    });
+
+    return merged;
+  }
+
+  // --- Extended CMS Coverage: Dining ---
+  async getDiningConfig(): Promise<DiningConfigRecord> {
+    const pool = this.getPool();
+    await this.ensureExtrasColumn('dining_config');
+    const [rows]: any = await pool.query('SELECT * FROM dining_config WHERE id = 1 LIMIT 1');
+    const r = rows[0] || {};
+    let moments: DiningMoment[] = [];
+    if (r.moments_json) {
+      try {
+        moments = typeof r.moments_json === 'string' ? JSON.parse(r.moments_json) : r.moments_json;
+      } catch {}
+    }
+    return {
+      ...this.parseExtras(r.extras_json),
+      id: 1,
+      eyebrow: r.eyebrow || 'Gastronomic Soul',
+      heading: r.heading || 'TASTE ZANZIBAR',
+      subhead: r.subhead || '"Fresh ingredients, island flavours and authentic Tanzanian hospitality."',
+      intro: r.intro || 'Centuries of Swahili, Omani, and Indian Ocean sea trade come together at our tables.',
+      gardenEyebrow: r.garden_eyebrow || 'Culinary Storytelling',
+      gardenBadge: r.garden_badge || 'Estate Garden',
+      gardenTitle: r.garden_title || 'FROM OUR GARDEN TO YOUR TABLE',
+      gardenDesc: r.garden_desc || 'Tucked within the grounds of Zanzirangi House is our private botanical garden...',
+      tagZeroMiles: r.tag_zero_miles || '🌱 Zero Food Miles',
+      tagSpices: r.tag_spices || '🌶 Hand-Picked Daily Spices',
+      tagSeafood: r.tag_seafood || '🐟 Sustainable Coastal Seafood',
+      moments,
+      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
+      updatedBy: r.updated_by,
+    };
+  }
+
+  async updateDiningConfig(data: Partial<DiningConfigRecord>, userEmail: string): Promise<DiningConfigRecord> {
+    const pool = this.getPool();
+    const current = await this.getDiningConfig();
+    const merged: DiningConfigRecord = {
+      ...current,
+      ...this.definedOnly(data),
+      updatedBy: userEmail,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await pool.query(
+      `UPDATE dining_config 
+       SET eyebrow = ?, heading = ?, subhead = ?, intro = ?, garden_eyebrow = ?, garden_badge = ?, 
+           garden_title = ?, garden_desc = ?, tag_zero_miles = ?, tag_spices = ?, tag_seafood = ?, moments_json = ?, extras_json = ?, updated_by = ?
+       WHERE id = 1`,
+      [
+        merged.eyebrow,
+        merged.heading,
+        merged.subhead,
+        merged.intro,
+        merged.gardenEyebrow,
+        merged.gardenBadge,
+        merged.gardenTitle,
+        merged.gardenDesc,
+        merged.tagZeroMiles,
+        merged.tagSpices,
+        merged.tagSeafood,
+        JSON.stringify(merged.moments || []),
+        this.collectExtras(merged, DINING_CONFIG_COLUMN_FIELDS),
+        userEmail,
+      ]
+    );
+
+    await this.addAuditLog({
+      action: 'DINING_CONFIG_UPDATED',
+      userEmail,
+      details: 'Updated Dining page narrative and garden story',
+    });
+
+    return merged;
+  }
+
+  async getDiningCategories(): Promise<DiningCategoryRecord[]> {
+    const pool = this.getPool();
+    await this.ensureExtrasColumn('dining_categories');
+    const [rows]: any = await pool.query('SELECT * FROM dining_categories ORDER BY sort_order ASC');
+    return rows.map((r: any) => {
+      let signatureDishes: SignatureDishItem[] = [];
+      if (r.dishes_json) {
+        try {
+          signatureDishes = typeof r.dishes_json === 'string' ? JSON.parse(r.dishes_json) : r.dishes_json;
+        } catch {}
+      }
+      return {
+        ...this.parseExtras(r.extras_json),
+        id: r.id,
+        name: r.name,
+        tabLabel: r.tab_label,
+        subtitle: r.subtitle,
+        description: r.description,
+        imageUrl: r.image_url,
+        signatureDishes,
+        order: Number(r.sort_order || 0),
+        visible: Boolean(r.visible !== 0 && r.visible !== false),
+      };
+    });
+  }
+
+  async saveDiningCategory(input: DiningCategoryRecord, userEmail: string): Promise<DiningCategoryRecord> {
+    const pool = this.getPool();
+    const existing = (await this.getDiningCategories()).find((c) => c.id === input.id);
+    const category: DiningCategoryRecord = {
+      name: '',
+      tabLabel: '',
+      description: '',
+      imageUrl: '',
+      signatureDishes: [],
+      order: 0,
+      visible: true,
+      ...(existing || {}),
+      ...this.definedOnly(input),
+    } as DiningCategoryRecord;
+    if (!category.tabLabel) category.tabLabel = category.name;
+    await pool.query(
+      `INSERT INTO dining_categories (id, name, tab_label, subtitle, description, image_url, dishes_json, sort_order, visible, extras_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE 
+        name = VALUES(name), tab_label = VALUES(tab_label), subtitle = VALUES(subtitle),
+        description = VALUES(description), image_url = VALUES(image_url), dishes_json = VALUES(dishes_json),
+        sort_order = VALUES(sort_order), visible = VALUES(visible), extras_json = VALUES(extras_json)`,
+      [
+        category.id,
+        category.name,
+        category.tabLabel,
+        category.subtitle || null,
+        category.description || '',
+        category.imageUrl || '',
+        JSON.stringify(category.signatureDishes || []),
+        Number(category.order) || 0,
+        category.visible === false ? 0 : 1,
+        this.collectExtras(category, DINING_CATEGORY_COLUMN_FIELDS),
+      ]
+    );
+
+    await this.addAuditLog({
+      action: 'DINING_CATEGORY_SAVED',
+      userEmail,
+      details: `Saved dining category: ${category.name} (${category.id})`,
+    });
+
+    return category;
+  }
+
+  async deleteDiningCategory(id: string, userEmail: string): Promise<boolean> {
+    const pool = this.getPool();
+    const [result]: any = await pool.query('DELETE FROM dining_categories WHERE id = ?', [id]);
+    const deleted = result && result.affectedRows > 0;
+    if (deleted) {
+      await this.addAuditLog({
+        action: 'DINING_CATEGORY_DELETED',
+        userEmail,
+        details: `Deleted dining category: ${id}`,
+      });
+    }
+    return deleted;
+  }
+
+  // --- Extended CMS Coverage: Experiences ---
+  async getExperiences(): Promise<ExperienceRecord[]> {
+    const pool = this.getPool();
+    await this.ensureExtrasColumn('experiences');
+    const [rows]: any = await pool.query('SELECT * FROM experiences ORDER BY sort_order ASC');
+    return rows.map((r: any) => ({
+      ...this.parseExtras(r.extras_json),
+      id: r.id,
+      title: r.title,
+      category: r.category,
+      duration: r.duration,
+      tag: r.tag,
+      priceNote: r.price_note,
+      shortDescription: r.short_description,
+      description: r.description,
+      imageUrl: r.image_url,
+      whatsappMessage: r.whatsapp_message,
+      order: Number(r.sort_order || 0),
+      visible: Boolean(r.visible !== 0 && r.visible !== false),
     }));
+  }
+
+  async saveExperience(input: ExperienceRecord, userEmail: string): Promise<ExperienceRecord> {
+    const pool = this.getPool();
+    const existing = (await this.getExperiences()).find((e) => e.id === input.id);
+    const item: ExperienceRecord = {
+      title: '',
+      category: 'cultural',
+      duration: '',
+      tag: '',
+      priceNote: '',
+      shortDescription: '',
+      description: '',
+      imageUrl: '',
+      order: 0,
+      visible: true,
+      ...(existing || {}),
+      ...this.definedOnly(input),
+    } as ExperienceRecord;
+    await pool.query(
+      `INSERT INTO experiences (id, title, category, duration, tag, price_note, short_description, description, image_url, whatsapp_message, sort_order, visible, extras_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE 
+        title = VALUES(title), category = VALUES(category), duration = VALUES(duration),
+        tag = VALUES(tag), price_note = VALUES(price_note), short_description = VALUES(short_description),
+        description = VALUES(description), image_url = VALUES(image_url), whatsapp_message = VALUES(whatsapp_message),
+        sort_order = VALUES(sort_order), visible = VALUES(visible), extras_json = VALUES(extras_json)`,
+      [
+        item.id,
+        item.title,
+        item.category,
+        item.duration,
+        item.tag,
+        item.priceNote,
+        item.shortDescription,
+        item.description,
+        item.imageUrl,
+        item.whatsappMessage || null,
+        Number(item.order) || 0,
+        item.visible === false ? 0 : 1,
+        this.collectExtras(item, EXPERIENCE_COLUMN_FIELDS),
+      ]
+    );
+
+    await this.addAuditLog({
+      action: 'EXPERIENCE_SAVED',
+      userEmail,
+      details: `Saved experience: ${item.title} (${item.id})`,
+    });
+
+    return item;
+  }
+
+  async deleteExperience(id: string, userEmail: string): Promise<boolean> {
+    const pool = this.getPool();
+    const [result]: any = await pool.query('DELETE FROM experiences WHERE id = ?', [id]);
+    const deleted = result && result.affectedRows > 0;
+    if (deleted) {
+      await this.addAuditLog({
+        action: 'EXPERIENCE_DELETED',
+        userEmail,
+        details: `Deleted experience: ${id}`,
+      });
+    }
+    return deleted;
+  }
+
+  // --- Extended CMS Coverage: Safari Destinations ---
+  async getSafariDestinations(): Promise<SafariDestinationRecord[]> {
+    const pool = this.getPool();
+    await this.ensureExtrasColumn('safari_destinations');
+    const [rows]: any = await pool.query('SELECT * FROM safari_destinations ORDER BY sort_order ASC');
+    return rows.map((r: any) => {
+      let highlights: string[] = [];
+      if (r.highlights_json) {
+        try {
+          highlights = typeof r.highlights_json === 'string' ? JSON.parse(r.highlights_json) : r.highlights_json;
+        } catch {}
+      }
+      return {
+        ...this.parseExtras(r.extras_json),
+        id: r.id,
+        name: r.name,
+        tagline: r.tagline,
+        region: r.region,
+        flightTimeFromZanzibar: r.flight_time,
+        heroImage: r.hero_image,
+        description: r.description,
+        highlights,
+        bestFor: r.best_for,
+        safariType: r.safari_type,
+        order: Number(r.sort_order || 0),
+        visible: Boolean(r.visible !== 0 && r.visible !== false),
+      };
+    });
+  }
+
+  async saveSafariDestination(input: SafariDestinationRecord, userEmail: string): Promise<SafariDestinationRecord> {
+    const pool = this.getPool();
+    const existing = (await this.getSafariDestinations()).find((d) => d.id === input.id);
+    const item: SafariDestinationRecord = {
+      name: '',
+      tagline: '',
+      region: '',
+      flightTimeFromZanzibar: '',
+      heroImage: '',
+      description: '',
+      highlights: [],
+      bestFor: '',
+      safariType: '',
+      order: 0,
+      visible: true,
+      ...(existing || {}),
+      ...this.definedOnly(input),
+    } as SafariDestinationRecord;
+    await pool.query(
+      `INSERT INTO safari_destinations (id, name, tagline, region, flight_time, hero_image, description, highlights_json, best_for, safari_type, sort_order, visible, extras_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE 
+        name = VALUES(name), tagline = VALUES(tagline), region = VALUES(region),
+        flight_time = VALUES(flight_time), hero_image = VALUES(hero_image), description = VALUES(description),
+        highlights_json = VALUES(highlights_json), best_for = VALUES(best_for), safari_type = VALUES(safari_type),
+        sort_order = VALUES(sort_order), visible = VALUES(visible), extras_json = VALUES(extras_json)`,
+      [
+        item.id,
+        item.name,
+        item.tagline,
+        item.region,
+        item.flightTimeFromZanzibar,
+        item.heroImage,
+        item.description,
+        JSON.stringify(Array.isArray(item.highlights) ? item.highlights : []),
+        item.bestFor,
+        item.safariType,
+        Number(item.order) || 0,
+        item.visible === false ? 0 : 1,
+        this.collectExtras(item, SAFARI_COLUMN_FIELDS),
+      ]
+    );
+
+    await this.addAuditLog({
+      action: 'SAFARI_DESTINATION_SAVED',
+      userEmail,
+      details: `Saved safari destination: ${item.name} (${item.id})`,
+    });
+
+    return item;
+  }
+
+  async deleteSafariDestination(id: string, userEmail: string): Promise<boolean> {
+    const pool = this.getPool();
+    const [result]: any = await pool.query('DELETE FROM safari_destinations WHERE id = ?', [id]);
+    const deleted = result && result.affectedRows > 0;
+    if (deleted) {
+      await this.addAuditLog({
+        action: 'SAFARI_DESTINATION_DELETED',
+        userEmail,
+        details: `Deleted safari destination: ${id}`,
+      });
+    }
+    return deleted;
+  }
+
+  // --- Extended CMS Coverage: Global Content ---
+  async getGlobalContent(): Promise<GlobalContentRecord> {
+    const pool = this.getPool();
+    await this.ensureExtrasColumn('global_content');
+    const [rows]: any = await pool.query('SELECT * FROM global_content WHERE id = 1 LIMIT 1');
+    const r = rows[0] || {};
+    let navLinks: NavLinkItem[] = [];
+    let socials: any = undefined;
+    if (r.nav_links_json) {
+      try {
+        navLinks = typeof r.nav_links_json === 'string' ? JSON.parse(r.nav_links_json) : r.nav_links_json;
+      } catch {}
+    }
+    if (r.socials_json) {
+      try {
+        socials = typeof r.socials_json === 'string' ? JSON.parse(r.socials_json) : r.socials_json;
+      } catch {}
+    }
+    return {
+      ...this.parseExtras(r.extras_json),
+      id: 1,
+      brandName: r.brand_name || 'Zanzirangi House',
+      navLinks,
+      ctaPlanStayLabel: r.cta_plan_stay_label || 'PLAN YOUR STAY',
+      ctaPlanStayLink: r.cta_plan_stay_link || '#stay',
+      footerTagline: r.footer_tagline,
+      footerCopyright: r.footer_copyright,
+      contactPhone: r.contact_phone,
+      contactEmail: r.contact_email,
+      contactWhatsapp: r.contact_whatsapp,
+      contactAddress: r.contact_address,
+      socials,
+      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
+      updatedBy: r.updated_by,
+    };
+  }
+
+  async updateGlobalContent(data: Partial<GlobalContentRecord>, userEmail: string): Promise<GlobalContentRecord> {
+    const pool = this.getPool();
+    const current = await this.getGlobalContent();
+    const merged: GlobalContentRecord = {
+      ...current,
+      ...this.definedOnly(data),
+      updatedBy: userEmail,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await pool.query(
+      `UPDATE global_content 
+       SET brand_name = ?, nav_links_json = ?, cta_plan_stay_label = ?, cta_plan_stay_link = ?,
+           footer_tagline = ?, footer_copyright = ?, contact_phone = ?, contact_email = ?,
+           contact_whatsapp = ?, contact_address = ?, socials_json = ?, extras_json = ?, updated_by = ?
+       WHERE id = 1`,
+      [
+        merged.brandName,
+        JSON.stringify(merged.navLinks || []),
+        merged.ctaPlanStayLabel,
+        merged.ctaPlanStayLink,
+        merged.footerTagline || null,
+        merged.footerCopyright || null,
+        merged.contactPhone || null,
+        merged.contactEmail || null,
+        merged.contactWhatsapp || null,
+        merged.contactAddress || null,
+        merged.socials ? JSON.stringify(merged.socials) : null,
+        this.collectExtras(merged, GLOBAL_COLUMN_FIELDS),
+        userEmail,
+      ]
+    );
+
+    await this.addAuditLog({
+      action: 'GLOBAL_CONTENT_UPDATED',
+      userEmail,
+      details: 'Updated global navigation, header CTA, and footer configuration',
+    });
+
+    return merged;
   }
 
   // --- Audit Logs ---
@@ -953,13 +1852,21 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
     const [facilitiesCount]: any = await pool.query('SELECT COUNT(*) as total FROM facilities');
     const [testimonialsCount]: any = await pool.query('SELECT COUNT(*) as total FROM testimonials');
     const [mediaCount]: any = await pool.query('SELECT COUNT(*) as total FROM media_assets');
+    const [pagesCount]: any = await pool.query('SELECT COUNT(*) as total FROM page_contents');
+    const [expCount]: any = await pool.query('SELECT COUNT(*) as total FROM experiences');
+    const [diningCount]: any = await pool.query('SELECT COUNT(*) as total FROM dining_categories');
+    const [usersCount]: any = await pool.query('SELECT COUNT(*) as total FROM users WHERE status = "active"');
     const [hpMeta]: any = await pool.query('SELECT meta_last_updated, meta_updated_by FROM homepage_config WHERE id = 1');
 
     const recentLogs = await this.getAuditLogs(10);
     const meta = hpMeta[0] || {};
+    const host = env.MYSQL_HOST || 'unknown';
 
     return {
-      status: 'Connected',
+      status: 'Connected Live',
+      databaseProvider: 'mysql',
+      databaseEngine: 'Cloud • MariaDB/MySQL',
+      databaseHost: host,
       lastPublished: meta.meta_last_updated ? new Date(meta.meta_last_updated).toISOString() : null,
       publishedBy: meta.meta_updated_by || null,
       counts: {
@@ -969,6 +1876,10 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
         facilities: Number(facilitiesCount[0]?.total || 0),
         testimonials: Number(testimonialsCount[0]?.total || 0),
         mediaAssets: Number(mediaCount[0]?.total || 0),
+        pagesTotal: Number(pagesCount[0]?.total || 0),
+        experiencesTotal: Number(expCount[0]?.total || 0),
+        diningCategories: Number(diningCount[0]?.total || 0),
+        activeAdmins: Number(usersCount[0]?.total || 0),
       },
       recentUpdates: recentLogs.map((l) => ({
         action: l.action,
@@ -977,5 +1888,124 @@ export class MysqlDatabaseAdapter implements DatabaseAdapter {
         details: l.details,
       })),
     };
+  }
+
+  // --- Extra CMS fields ---
+  // Content tables store their main fields in columns. Any additional editor field (visibility toggles,
+  // extra labels, images…) is kept in an `extras_json` column so saves never silently drop data.
+  private extrasColumnReady = new Set<string>();
+
+  private async ensureExtrasColumn(table: string): Promise<void> {
+    if (this.extrasColumnReady.has(table)) return;
+    const pool = this.getPool();
+    const [rows]: any = await pool.query(
+      `SELECT COUNT(*) AS n FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'extras_json'`,
+      [table]
+    );
+    if (!Number(rows[0]?.n)) {
+      // Additive, idempotent migration: existing rows and columns are untouched.
+      await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN extras_json LONGTEXT NULL`);
+      console.log(`[DATABASE] Added extras_json column to ${table}`);
+    }
+    this.extrasColumnReady.add(table);
+  }
+
+  private parseExtras(raw: any): Record<string, any> {
+    if (!raw) return {};
+    try {
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  /** Every field of `record` that has no dedicated column, serialized for extras_json. */
+  private collectExtras(record: Record<string, any>, columnFields: string[]): string | null {
+    const skip = new Set([...columnFields, 'id', 'updatedAt', 'updatedBy']);
+    const extras: Record<string, any> = {};
+    // `null` clears an extra field (lets editors remove a value instead of storing an empty one).
+    Object.entries(record).forEach(([k, v]) => {
+      if (!skip.has(k) && v !== undefined && v !== null) extras[k] = v;
+    });
+    return Object.keys(extras).length > 0 ? JSON.stringify(extras) : null;
+  }
+
+  /** Drops undefined values so partial updates (e.g. `{ visible }`) keep the existing fields. */
+  private definedOnly<T extends Record<string, any>>(data: T): Partial<T> {
+    return Object.fromEntries(Object.entries(data || {}).filter(([, v]) => v !== undefined)) as Partial<T>;
+  }
+
+  // --- Content Translations ---
+  private translationsTableReady = false;
+
+  private async ensureTranslationsTable(): Promise<void> {
+    if (this.translationsTableReady) return;
+    await this.getPool().query(`
+      CREATE TABLE IF NOT EXISTS content_translations (
+        lang VARCHAR(8) NOT NULL,
+        entity VARCHAR(64) NOT NULL,
+        path VARCHAR(255) NOT NULL,
+        value MEDIUMTEXT NOT NULL,
+        source MEDIUMTEXT NULL,
+        updated_by VARCHAR(255) NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (lang, entity, path)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    this.translationsTableReady = true;
+  }
+
+  async getContentTranslations(lang: string): Promise<ContentTranslationRecord[]> {
+    await this.ensureTranslationsTable();
+    const [rows]: any = await this.getPool().query(
+      'SELECT entity, path, value, source, updated_at, updated_by FROM content_translations WHERE lang = ?',
+      [lang]
+    );
+    return rows.map((r: any) => ({
+      entity: r.entity,
+      path: r.path,
+      value: r.value,
+      source: r.source ?? undefined,
+      updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
+      updatedBy: r.updated_by ?? undefined,
+    }));
+  }
+
+  async saveContentTranslations(lang: string, entries: ContentTranslationRecord[], userEmail: string): Promise<number> {
+    await this.ensureTranslationsTable();
+    const conn = await this.getPool().getConnection();
+    try {
+      await conn.beginTransaction();
+      const removals = entries.filter((e) => !e.value || !e.value.trim());
+      const upserts = entries.filter((e) => e.value && e.value.trim());
+      for (const e of removals) {
+        await conn.query('DELETE FROM content_translations WHERE lang = ? AND entity = ? AND path = ?', [lang, e.entity, e.path]);
+      }
+      // Multi-row upserts keep bulk saves fast against a remote database.
+      const CHUNK = 200;
+      for (let i = 0; i < upserts.length; i += CHUNK) {
+        const chunk = upserts.slice(i, i + CHUNK);
+        await conn.query(
+          `INSERT INTO content_translations (lang, entity, path, value, source, updated_by)
+           VALUES ${chunk.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')}
+           ON DUPLICATE KEY UPDATE value = VALUES(value), source = VALUES(source), updated_by = VALUES(updated_by)`,
+          chunk.flatMap((e) => [lang, e.entity, e.path, e.value, e.source ?? null, userEmail])
+        );
+      }
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+    await this.addAuditLog({
+      action: 'TRANSLATIONS_UPDATED',
+      userEmail,
+      details: `Updated ${entries.length} ${lang.toUpperCase()} translation entries`,
+    });
+    return entries.length;
   }
 }

@@ -140,21 +140,21 @@ export const AdminGalleryManager: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-[#2C2B28] gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-adm-line gap-4">
         <div>
           <div className="flex items-center space-x-2">
-            <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-[#C4A27A]">
-              GALERI
+            <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-adm-accent">
+              GALLERY
             </span>
             <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase bg-emerald-950/60 border border-emerald-700/60 text-emerald-300">
               LIVE
             </span>
           </div>
-          <h1 className="font-serif text-2xl sm:text-3xl text-[#FAF8F5] tracking-wide mt-1">
+          <h1 className="font-serif text-2xl sm:text-3xl text-adm-text tracking-wide mt-1">
             Gallery
           </h1>
-          <p className="text-xs text-[#8E8B85] mt-0.5">
-            Kelola foto galeri website, kategori foto, dan urutan tampilan.
+          <p className="text-xs text-adm-muted mt-0.5">
+            Manage website gallery photos, categories, and display order.
           </p>
         </div>
 
@@ -179,7 +179,7 @@ export const AdminGalleryManager: React.FC = () => {
           <button
             onClick={handleOpenAddModal}
             id="add-gallery-btn"
-            className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-lg bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-xs font-mono uppercase tracking-widest font-bold shadow-lg transition-all cursor-pointer"
+            className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-lg bg-adm-accent-fill hover:bg-adm-accent-hover text-adm-on-accent text-xs font-mono uppercase tracking-widest font-bold shadow-lg transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Add Photo</span>
@@ -188,7 +188,7 @@ export const AdminGalleryManager: React.FC = () => {
       </div>
 
       {/* Category Tabs */}
-      <div className="flex items-center space-x-2 border-b border-[#2C2B28] pb-3 overflow-x-auto">
+      <div className="flex items-center space-x-2 border-b border-adm-line pb-3 overflow-x-auto">
         {CATEGORIES.map((cat) => {
           const count =
             cat.key === 'all' ? gallery.length : gallery.filter((g) => g.category === cat.key).length;
@@ -198,8 +198,8 @@ export const AdminGalleryManager: React.FC = () => {
               onClick={() => setSelectedCategory(cat.key)}
               className={`px-3 py-1.5 rounded-lg text-xs font-mono tracking-wider uppercase transition-colors whitespace-nowrap cursor-pointer ${
                 selectedCategory === cat.key
-                  ? 'bg-[#B8966C] text-[#141413] font-bold'
-                  : 'text-[#D8CCB8] hover:bg-[#1E1D1B]'
+                  ? 'bg-adm-accent-fill text-adm-on-accent font-bold'
+                  : 'text-adm-text-2 hover:bg-adm-surface'
               }`}
             >
               {cat.label} ({count})
@@ -210,40 +210,40 @@ export const AdminGalleryManager: React.FC = () => {
 
       {/* Search Input */}
       <div className="relative w-full sm:w-80">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#8E8B85]" />
+        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-adm-muted" />
         <input
           type="text"
           placeholder="Filter photos by title or caption..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-9 pr-3 py-1.5 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+          className="w-full pl-9 pr-3 py-1.5 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
         />
       </div>
 
       {/* Photos Grid */}
       {isLoading ? (
         <div className="py-24 text-center">
-          <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin text-[#C4A27A]" />
-          <p className="font-mono text-xs uppercase tracking-widest text-[#D8CCB8]">Loading Gallery...</p>
+          <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin text-adm-accent" />
+          <p className="font-mono text-xs uppercase tracking-widest text-adm-text-2">Loading Gallery...</p>
         </div>
       ) : filteredItems.length === 0 ? (
-        <div className="py-16 text-center bg-[#181716] rounded-xl border border-[#2C2B28]">
-          <ImageIcon className="w-10 h-10 mx-auto mb-2 text-[#8E8B85]" />
-          <p className="text-sm font-serif text-[#FAF8F5]">No photos in this category</p>
+        <div className="py-16 text-center bg-adm-panel rounded-xl border border-adm-line">
+          <ImageIcon className="w-10 h-10 mx-auto mb-2 text-adm-muted" />
+          <p className="text-sm font-serif text-adm-text">No photos in this category</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredItems.map((item) => (
             <div
               key={item.id}
-              className="bg-[#181716] rounded-xl border border-[#2C2B28] overflow-hidden group flex flex-col justify-between"
+              className="bg-adm-panel rounded-xl border border-adm-line overflow-hidden group flex flex-col justify-between"
             >
               <div className="relative aspect-[4/3] bg-black/40 overflow-hidden">
                 <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30" />
 
                 <div className="absolute top-2 left-2 flex items-center space-x-1">
-                  <span className="px-2 py-0.5 rounded bg-black/70 backdrop-blur-sm text-[9px] font-mono uppercase tracking-wider text-[#C4A27A]">
+                  <span className="px-2 py-0.5 rounded bg-black/70 backdrop-blur-sm text-[9px] font-mono uppercase tracking-wider text-adm-accent">
                     {item.category}
                   </span>
                 </div>
@@ -251,7 +251,7 @@ export const AdminGalleryManager: React.FC = () => {
                 <div className="absolute top-2 right-2">
                   <button
                     onClick={() => handleTogglePublished(item)}
-                    className="p-1 rounded bg-black/60 backdrop-blur-sm text-white hover:text-[#C4A27A] cursor-pointer"
+                    className="p-1 rounded bg-black/60 backdrop-blur-sm text-white hover:text-adm-accent cursor-pointer"
                   >
                     {item.published ? (
                       <Eye className="w-3.5 h-3.5 text-emerald-400" />
@@ -262,22 +262,22 @@ export const AdminGalleryManager: React.FC = () => {
                 </div>
 
                 <div className="absolute bottom-2 left-2 right-2">
-                  <p className="font-serif text-xs text-[#FAF8F5] truncate font-medium">
+                  <p className="font-serif text-xs text-adm-text truncate font-medium">
                     {item.title}
                   </p>
-                  <p className="text-[10px] text-[#8E8B85] truncate mt-0.5">{item.caption}</p>
+                  <p className="text-[10px] text-adm-muted truncate mt-0.5">{item.caption}</p>
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="p-2 bg-[#141413] border-t border-[#2C2B28] flex items-center justify-between">
-                <span className="text-[10px] font-mono text-[#8E8B85] uppercase">
+              <div className="p-2 bg-adm-bg border-t border-adm-line flex items-center justify-between">
+                <span className="text-[10px] font-mono text-adm-muted uppercase">
                   {item.aspect}
                 </span>
                 <div className="flex items-center space-x-1">
                   <button
                     onClick={() => handleOpenEditModal(item)}
-                    className="p-1.5 rounded hover:bg-[#2C2B28] text-[#D8CCB8] cursor-pointer"
+                    className="p-1.5 rounded hover:bg-adm-line text-adm-text-2 cursor-pointer"
                     title="Edit"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
@@ -299,19 +299,19 @@ export const AdminGalleryManager: React.FC = () => {
       {/* Edit / Add Modal */}
       {isModalOpen && editingItem && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#181716] border border-[#2C2B28] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
-            <div className="p-4 border-b border-[#2C2B28] flex items-center justify-between bg-[#1C1B1A]">
-              <h2 className="font-serif text-lg text-[#FAF8F5]">
+          <div className="bg-adm-panel border border-adm-line rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-adm-line flex items-center justify-between bg-adm-surface">
+              <h2 className="font-serif text-lg text-adm-text">
                 {editingItem.title ? `Edit: ${editingItem.title}` : 'Add Photo to Gallery'}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="p-1 text-[#8E8B85]">
+              <button onClick={() => setIsModalOpen(false)} className="p-1 text-adm-muted">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSaveItem} className="p-5 space-y-3">
               <div>
-                <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                   Photo Title *
                 </label>
                 <input
@@ -320,18 +320,18 @@ export const AdminGalleryManager: React.FC = () => {
                   value={editingItem.title || ''}
                   onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
                   placeholder="e.g. Cliffside Oceanfront Sanctuary"
-                  className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-serif text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                  className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-serif text-adm-text focus:border-adm-accent outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                   Category *
                 </label>
                 <select
                   value={editingItem.category || 'property'}
                   onChange={(e) => setEditingItem({ ...editingItem, category: e.target.value as any })}
-                  className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                  className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                 >
                   <option value="property">Property</option>
                   <option value="villas">Villas</option>
@@ -344,7 +344,7 @@ export const AdminGalleryManager: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                   Image URL *
                 </label>
                 <input
@@ -353,18 +353,18 @@ export const AdminGalleryManager: React.FC = () => {
                   value={editingItem.image || ''}
                   onChange={(e) => setEditingItem({ ...editingItem, image: e.target.value })}
                   placeholder="https://images.unsplash.com/... or ./zanzirangi-villas.jpg"
-                  className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                  className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                   Aspect Ratio
                 </label>
                 <select
                   value={editingItem.aspect || 'landscape'}
                   onChange={(e) => setEditingItem({ ...editingItem, aspect: e.target.value as any })}
-                  className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs font-mono text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                  className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
                 >
                   <option value="landscape">Landscape (Horizontal)</option>
                   <option value="portrait">Portrait (Vertical)</option>
@@ -373,7 +373,7 @@ export const AdminGalleryManager: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono uppercase tracking-wider text-[#D8CCB8] mb-1">
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-adm-text-2 mb-1">
                   Lightbox Caption
                 </label>
                 <textarea
@@ -381,21 +381,21 @@ export const AdminGalleryManager: React.FC = () => {
                   value={editingItem.caption || ''}
                   onChange={(e) => setEditingItem({ ...editingItem, caption: e.target.value })}
                   placeholder="Photographic description shown when enlarged..."
-                  className="w-full px-3 py-2 bg-[#141413] border border-[#2C2B28] rounded-lg text-xs text-[#FAF8F5] focus:border-[#C4A27A] outline-none"
+                  className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs text-adm-text focus:border-adm-accent outline-none"
                 />
               </div>
 
-              <div className="pt-3 border-t border-[#2C2B28] flex items-center justify-end space-x-2">
+              <div className="pt-3 border-t border-adm-line flex items-center justify-end space-x-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-lg bg-[#242321] text-xs font-mono text-[#D8CCB8] cursor-pointer"
+                  className="px-4 py-2 rounded-lg bg-adm-raised text-xs font-mono text-adm-text-2 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-lg bg-[#B8966C] hover:bg-[#C4A27A] text-[#141413] text-xs font-mono uppercase font-bold cursor-pointer"
+                  className="px-5 py-2 rounded-lg bg-adm-accent-fill hover:bg-adm-accent-hover text-adm-on-accent text-xs font-mono uppercase font-bold cursor-pointer"
                 >
                   Save Photo
                 </button>

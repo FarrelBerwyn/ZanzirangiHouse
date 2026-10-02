@@ -1,5 +1,6 @@
 import { Language } from '../types';
 import { Experience, EXPERIENCES_DATA } from './experiences';
+import { localizeUnlessEdited } from './homeSectionsCms';
 
 export interface ExperienceLocalization {
   title: string;
@@ -815,21 +816,25 @@ export const EXPERIENCE_TRANSLATIONS: Record<Language, Record<string, Experience
   },
 };
 
-export function getLocalizedExperiences(lang: Language): Experience[] {
+export function getLocalizedExperiences(lang: Language, baseExperiences: Experience[] = EXPERIENCES_DATA): Experience[] {
   const translations = EXPERIENCE_TRANSLATIONS[lang] || EXPERIENCE_TRANSLATIONS.en;
 
-  return EXPERIENCES_DATA.map((exp) => {
+  return baseExperiences.map((exp) => {
     const loc = translations[exp.id];
     if (!loc) return exp;
+    const seed = EXPERIENCES_DATA.find((e) => e.id === exp.id);
+    const en = EXPERIENCE_TRANSLATIONS.en[exp.id];
+    const pick = (field: keyof ExperienceLocalization) =>
+      localizeUnlessEdited(exp[field], seed?.[field], en?.[field], loc[field]);
 
     return {
       ...exp,
-      title: loc.title || exp.title,
-      duration: loc.duration || exp.duration,
-      tag: loc.tag || exp.tag,
-      priceNote: loc.priceNote || exp.priceNote,
-      shortDescription: loc.shortDescription || exp.shortDescription,
-      description: loc.description || exp.description,
+      title: pick('title'),
+      duration: pick('duration'),
+      tag: pick('tag'),
+      priceNote: pick('priceNote'),
+      shortDescription: pick('shortDescription'),
+      description: pick('description'),
     };
   });
 }

@@ -15,10 +15,12 @@ import {
 import { Language } from '../types';
 import { PROPERTY_CONFIG } from '../data/propertyConfig';
 import { CONCIERGE_TRANSLATIONS } from '../data/serviceTranslations';
+import { HomeSectionContent, cmsList, cmsText } from '../data/homeSectionsCms';
 
 interface ConciergeSectionProps {
   currentLang: Language;
   onOpenSupportChat?: (query?: string) => void;
+  cmsContent?: HomeSectionContent;
 }
 
 const CONCIERGE_ICONS = [
@@ -33,8 +35,29 @@ const CONCIERGE_ICONS = [
   Map,
 ];
 
-export const ConciergeSection: React.FC<ConciergeSectionProps> = ({ currentLang, onOpenSupportChat }) => {
-  const t = CONCIERGE_TRANSLATIONS[currentLang] || CONCIERGE_TRANSLATIONS.en;
+const CONCIERGE_TEXT_KEYS = [
+  'eyebrow',
+  'heading',
+  'quote',
+  'subhead',
+  'availableLabel',
+  'inquireLabel',
+  'bannerEyebrow',
+  'bannerTitle',
+  'bannerDesc',
+  'supportBtn',
+] as const;
+
+export const ConciergeSection: React.FC<ConciergeSectionProps> = ({ currentLang, onOpenSupportChat, cmsContent }) => {
+  const baseT = CONCIERGE_TRANSLATIONS[currentLang] || CONCIERGE_TRANSLATIONS.en;
+  const t = { ...baseT };
+  CONCIERGE_TEXT_KEYS.forEach((key) => {
+    t[key] = cmsText(cmsContent?.[key], baseT[key]);
+  });
+  t.services = cmsList<{ title: string; desc: string }>(cmsContent?.services, baseT.services).map((svc, idx) => ({
+    title: cmsText(svc.title, baseT.services[idx]?.title || ''),
+    desc: cmsText(svc.desc, baseT.services[idx]?.desc || ''),
+  }));
 
   return (
     <section id="concierge" className="py-24 md:py-36 bg-[#F4EFE6] text-[#1C1B1A]">

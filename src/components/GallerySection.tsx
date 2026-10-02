@@ -5,13 +5,15 @@ import { TRANSLATIONS } from '../data/translations';
 import { getLocalizedGallery, GALLERY_TRANSLATIONS, LocalizedGalleryItem } from '../data/galleryTranslations';
 import { LightboxModal } from './LightboxModal';
 import { ScrollFadeContainer } from './ScrollFadeContainer';
+import { HomeSectionContent, cmsText } from '../data/homeSectionsCms';
 
 interface GallerySectionProps {
   currentLang: Language;
   items?: GalleryItem[];
+  cmsContent?: HomeSectionContent;
 }
 
-export const GallerySection: React.FC<GallerySectionProps> = ({ currentLang, items: customItems }) => {
+export const GallerySection: React.FC<GallerySectionProps> = ({ currentLang, items: customItems, cmsContent }) => {
   const t = TRANSLATIONS[currentLang];
   const tGallery = GALLERY_TRANSLATIONS[currentLang] || GALLERY_TRANSLATIONS.en;
   const [activeCategory, setActiveCategory] = useState<GalleryCategory | 'all'>('all');
@@ -43,16 +45,16 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ currentLang, ite
           <div>
             <div className="inline-flex items-center space-x-2 text-[11px] tracking-[0.3em] uppercase text-[#C4A27A] font-medium mb-3">
               <Camera className="w-3.5 h-3.5" />
-              <span>{tGallery.eyebrow}</span>
+              <span>{cmsText(cmsContent?.eyebrow, tGallery.eyebrow)}</span>
             </div>
             <h2
               id="gallery-heading"
               className="font-serif text-3xl sm:text-4xl md:text-5xl font-light tracking-[0.05em] uppercase text-[#FAF8F5]"
             >
-              {t.gallery.heading}
+              {cmsText(cmsContent?.heading, t.gallery.heading)}
             </h2>
             <p className="text-[#D8CCB8]/80 text-sm sm:text-base mt-2 max-w-xl">
-              {t.gallery.subhead}
+              {cmsText(cmsContent?.subhead, t.gallery.subhead)}
             </p>
           </div>
         </div>
