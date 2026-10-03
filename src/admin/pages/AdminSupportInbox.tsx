@@ -127,7 +127,7 @@ export const AdminSupportInbox: React.FC = () => {
         }
       } catch {}
     }
-    return DEFAULT_SETTINGS.supportAvatar || '/uploads/avatar-1790937078607_1790937078818_0381644b.jpg';
+    return DEFAULT_SETTINGS.supportAvatar || '/zanzirangi-logo-circle.png';
   });
   const [supportName, setSupportName] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -1563,9 +1563,13 @@ export const AdminSupportInbox: React.FC = () => {
                   <div className="w-28 h-28 rounded-full overflow-hidden p-1 bg-gradient-to-tr from-[#B8966C] via-[#C4A27A] to-[#FAF8F5] shadow-2xl">
                     <div className="w-full h-full rounded-full overflow-hidden bg-[#141413]">
                       <img
-                        src={supportAvatar}
+                        src={supportAvatar || '/zanzirangi-logo-circle.png'}
                         alt={supportName}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = '/zanzirangi-logo-circle.png';
+                        }}
                       />
                     </div>
                   </div>

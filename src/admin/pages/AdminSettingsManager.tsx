@@ -16,6 +16,8 @@ import {
   Globe,
   Layout,
   Layers,
+  Sparkles,
+  RotateCcw,
 } from 'lucide-react';
 import { contentApi, SettingsModel } from '../../services/contentApi';
 import { DEFAULT_SETTINGS } from '../../data/seedDefaults';
@@ -544,11 +546,16 @@ export const AdminSettingsManager: React.FC<AdminSettingsManagerProps> = ({ onNa
                     <img
                       src={
                         settings.supportAvatar ||
+                        settings.logo ||
                         DEFAULT_SETTINGS.supportAvatar ||
-                        '/uploads/avatar-1790937078607_1790937078818_0381644b.jpg'
+                        '/zanzirangi-logo-circle.png'
                       }
                       alt={settings.supportName || 'Customer Support'}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = settings.logo || '/zanzirangi-logo-circle.png';
+                      }}
                     />
                   </div>
                 </div>
@@ -573,14 +580,31 @@ export const AdminSettingsManager: React.FC<AdminSettingsManagerProps> = ({ onNa
                 }}
               />
 
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full py-2 px-3 bg-adm-accent-fill hover:bg-adm-accent-hover text-adm-on-accent text-xs font-mono font-bold uppercase tracking-wider rounded-lg shadow flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
-              >
-                <Camera className="w-3.5 h-3.5" />
-                <span>Upload Photo</span>
-              </button>
+              <div className="w-full space-y-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-2 px-3 bg-adm-accent-fill hover:bg-adm-accent-hover text-adm-on-accent text-xs font-mono font-bold uppercase tracking-wider rounded-lg shadow flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Upload Photo</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentLogo = settings.logo || '/zanzirangi-logo-circle.png';
+                    setSettings({ ...settings, supportAvatar: currentLogo });
+                    setStatusMessage('Avatar set to current property logo. Click Save Changes to commit.');
+                    setSaveStatus('saved');
+                  }}
+                  className="w-full py-1.5 px-3 bg-adm-surface hover:bg-adm-panel border border-adm-line hover:border-adm-accent/60 text-adm-text text-[11px] font-mono uppercase tracking-wider rounded-lg shadow-sm flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+                  title="Apply current property logo as the customer support avatar"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-adm-accent" />
+                  <span>Use Property Logo</span>
+                </button>
+              </div>
             </div>
 
             <div className="md:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -700,7 +724,7 @@ export const AdminSettingsManager: React.FC<AdminSettingsManagerProps> = ({ onNa
         isOpen={isCropperOpen}
         onClose={() => setIsCropperOpen(false)}
         imageFile={selectedCropFile}
-        initialImageUrl={settings.supportAvatar}
+        initialImageUrl={settings.supportAvatar || settings.logo || '/zanzirangi-logo-circle.png'}
         supportName={settings.supportName || 'Elena'}
         supportTitle={settings.supportTitle || 'Customer Support'}
         supportStatus={settings.supportStatus || 'Active 24/7'}

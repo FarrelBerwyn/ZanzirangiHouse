@@ -406,7 +406,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
         }
       } catch {}
     }
-    return DEFAULT_SETTINGS.supportAvatar || '/uploads/avatar-1790937078607_1790937078818_0381644b.jpg';
+    return DEFAULT_SETTINGS.supportAvatar || '/zanzirangi-logo-circle.png';
   });
 
   const [supportName, setSupportName] = useState<string>(() => {
@@ -1507,9 +1507,13 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
                     {(msg.sender === 'bot' || msg.sender === 'admin') && (
                       <div className="w-6 h-6 rounded-full overflow-hidden border border-[#C4A27A]/60 flex-shrink-0 bg-[#2C2B28] shadow-sm">
                         <img
-                          src={supportAvatar}
+                          src={supportAvatar || '/zanzirangi-logo-circle.png'}
                           alt={supportName}
                           className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = '/zanzirangi-logo-circle.png';
+                          }}
                         />
                       </div>
                     )}
@@ -1546,9 +1550,13 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
               <div className="flex items-center space-x-2 rtl:space-x-reverse">
                 <div className="w-6 h-6 rounded-full overflow-hidden border border-[#C4A27A]/60 flex-shrink-0 bg-[#2C2B28] shadow-sm">
                   <img
-                    src={supportAvatar}
+                    src={supportAvatar || '/zanzirangi-logo-circle.png'}
                     alt={supportName}
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = '/zanzirangi-logo-circle.png';
+                    }}
                   />
                 </div>
                 <div className="px-4 py-2.5 bg-[#1C1B1A] border border-[#2C2B28] rounded-2xl rounded-bl-none flex items-center space-x-1.5">
