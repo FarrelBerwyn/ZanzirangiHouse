@@ -776,7 +776,7 @@ export const DEFAULT_SETTINGS = {
   favicon: '/favicon.svg',
   adminLogo: '/zanzirangi-logo-circle.png',
   maintenanceMode: false,
-  supportAvatar: '/zanzirangi-logo-circle.png',
+  supportAvatar: '/elena-concierge.jpeg',
   supportName: 'Elena',
   supportTitle: 'Customer Support',
   supportStatus: 'Active 24/7',

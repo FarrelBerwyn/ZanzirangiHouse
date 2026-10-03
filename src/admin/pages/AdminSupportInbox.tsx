@@ -127,7 +127,7 @@ export const AdminSupportInbox: React.FC = () => {
         }
       } catch {}
     }
-    return DEFAULT_SETTINGS.supportAvatar || '/zanzirangi-logo-circle.png';
+    return DEFAULT_SETTINGS.supportAvatar || '/elena-concierge.jpeg';
   });
   const [supportName, setSupportName] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -1563,12 +1563,12 @@ export const AdminSupportInbox: React.FC = () => {
                   <div className="w-28 h-28 rounded-full overflow-hidden p-1 bg-gradient-to-tr from-[#B8966C] via-[#C4A27A] to-[#FAF8F5] shadow-2xl">
                     <div className="w-full h-full rounded-full overflow-hidden bg-[#141413]">
                       <img
-                        src={supportAvatar || '/zanzirangi-logo-circle.png'}
+                        src={supportAvatar || '/elena-concierge.jpeg'}
                         alt={supportName}
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           e.currentTarget.onerror = null;
-                          e.currentTarget.src = '/zanzirangi-logo-circle.png';
+                          e.currentTarget.src = '/elena-concierge.jpeg';
                         }}
                       />
                     </div>

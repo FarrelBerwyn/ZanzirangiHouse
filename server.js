@@ -1110,7 +1110,7 @@ var DEFAULT_SETTINGS = {
   favicon: "/favicon.svg",
   adminLogo: "/zanzirangi-logo-circle.png",
   maintenanceMode: false,
-  supportAvatar: "/zanzirangi-logo-circle.png",
+  supportAvatar: "/elena-concierge.jpeg",
   supportName: "Elena",
   supportTitle: "Customer Support",
   supportStatus: "Active 24/7"
@@ -2930,7 +2930,7 @@ var MysqlDatabaseAdapter = class {
       favicon: r.favicon || "/favicon.svg",
       adminLogo: r.admin_logo || r.logo || "/zanzirangi-logo-circle.png",
       maintenanceMode: Boolean(r.maintenance_mode),
-      supportAvatar: r.support_avatar || r.logo || "/zanzirangi-logo-circle.png",
+      supportAvatar: r.support_avatar || "/elena-concierge.jpeg",
       supportName: r.support_name || "Elena",
       supportTitle: r.support_title || "Customer Support",
       supportStatus: r.support_status || "Active 24/7"
@@ -2978,7 +2978,7 @@ var MysqlDatabaseAdapter = class {
         merged.favicon || "/favicon.svg",
         merged.adminLogo || merged.logo || "/zanzirangi-logo-circle.png",
         merged.maintenanceMode ? 1 : 0,
-        merged.supportAvatar || merged.logo || "/zanzirangi-logo-circle.png",
+        merged.supportAvatar || "/elena-concierge.jpeg",
         merged.supportName || "Elena",
         merged.supportTitle || "Customer Support",
         merged.supportStatus || "Active 24/7"
