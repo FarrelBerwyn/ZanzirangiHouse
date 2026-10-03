@@ -1108,6 +1108,7 @@ var DEFAULT_SETTINGS = {
   bookingUrl: "https://zanzirangihouse.com/#stay",
   logo: "/src/assets/zanzirangi-logo-new.jpeg",
   favicon: "/favicon.svg",
+  adminLogo: "/src/assets/zanzirangi-logo-new.jpeg",
   maintenanceMode: false,
   supportAvatar: "/uploads/avatar-1790937078607_1790937078818_0381644b.jpg",
   supportName: "Elena",
@@ -2927,8 +2928,9 @@ var MysqlDatabaseAdapter = class {
       bookingUrl: r.booking_url || "https://zanzirangihouse.com/#stay",
       logo: r.logo || "/src/assets/zanzirangi-logo-new.jpeg",
       favicon: r.favicon || "/favicon.svg",
+      adminLogo: r.admin_logo || r.logo || "/src/assets/zanzirangi-logo-new.jpeg",
       maintenanceMode: Boolean(r.maintenance_mode),
-      supportAvatar: r.support_avatar || "/uploads/avatar-1790937078607_1790937078818_0381644b.jpg",
+      supportAvatar: r.support_avatar || "/zanzirangi-logo-circle.png",
       supportName: r.support_name || "Elena",
       supportTitle: r.support_title || "Customer Support",
       supportStatus: r.support_status || "Active 24/7"
@@ -2942,8 +2944,8 @@ var MysqlDatabaseAdapter = class {
       `INSERT INTO site_settings 
         (id, site_name, tagline, phone, concierge_phone, whatsapp, email, reservation_notification_email, 
          reservation_email, address, instagram, facebook, youtube, booking_url, currency, default_currency, 
-         default_language, logo, favicon, maintenance_mode, support_avatar, support_name, support_title, support_status) 
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
+         default_language, logo, favicon, admin_logo, maintenance_mode, support_avatar, support_name, support_title, support_status) 
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
        ON DUPLICATE KEY UPDATE 
         site_name = VALUES(site_name), tagline = VALUES(tagline), phone = VALUES(phone), 
         concierge_phone = VALUES(concierge_phone), whatsapp = VALUES(whatsapp), email = VALUES(email), 
@@ -2952,7 +2954,7 @@ var MysqlDatabaseAdapter = class {
         instagram = VALUES(instagram), facebook = VALUES(facebook), youtube = VALUES(youtube), 
         booking_url = VALUES(booking_url), currency = VALUES(currency), default_currency = VALUES(default_currency), 
         default_language = VALUES(default_language), logo = VALUES(logo), favicon = VALUES(favicon), 
-        maintenance_mode = VALUES(maintenance_mode), support_avatar = VALUES(support_avatar),
+        admin_logo = VALUES(admin_logo), maintenance_mode = VALUES(maintenance_mode), support_avatar = VALUES(support_avatar),
         support_name = VALUES(support_name), support_title = VALUES(support_title),
         support_status = VALUES(support_status)`,
       [
@@ -2974,8 +2976,9 @@ var MysqlDatabaseAdapter = class {
         merged.defaultLanguage || "en",
         merged.logo || "/src/assets/zanzirangi-logo-new.jpeg",
         merged.favicon || "/favicon.svg",
+        merged.adminLogo || merged.logo || "/src/assets/zanzirangi-logo-new.jpeg",
         merged.maintenanceMode ? 1 : 0,
-        merged.supportAvatar || "/uploads/avatar-1790937078607_1790937078818_0381644b.jpg",
+        merged.supportAvatar || "/zanzirangi-logo-circle.png",
         merged.supportName || "Elena",
         merged.supportTitle || "Customer Support",
         merged.supportStatus || "Active 24/7"

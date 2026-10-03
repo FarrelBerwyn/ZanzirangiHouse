@@ -13,10 +13,15 @@ import {
   Upload,
   Bell,
   ArrowRight,
+  Globe,
+  Layout,
+  Layers,
 } from 'lucide-react';
 import { contentApi, SettingsModel } from '../../services/contentApi';
 import { DEFAULT_SETTINGS } from '../../data/seedDefaults';
 import { ImageCropperModal } from '../components/ImageCropperModal';
+import { AdminImageInput } from '../components/AdminImageInput';
+import { updateDynamicFavicon } from '../../utils/faviconHelper';
 
 interface AdminSettingsManagerProps {
   onNavigateToTab?: (tab: string) => void;
@@ -58,6 +63,19 @@ export const AdminSettingsManager: React.FC<AdminSettingsManagerProps> = ({ onNa
       setSettings(updated);
       setSaveStatus('success');
       setStatusMessage('✓ Settings updated successfully.');
+
+      // Dispatch global event for real-time frontend updates (Navbar, Favicon, Chat, AdminLayout)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('zanzirangi-settings-updated', {
+            detail: updated,
+          })
+        );
+        if (updated.favicon) {
+          updateDynamicFavicon(updated.favicon);
+        }
+      }
+
       setTimeout(() => {
         setSaveStatus('saved');
         setStatusMessage(null);
@@ -202,6 +220,203 @@ export const AdminSettingsManager: React.FC<AdminSettingsManagerProps> = ({ onNa
                 onChange={(e) => setSettings({ ...settings, defaultLanguage: e.target.value })}
                 className="w-full px-3 py-2 bg-adm-bg border border-adm-line rounded-lg text-xs font-mono text-adm-text focus:border-adm-accent outline-none"
               />
+            </div>
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* MULTI-CONTEXT LOGO & BRANDING SUITE                                      */}
+        {/* ========================================================================= */}
+        <div className="bg-adm-panel p-6 rounded-xl border border-adm-line space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-adm-line pb-4">
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-[10px] font-mono tracking-[0.25em] uppercase text-adm-accent">
+                  BRAND ASSETS
+                </span>
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-mono uppercase bg-adm-accent/20 text-adm-accent font-semibold">
+                  Multi-Context
+                </span>
+              </div>
+              <h3 className="font-serif text-lg text-adm-text mt-0.5">
+                Property Logo & Visual Identity by Context
+              </h3>
+              <p className="text-xs text-adm-muted mt-0.5">
+                Kelola dan unggah file logo secara independen untuk masing-masing konteks (Home Navigation Bar, Browser Tabbar / Favicon, dan Admin Dashboard).
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* CONTEXT 1: Home & Main Navigation Header Logo */}
+            <div className="bg-adm-bg p-5 rounded-xl border border-adm-line space-y-4 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <div className="p-1.5 rounded-lg bg-adm-surface border border-adm-line text-adm-accent">
+                    <Layout className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-adm-text font-mono uppercase tracking-wider">
+                      Home & Header Navbar Logo
+                    </h4>
+                    <span className="text-[10px] text-adm-muted font-sans block">
+                      Tampil di bilah navigasi utama website (Home & seluruh subhalaman publik)
+                    </span>
+                  </div>
+                </div>
+
+                {/* Live Preview Simulation (Navbar Header mockup) */}
+                <div className="p-3 rounded-lg bg-black/95 border border-[#C4A27A]/30 flex items-center justify-between shadow-inner">
+                  <div className="flex items-center space-x-2.5">
+                    <img
+                      src={settings.logo || '/src/assets/zanzirangi-logo-new.jpeg'}
+                      alt="Navbar Preview"
+                      className="w-8 h-8 rounded-full object-cover border border-[#C4A27A]/60 shadow"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = '/zanzirangi-logo-circle.png';
+                      }}
+                    />
+                    <div className="flex flex-col leading-tight">
+                      <span className="font-serif text-xs uppercase text-[#FAF8F5] tracking-widest font-medium">
+                        ZANZIRANGI
+                      </span>
+                      <span className="font-serif text-[9px] uppercase text-[#C4A27A] tracking-[0.25em]">
+                        HOUSE
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-mono uppercase text-[#C4A27A] px-2 py-0.5 rounded bg-[#C4A27A]/10 border border-[#C4A27A]/30">
+                    Navbar Preview
+                  </span>
+                </div>
+
+                <AdminImageInput
+                  value={settings.logo || ''}
+                  onChange={(url) => setSettings({ ...settings, logo: url })}
+                  label="Upload Logo Home & Header"
+                  hint="Unggah file foto/logo dari komputer (PNG transparan disarankan) atau masukkan URL."
+                  placeholder="/src/assets/zanzirangi-logo-new.jpeg atau /uploads/..."
+                  previewHeight="h-32"
+                  presets={[
+                    { label: 'Default Badge (Square)', url: '/src/assets/zanzirangi-logo-new.jpeg' },
+                    { label: 'Circle Gold Emblem', url: '/zanzirangi-logo-circle.png' },
+                    { label: 'Official Lettermark', url: '/zanzirangi-house-logo.jpg' },
+                  ]}
+                />
+              </div>
+            </div>
+
+            {/* CONTEXT 2: Browser Tabbar & Favicon Logo */}
+            <div className="bg-adm-bg p-5 rounded-xl border border-adm-line space-y-4 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <div className="p-1.5 rounded-lg bg-adm-surface border border-adm-line text-emerald-400">
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-adm-text font-mono uppercase tracking-wider">
+                      Browser Tabbar & Favicon Logo
+                    </h4>
+                    <span className="text-[10px] text-adm-muted font-sans block">
+                      Tampil di tab browser pengunjung, bookmark bar, dan shortcut mobile
+                    </span>
+                  </div>
+                </div>
+
+                {/* Live Preview Simulation (Browser Tab mockup) */}
+                <div className="p-2.5 rounded-lg bg-zinc-900 border border-adm-line flex items-center space-x-2 shadow-inner">
+                  <div className="flex items-center space-x-2 px-3 py-1.5 bg-zinc-800 rounded-t-lg border border-b-0 border-zinc-700 max-w-[240px] truncate shadow">
+                    <img
+                      src={settings.favicon || '/favicon.svg'}
+                      alt="Tabbar Favicon Preview"
+                      className="w-4 h-4 rounded-sm object-contain shrink-0"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = '/zanzirangi-logo-circle.png';
+                      }}
+                    />
+                    <span className="text-[11px] font-sans text-zinc-200 truncate">
+                      {settings.siteName || 'Zanzirangi House'} | Sanctuary
+                    </span>
+                  </div>
+                  <span className="text-[9px] font-mono uppercase text-emerald-400 px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/40 ml-auto">
+                    Tabbar Preview
+                  </span>
+                </div>
+
+                <AdminImageInput
+                  value={settings.favicon || ''}
+                  onChange={(url) => setSettings({ ...settings, favicon: url })}
+                  label="Upload Logo Tabbar (Favicon)"
+                  hint="Unggah icon favicon (SVG, PNG 32x32, atau 48x48) untuk tab browser."
+                  placeholder="/favicon.svg atau /favicon-32x32.png"
+                  previewHeight="h-32"
+                  presets={[
+                    { label: 'Default SVG Favicon', url: '/favicon.svg' },
+                    { label: 'PNG 32x32 Favicon', url: '/favicon-32x32.png' },
+                    { label: 'Circle Gold Emblem', url: '/zanzirangi-logo-circle.png' },
+                  ]}
+                />
+              </div>
+            </div>
+
+            {/* CONTEXT 3: Admin Dashboard & Login Logo */}
+            <div className="bg-adm-bg p-5 rounded-xl border border-adm-line space-y-4 flex flex-col justify-between sm:col-span-2">
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <div className="p-1.5 rounded-lg bg-adm-surface border border-adm-line text-amber-400">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-adm-text font-mono uppercase tracking-wider">
+                      Admin Dashboard & Login Logo
+                    </h4>
+                    <span className="text-[10px] text-adm-muted font-sans block">
+                      Tampil di sudut kiri atas Admin Panel Dashboard dan halaman Login Admin
+                    </span>
+                  </div>
+                </div>
+
+                {/* Live Preview Simulation (Admin Sidebar Header mockup) */}
+                <div className="p-3 rounded-lg bg-adm-panel border border-adm-line flex items-center justify-between shadow-inner">
+                  <div className="flex items-center space-x-2.5">
+                    <img
+                      src={settings.adminLogo || settings.logo || '/src/assets/zanzirangi-logo-new.jpeg'}
+                      alt="Admin Logo Preview"
+                      className="w-9 h-9 rounded-xl object-cover border border-adm-accent/40 shadow-sm"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = '/zanzirangi-logo-circle.png';
+                      }}
+                    />
+                    <div>
+                      <span className="text-sm font-medium uppercase tracking-wider text-adm-text block leading-none">
+                        Zanzirangi House
+                      </span>
+                      <span className="text-[9px] font-semibold tracking-[0.2em] text-adm-accent uppercase block mt-0.5">
+                        Admin Panel
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-mono uppercase text-amber-400 px-2 py-0.5 rounded bg-amber-950/60 border border-amber-800/40">
+                    Admin Header Preview
+                  </span>
+                </div>
+
+                <AdminImageInput
+                  value={settings.adminLogo || ''}
+                  onChange={(url) => setSettings({ ...settings, adminLogo: url })}
+                  label="Upload Logo Admin Dashboard"
+                  hint="Kosongkan jika ingin menyamakan otomatis dengan logo Home & Header."
+                  placeholder="Kosongkan untuk mengikuti logo Home, atau masukkan URL/upload baru..."
+                  previewHeight="h-32"
+                  presets={[
+                    { label: 'Default Badge (Square)', url: '/src/assets/zanzirangi-logo-new.jpeg' },
+                    { label: 'Circle Gold Emblem', url: '/zanzirangi-logo-circle.png' },
+                  ]}
+                />
+              </div>
             </div>
           </div>
         </div>

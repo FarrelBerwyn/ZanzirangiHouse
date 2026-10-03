@@ -43,6 +43,7 @@ interface AdminLayoutProps {
   user: AdminUser | null;
   children: React.ReactNode;
   hasUnsavedChanges?: boolean;
+  adminLogo?: string;
 }
 
 /** A single permission key, or a list of keys where any one of them grants access. */
@@ -73,6 +74,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   user,
   children,
   hasUnsavedChanges = false,
+  adminLogo,
 }) => {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -484,8 +486,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           {/* Logo / Sanctuary Brand */}
           <div className="flex items-center space-x-2.5">
             <img
-              src={zanzirangiLogo}
+              src={adminLogo || zanzirangiLogo}
               alt="Zanzirangi House"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = zanzirangiLogo;
+              }}
               className="w-9 h-9 rounded-xl object-cover border border-adm-accent/40 shadow-sm"
             />
             <div>

@@ -14,6 +14,7 @@ interface NavbarProps {
   onOpenBooking: (villaId?: string) => void;
   onNavigate?: (url: string) => void;
   dynamicGlobal?: GlobalContentModel | null;
+  siteLogo?: string;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -22,8 +23,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenBooking,
   onNavigate,
   dynamicGlobal,
+  siteLogo,
 }) => {
   const { theme, toggleTheme } = useTheme();
+  const activeLogo = siteLogo || logoImg;
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
@@ -166,8 +169,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="flex items-center space-x-2.5 sm:space-x-3 tracking-wider group focus:outline-none flex-shrink-0"
           >
             <img
-              src={logoImg}
+              src={activeLogo}
               alt={`${brandName} Logo`}
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = logoImg;
+              }}
               className={`${
                 isScrolled ? 'w-8 h-8 sm:w-9 sm:h-9' : 'w-8 h-8 sm:w-11 sm:h-11'
               } rounded-full object-cover border border-[#C4A27A]/50 shadow-md group-hover:scale-105 group-hover:border-[#C4A27A] transition-all duration-300 flex-shrink-0`}

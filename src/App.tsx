@@ -45,8 +45,10 @@ import {
   ExperienceModel,
   SafariDestinationModel,
   GlobalContentModel,
+  SettingsModel,
   ADMIN_SESSION_EXPIRED_EVENT,
 } from './services/contentApi';
+import { updateDynamicFavicon } from './utils/faviconHelper';
 import { AdminLogin } from './admin/AdminLogin';
 import { AdminLayout } from './admin/AdminLayout';
 import { AdminDashboardHome } from './admin/pages/AdminDashboardHome';
@@ -184,6 +186,7 @@ export default function App() {
   const [facilitiesRaw, setFacilities] = useState<Facility[]>(FACILITIES_DATA);
   const [testimonialsRaw, setTestimonials] = useState<Review[]>(REVIEWS_DATA);
   const [videosRaw, setVideos] = useState<any>(null);
+  const [siteSettings, setSiteSettings] = useState<SettingsModel | null>(null);
 
   // Client Routing state (Supports direct URL access and browser history)
   const [currentPath, setCurrentPath] = useState<string>(() => {
@@ -306,7 +309,29 @@ export default function App() {
     contentApi.getGlobalContent().then((data) => {
       if (data) setGlobalContent(data);
     });
+    contentApi.getSettings().then((data) => {
+      if (data) {
+        setSiteSettings(data);
+        if (data.favicon) {
+          updateDynamicFavicon(data.favicon);
+        }
+      }
+    });
   };
+
+  useEffect(() => {
+    const handleSettingsUpdated = (e: any) => {
+      const updated = e?.detail;
+      if (updated) {
+        setSiteSettings((prev) => ({ ...(prev || {}), ...updated }));
+        if (updated.favicon) {
+          updateDynamicFavicon(updated.favicon);
+        }
+      }
+    };
+    window.addEventListener('zanzirangi-settings-updated', handleSettingsUpdated);
+    return () => window.removeEventListener('zanzirangi-settings-updated', handleSettingsUpdated);
+  }, []);
 
   useEffect(() => {
     refreshPublicContent();
@@ -515,6 +540,7 @@ export default function App() {
         }}
         user={adminUser}
         hasUnsavedChanges={hasUnsavedChanges}
+        adminLogo={siteSettings?.adminLogo || siteSettings?.logo}
       >
         {adminTab === 'support' && <AdminSupportInbox />}
         {adminTab === 'homepage' && (
@@ -580,6 +606,7 @@ export default function App() {
           onOpenBooking={handleOpenBooking}
           onNavigate={handleNavigate}
           dynamicGlobal={globalContent}
+          siteLogo={siteSettings?.logo}
         />
 
         {/* Subpage Routing Views */}

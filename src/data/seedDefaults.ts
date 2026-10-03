@@ -774,6 +774,7 @@ export const DEFAULT_SETTINGS = {
   bookingUrl: 'https://zanzirangihouse.com/#stay',
   logo: '/src/assets/zanzirangi-logo-new.jpeg',
   favicon: '/favicon.svg',
+  adminLogo: '/src/assets/zanzirangi-logo-new.jpeg',
   maintenanceMode: false,
   supportAvatar: '/uploads/avatar-1790937078607_1790937078818_0381644b.jpg',
   supportName: 'Elena',

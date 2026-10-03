@@ -240,6 +240,7 @@ export interface SettingsModel {
   bookingUrl?: string;
   logo?: string;
   favicon?: string;
+  adminLogo?: string;
   maintenanceMode: boolean;
   supportAvatar?: string;
   supportName?: string;
