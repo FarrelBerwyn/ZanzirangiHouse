@@ -634,30 +634,36 @@ export const AdminSettingsManager: React.FC<AdminSettingsManagerProps> = ({ onNa
 
         {/* Database & Infrastructure Health */}
         <div className="bg-adm-panel p-6 rounded-xl border border-adm-line space-y-4">
-          <h3 className="font-serif text-lg text-adm-text">Engine & Storage Architecture</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-serif text-lg text-adm-text">Engine & Storage Architecture</h3>
+            <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-700/60 text-emerald-400 flex items-center space-x-1.5 shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Hostinger Cloud MySQL Live</span>
+            </span>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="p-4 rounded-lg bg-adm-bg border border-adm-line space-y-1">
               <span className="text-[10px] font-mono uppercase tracking-wider text-adm-muted block">
                 Database Store
               </span>
-              <p className="font-mono text-xs text-adm-text">Cloud MySQL Engine</p>
-              <p className="text-[10px] font-mono text-adm-accent">u170555096_Zanzirangi</p>
+              <p className="font-mono text-xs text-adm-text">Hostinger Cloud MySQL</p>
+              <p className="text-[10px] font-mono text-adm-accent">u170555096_Zanzirangi@srv982.hstgr.io</p>
             </div>
 
             <div className="p-4 rounded-lg bg-adm-bg border border-adm-line space-y-1">
               <span className="text-[10px] font-mono uppercase tracking-wider text-adm-muted block">
-                Session Security
+                Data Persistence & Sync
               </span>
-              <p className="font-mono text-xs text-adm-text">JWT 7-Day Secret</p>
-              <p className="text-[10px] font-mono text-emerald-400">bcrypt 10-rounds</p>
+              <p className="font-mono text-xs text-adm-text">Real-Time Cloud Persistence</p>
+              <p className="text-[10px] font-mono text-emerald-400">Zero Data Loss on Redeploy</p>
             </div>
 
             <div className="p-4 rounded-lg bg-adm-bg border border-adm-line space-y-1">
               <span className="text-[10px] font-mono uppercase tracking-wider text-adm-muted block">
                 Cloud Deployment
               </span>
-              <p className="font-mono text-xs text-adm-text">Self-Contained Express</p>
-              <p className="text-[10px] font-mono text-emerald-400">No Git Re-build Needed</p>
+              <p className="font-mono text-xs text-adm-text">Hostinger Production Runtime</p>
+              <p className="text-[10px] font-mono text-emerald-400">Git Main Auto-Sync Active</p>
             </div>
           </div>
         </div>
