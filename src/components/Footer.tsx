@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowUp, Instagram, Facebook, Youtube, Settings, MessageSquare, Calendar } from 'lucide-react';
 import { Language } from '../types';
 import { PROPERTY_CONFIG } from '../data/propertyConfig';
 import { TRANSLATIONS } from '../data/translations';
 import { PAGE_NAMES } from '../data/pageTranslations';
+import { DEFAULT_SETTINGS } from '../data/seedDefaults';
 
 const TikTokIcon: React.FC<{ className?: string }> = ({ className = 'w-3.5 h-3.5' }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -36,7 +37,7 @@ const FOOTER_EXTRA_TRANSLATIONS: Record<
     socialLabel: 'Social Media',
     reservations: 'Reservations:',
     customerSupport: 'Customer Support:',
-    liveSupport: 'Live Support • Juma (Online)',
+    liveSupport: 'Live Support • Elena (Online)',
     email: 'Email:',
     location: 'Location:',
     locationAddress: 'Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania',
@@ -51,7 +52,7 @@ const FOOTER_EXTRA_TRANSLATIONS: Record<
     socialLabel: 'Media Społecznościowe',
     reservations: 'Rezerwacje:',
     customerSupport: 'Wsparcie Klienta:',
-    liveSupport: 'Wsparcie na żywo • Juma (Online)',
+    liveSupport: 'Wsparcie na żywo • Elena (Online)',
     email: 'Email:',
     location: 'Lokalizacja:',
     locationAddress: 'Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania',
@@ -66,7 +67,7 @@ const FOOTER_EXTRA_TRANSLATIONS: Record<
     socialLabel: 'وسائل التواصل',
     reservations: 'الحجوزات:',
     customerSupport: 'خدمة العملاء:',
-    liveSupport: 'دعم مباشر • جمعة (متصل)',
+    liveSupport: 'دعم مباشر • إيلينا (متصل)',
     email: 'البريد الإلكتروني:',
     location: 'الموقع:',
     locationAddress: 'Kwa Lila 31, Bwejuu 72111، زنجبار، تنزانيا',
@@ -81,7 +82,7 @@ const FOOTER_EXTRA_TRANSLATIONS: Record<
     socialLabel: '关注我们',
     reservations: '预订专线:',
     customerSupport: '客户服务:',
-    liveSupport: '在线客服 • Juma（在线）',
+    liveSupport: '在线客服 • Elena（在线）',
     email: '电子邮箱:',
     location: '地理位置:',
     locationAddress: '坦桑尼亚桑给巴尔 Bwejuu 72111, Kwa Lila 31',
@@ -96,7 +97,7 @@ const FOOTER_EXTRA_TRANSLATIONS: Record<
     socialLabel: 'Réseaux Sociaux',
     reservations: 'Réservations :',
     customerSupport: 'Support Client :',
-    liveSupport: 'Support en direct • Juma (En ligne)',
+    liveSupport: 'Support en direct • Elena (En ligne)',
     email: 'Courriel :',
     location: 'Emplacement :',
     locationAddress: 'Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzanie',
@@ -111,7 +112,7 @@ const FOOTER_EXTRA_TRANSLATIONS: Record<
     socialLabel: 'Mitandao ya Kijamii',
     reservations: 'Uhifadhi:',
     customerSupport: 'Huduma kwa Wateja:',
-    liveSupport: 'Msaada wa Moja kwa Moja • Juma (Yuko Mtandaoni)',
+    liveSupport: 'Msaada wa Moja kwa Moja • Elena (Yuko Mtandaoni)',
     email: 'Barua pepe:',
     location: 'Mahali:',
     locationAddress: 'Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania',
@@ -126,7 +127,7 @@ const FOOTER_EXTRA_TRANSLATIONS: Record<
     socialLabel: 'Redes Sociales',
     reservations: 'Reservas:',
     customerSupport: 'Atención al Cliente:',
-    liveSupport: 'Soporte en directo • Juma (En línea)',
+    liveSupport: 'Soporte en directo • Elena (En línea)',
     email: 'Correo:',
     location: 'Ubicación:',
     locationAddress: 'Kwa Lila 31, Bwejuu 72111, Zanzíbar, Tanzania',
@@ -141,7 +142,7 @@ const FOOTER_EXTRA_TRANSLATIONS: Record<
     socialLabel: 'Social Media',
     reservations: 'Prenotazioni:',
     customerSupport: 'Servizio Clienti:',
-    liveSupport: 'Supporto Live • Juma (Online)',
+    liveSupport: 'Supporto Live • Elena (Online)',
     email: 'Email:',
     location: 'Posizione:',
     locationAddress: 'Kwa Lila 31, Bwejuu 72111, Zanzibar, Tanzania',
@@ -200,6 +201,32 @@ export const Footer: React.FC<FooterProps> = ({
 
   const tEn = TRANSLATIONS.en;
   const extraEn = FOOTER_EXTRA_TRANSLATIONS.en;
+
+  const [supportName, setSupportName] = useState<string>(() => {
+    try {
+      const cached = localStorage.getItem('zh_support_profile');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.supportName) return parsed.supportName;
+      }
+    } catch (_) {}
+    return DEFAULT_SETTINGS.supportName || 'Elena';
+  });
+
+  useEffect(() => {
+    const handleProfileUpdate = (e: any) => {
+      if (e.detail?.supportName) setSupportName(e.detail.supportName);
+    };
+    window.addEventListener('zh:support_profile_updated', handleProfileUpdate);
+    return () => window.removeEventListener('zh:support_profile_updated', handleProfileUpdate);
+  }, []);
+
+  const activeSupportName = supportName || DEFAULT_SETTINGS.supportName || 'Elena';
+  const liveSupportText = extra.liveSupport
+    .replace(/\b(Elena|Juma)\b/g, activeSupportName)
+    .replace(/(إيلينا|جمعة)/g, activeSupportName)
+    .replace(/朱马/g, activeSupportName);
+
   const cms = (value: unknown): string | undefined =>
     typeof value === 'string' && value.trim() ? value : undefined;
 
@@ -367,7 +394,7 @@ export const Footer: React.FC<FooterProps> = ({
                   className="hover:text-emerald-300 text-emerald-400 font-semibold flex items-center space-x-1.5 cursor-pointer text-left transition-colors pt-0.5"
                 >
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block" />
-                  <span>{extra.liveSupport}</span>
+                  <span>{liveSupportText}</span>
                 </button>
               </p>
               <p>

@@ -6,6 +6,23 @@ export interface ChatQuickPrompt {
   query: string;
 }
 
+/**
+ * Resolves the localized welcome message formatted with the active concierge/support name.
+ * If no name is provided, falls back to the default configured name ('Elena').
+ */
+export const formatWelcomeMessage = (templateOrLang: string | Language, name?: string): string => {
+  const activeName = (name && name.trim()) || 'Elena';
+  const text =
+    typeof templateOrLang === 'string' && templateOrLang.length > 20
+      ? templateOrLang
+      : (CHAT_TRANSLATIONS[templateOrLang as Language]?.welcomeMessage || CHAT_TRANSLATIONS.en.welcomeMessage);
+
+  return text
+    .replace(/\b(Elena|Juma)\b/g, activeName)
+    .replace(/(إيلينا|جمعة)/g, activeName)
+    .replace(/朱马/g, activeName);
+};
+
 export interface ChatLanguageConfig {
   badgeTitle: string;
   badgeStatus: string;
@@ -44,7 +61,7 @@ export const CHAT_TRANSLATIONS: Record<Language, ChatLanguageConfig> = {
     badgeStatus: 'Active 24/7',
     headerTitle: 'Customer Support',
     headerStatus: 'Active 24/7 • Instant Reply',
-    welcomeMessage: 'Jambo! My name is Juma, your private concierge. How may I assist your stay in Zanzibar today?',
+    welcomeMessage: 'Jambo! My name is Elena, your private concierge. How may I assist your stay in Zanzibar today?',
     inputPlaceholder: 'Ask about check-in, transfers, dining, safari, spa...',
     justNow: 'Just now',
     bookAction: 'Book a Villa Now',
@@ -91,7 +108,7 @@ export const CHAT_TRANSLATIONS: Record<Language, ChatLanguageConfig> = {
     badgeStatus: 'Actif 24/7',
     headerTitle: 'Service Client',
     headerStatus: 'Actif 24/7 • Réponse Instantanée',
-    welcomeMessage: "Jambo ! Je m'appelle Juma, votre concierge privé. Comment puis-je vous aider pour votre séjour à Zanzibar aujourd'hui ?",
+    welcomeMessage: "Jambo ! Je m'appelle Elena, votre concierge privé. Comment puis-je vous aider pour votre séjour à Zanzibar aujourd'hui ?",
     inputPlaceholder: 'Posez une question sur les arrivées, transferts, repas, spa, safaris...',
     justNow: "À l'instant",
     bookAction: 'Réserver une villa',
@@ -138,7 +155,7 @@ export const CHAT_TRANSLATIONS: Record<Language, ChatLanguageConfig> = {
     badgeStatus: 'Wazi 24/7',
     headerTitle: 'Huduma kwa Wateja',
     headerStatus: 'Wazi 24/7 • Majibu Papo Hapo',
-    welcomeMessage: 'Jambo! Naitwa Juma, mhudumu wako binafsi. Nawezaje kukusaidia kuhusu makazi yako Zanzibar leo?',
+    welcomeMessage: 'Jambo! Naitwa Elena, mhudumu wako binafsi. Nawezaje kukusaidia kuhusu makazi yako Zanzibar leo?',
     inputPlaceholder: 'Uliza kuhusu muda wa kuingia, usafiri, safari, spa, vyakula...',
     justNow: 'Sasa hivi',
     bookAction: 'Weka Villa Sasa',
@@ -185,7 +202,7 @@ export const CHAT_TRANSLATIONS: Record<Language, ChatLanguageConfig> = {
     badgeStatus: 'Activo 24/7',
     headerTitle: 'Atención al Cliente',
     headerStatus: 'Activo 24/7 • Respuesta Inmediata',
-    welcomeMessage: '¡Jambo! Mi nombre es Juma, su conserje privado. ¿Cómo puedo asistirle hoy con su estadía en Zanzíbar?',
+    welcomeMessage: '¡Jambo! Mi nombre es Elena, su conserje privado. ¿Cómo puedo asistirle hoy con su estadía en Zanzíbar?',
     inputPlaceholder: 'Consulte sobre check-in, traslados, gastronomía, safaris, spa...',
     justNow: 'Ahora mismo',
     bookAction: 'Reservar Villa Ahora',
@@ -232,7 +249,7 @@ export const CHAT_TRANSLATIONS: Record<Language, ChatLanguageConfig> = {
     badgeStatus: 'Attivo 24/7',
     headerTitle: 'Assistenza Clienti',
     headerStatus: 'Attivo 24/7 • Risposta Istantanea',
-    welcomeMessage: 'Jambo! Mi chiamo Juma, il tuo concierge privato. Come posso assisterti oggi per il tuo soggiorno a Zanzibar?',
+    welcomeMessage: 'Jambo! Mi chiamo Elena, il tuo concierge privato. Come posso assisterti oggi per il tuo soggiorno a Zanzibar?',
     inputPlaceholder: 'Chiedi informazioni su check-in, transfer, ristorazione, spa, safari...',
     justNow: 'Proprio ora',
     bookAction: 'Prenota una Villa',
@@ -279,7 +296,7 @@ export const CHAT_TRANSLATIONS: Record<Language, ChatLanguageConfig> = {
     badgeStatus: 'نشط 24/7',
     headerTitle: 'خدمة العملاء',
     headerStatus: 'نشط 24/7 • رد فوري',
-    welcomeMessage: 'جامبو! مرحباً بك، أنا جمعة، كونسيرجك الخاص. كيف يمكنني مساعدتك في التخطيط لإقامتك في زنجبار اليوم؟',
+    welcomeMessage: 'جامبو! مرحباً بك، أنا إيلينا، كونسيرجك الخاص. كيف يمكنني مساعدتك في التخطيط لإقامتك في زنجبار اليوم؟',
     inputPlaceholder: 'استفسر عن مواعيد الوصول، التوصيل، الإفطار، السبا، السفاري...',
     justNow: 'الآن',
     bookAction: 'احجز فيلا الآن',
@@ -326,7 +343,7 @@ export const CHAT_TRANSLATIONS: Record<Language, ChatLanguageConfig> = {
     badgeStatus: '24/7 在线',
     headerTitle: '客户支持',
     headerStatus: '24/7 在线 • 即时回复',
-    welcomeMessage: 'Jambo！您好，我是 Juma，您的专属私人管家。请问今天能为您的桑给巴尔假期提供什么协助？',
+    welcomeMessage: 'Jambo！您好，我是 Elena，您的专属私人管家。请问今天能为您的桑给巴尔假期提供什么协助？',
     inputPlaceholder: '咨询入住时间、接送机、餐饮美食、水疗、游猎...',
     justNow: '刚刚',
     bookAction: '立即预订别墅',
@@ -373,7 +390,7 @@ export const CHAT_TRANSLATIONS: Record<Language, ChatLanguageConfig> = {
     badgeStatus: 'Aktywny 24/7',
     headerTitle: 'Wsparcie Klienta',
     headerStatus: 'Aktywny 24/7 • Błyskawiczna Odpowiedź',
-    welcomeMessage: 'Jambo! Nazywam się Juma, Twój prywatny konsjerż. W czym mogę Ci pomóc podczas planowania Twojego pobytu na Zanzibarze?',
+    welcomeMessage: 'Jambo! Nazywam się Elena, Twój prywatny konsjerż. W czym mogę Ci pomóc podczas planowania Twojego pobytu na Zanzibarze?',
     inputPlaceholder: 'Zapytaj o godziny zameldowania, transfer, safari, spa, restaurację...',
     justNow: 'Przed chwilą',
     bookAction: 'Zarezerwuj Willę',

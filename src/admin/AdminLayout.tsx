@@ -30,6 +30,7 @@ import {
   Sun,
   Moon,
   Languages,
+  Bell,
 } from 'lucide-react';
 import { AdminUser } from '../services/authApi';
 import { useAdminTheme } from './useAdminTheme';
@@ -332,7 +333,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   // Floating Account & System Settings Menu at the bottom of Sidebar
   const renderAccountMenu = () => {
-    const isSystemActive = currentTab === 'admin-access' || currentTab === 'settings';
+    const isSystemActive =
+      currentTab === 'admin-access' || currentTab === 'settings' || currentTab === 'notifications';
 
     return (
       <div ref={accountMenuRef} className="relative">
@@ -357,6 +359,22 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
             {/* System & Security Dropdown Actions */}
             <div className="space-y-1">
+              <button
+                type="button"
+                onClick={() => {
+                  handleNavClick('notifications');
+                  setAccountMenuOpen(false);
+                }}
+                className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-mono tracking-wide transition-all text-left cursor-pointer ${
+                  currentTab === 'notifications'
+                    ? 'bg-adm-accent-fill text-adm-on-accent font-bold shadow-sm'
+                    : 'text-adm-text-2 hover:text-adm-text hover:bg-adm-raised'
+                }`}
+              >
+                <Bell className="w-3.5 h-3.5 text-adm-accent" />
+                <span>Account & Notifications</span>
+              </button>
+
               {hasAccess({ superadminOnly: true }) && (
                 <button
                   type="button"

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Send, Sparkles, UserCheck } from 'lucide-react';
 import { Language } from '../types';
-import { CHAT_TRANSLATIONS, ChatQuickPrompt } from '../data/chatTranslations';
+import { CHAT_TRANSLATIONS, ChatQuickPrompt, formatWelcomeMessage } from '../data/chatTranslations';
 import { ScrollFadeContainer } from './ScrollFadeContainer';
 import { supportApi } from '../services/supportApi';
 import { contentApi } from '../services/contentApi';
@@ -84,7 +84,7 @@ const CHAT_LOCAL_I18N: Record<Language, ChatLocalCopy> = {
       planStay: 'Plan Your Stay',
     },
     conciergeStaff: 'Concierge Staff',
-    avatarAlt: 'Juma - Zanzirangi House Customer Support',
+    avatarAlt: 'Elena - Zanzirangi House Customer Support',
   },
   pl: {
     replies: {
@@ -121,7 +121,7 @@ const CHAT_LOCAL_I18N: Record<Language, ChatLocalCopy> = {
       planStay: 'Zaplanuj pobyt',
     },
     conciergeStaff: 'Zespół konsjerżów',
-    avatarAlt: 'Juma – obsługa klienta Zanzirangi House',
+    avatarAlt: 'Elena – obsługa klienta Zanzirangi House',
   },
   ar: {
     replies: {
@@ -232,7 +232,7 @@ const CHAT_LOCAL_I18N: Record<Language, ChatLocalCopy> = {
       planStay: 'Planifier votre séjour',
     },
     conciergeStaff: 'Équipe de conciergerie',
-    avatarAlt: 'Juma - Service client Zanzirangi House',
+    avatarAlt: 'Elena - Service client Zanzirangi House',
   },
   sw: {
     replies: {
@@ -269,7 +269,7 @@ const CHAT_LOCAL_I18N: Record<Language, ChatLocalCopy> = {
       planStay: 'Panga Ukaaji Wako',
     },
     conciergeStaff: 'Wahudumu wa Hoteli',
-    avatarAlt: 'Juma - Huduma kwa Wateja Zanzirangi House',
+    avatarAlt: 'Elena - Huduma kwa Wateja Zanzirangi House',
   },
   es: {
     replies: {
@@ -306,7 +306,7 @@ const CHAT_LOCAL_I18N: Record<Language, ChatLocalCopy> = {
       planStay: 'Planificar su estancia',
     },
     conciergeStaff: 'Equipo de conserjería',
-    avatarAlt: 'Juma - Atención al cliente de Zanzirangi House',
+    avatarAlt: 'Elena - Atención al cliente de Zanzirangi House',
   },
   it: {
     replies: {
@@ -343,7 +343,7 @@ const CHAT_LOCAL_I18N: Record<Language, ChatLocalCopy> = {
       planStay: 'Pianifica il soggiorno',
     },
     conciergeStaff: 'Staff concierge',
-    avatarAlt: 'Juma - Assistenza clienti Zanzirangi House',
+    avatarAlt: 'Elena - Assistenza clienti Zanzirangi House',
   },
 };
 
@@ -536,7 +536,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
     {
       id: 'welcome',
       sender: 'bot',
-      text: t.welcomeMessage,
+      text: formatWelcomeMessage(t.welcomeMessage, supportName),
       timestamp: t.justNow,
     },
   ]);
@@ -544,6 +544,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const triggerBtnRef = useRef<HTMLDivElement>(null);
+  const prevLangRef = useRef<Language>(currentLang);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -573,28 +574,42 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
   }, [isOpen]);
 
   useEffect(() => {
+    const isLangChange = prevLangRef.current !== currentLang;
+    prevLangRef.current = currentLang;
+
     setMessages((prev) => {
       if (prev.length === 1 && prev[0].id === 'welcome') {
         return [
           {
             id: 'welcome',
             sender: 'bot',
-            text: t.welcomeMessage,
+            text: formatWelcomeMessage(t.welcomeMessage, supportName),
             timestamp: t.justNow,
           },
         ];
       }
-      return [
-        ...prev,
-        {
-          id: `lang-switch-${Date.now()}`,
-          sender: 'bot',
-          text: t.welcomeMessage,
-          timestamp: t.justNow,
-        },
-      ];
+      if (isLangChange) {
+        return [
+          ...prev,
+          {
+            id: `lang-switch-${Date.now()}`,
+            sender: 'bot',
+            text: formatWelcomeMessage(t.welcomeMessage, supportName),
+            timestamp: t.justNow,
+          },
+        ];
+      }
+      return prev.map((m) => {
+        if (m.id === 'welcome' || m.id.startsWith('lang-switch-')) {
+          return {
+            ...m,
+            text: formatWelcomeMessage(t.welcomeMessage, supportName),
+          };
+        }
+        return m;
+      });
     });
-  }, [currentLang]);
+  }, [supportName, currentLang, t.welcomeMessage, t.justNow]);
 
   useEffect(() => {
     if (isOpen) {
@@ -1030,6 +1045,20 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
       };
     }
 
+    if (q.includes('siapa kamu') || q.includes('kamu siapa') || q.includes('who are you') || q.includes('siapa ini') || q.includes('bot atau')) {
+      return {
+        text: currentLang === 'sw'
+          ? `Naitwa ${supportName}, mhudumu wako binafsi katika Zanzirangi House. Niko hapa kukusaidia kwa maelezo yoyote unayohitaji.`
+          : currentLang === 'fr'
+          ? `Je m'appelle ${supportName}, votre concierge personnel à Zanzirangi House. Comment puis-je vous aider aujourd'hui ?`
+          : `I am ${supportName}, your personal Customer Support & Concierge at Zanzirangi House. How may I assist your stay in Zanzibar today?`,
+        action: {
+          label: currentUi.checkRooms,
+          onClick: () => scrollToSection('stay'),
+        },
+      };
+    }
+
     return {
       text: t.replies.fallback || 'I am happy to assist with all your questions regarding your stay, dining, island adventures, and Tanzania safaris.',
       action: {
@@ -1309,6 +1338,10 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
   };
 
   const currentUi = actionLabels[currentLang] || actionLabels.en;
+  const activeConciergeRole = (currentUi.conciergeRole || `${supportName} • Private Concierge`)
+    .replace(/\b(Elena|Juma)\b/g, supportName)
+    .replace(/(إيليna|جمعة|إيلينا)/g, supportName)
+    .replace(/朱马/g, supportName);
 
   return (
     <>
@@ -1421,7 +1454,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
                 </div>
                 <span className="text-[11px] text-emerald-400 font-mono tracking-wider flex items-center space-x-1 rtl:space-x-reverse mt-0.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
-                  <span>{supportStatus || currentUi.conciergeRole}</span>
+                  <span>{supportStatus || activeConciergeRole}</span>
                 </span>
               </div>
             </div>

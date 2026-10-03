@@ -11,6 +11,8 @@ import {
   Users,
   Camera,
   Upload,
+  Bell,
+  ArrowRight,
 } from 'lucide-react';
 import { contentApi, SettingsModel } from '../../services/contentApi';
 import { DEFAULT_SETTINGS } from '../../data/seedDefaults';
@@ -125,6 +127,31 @@ export const AdminSettingsManager: React.FC<AdminSettingsManagerProps> = ({ onNa
       </div>
 
       <div className="space-y-6">
+        {/* Support Notifications & Staff Duty Link */}
+        <div className="bg-adm-surface border border-adm-line rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2.5 rounded-lg bg-adm-accent/20 text-adm-accent shrink-0">
+              <Bell className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-xs font-semibold text-adm-text">Staff Notifications & Duty Status</h3>
+              <p className="text-[11px] text-adm-muted mt-0.5">
+                Configure 4-tier notification escalation, mobile push alerts, and On-Duty staff availability.
+              </p>
+            </div>
+          </div>
+          {onNavigateToTab && (
+            <button
+              type="button"
+              onClick={() => onNavigateToTab('notifications')}
+              className="px-4 py-2 rounded-lg bg-adm-raised hover:bg-adm-card border border-adm-line text-xs font-mono text-adm-text flex items-center space-x-2 transition-all cursor-pointer shrink-0"
+            >
+              <span>Manage Notifications</span>
+              <ArrowRight className="w-3.5 h-3.5 text-adm-accent" />
+            </button>
+          )}
+        </div>
+
         {/* Sanctuary Branding */}
         <div className="bg-adm-panel p-6 rounded-xl border border-adm-line space-y-4">
           <h3 className="font-serif text-lg text-adm-text">Sanctuary Identity & Localization</h3>

@@ -61,6 +61,7 @@ import { AdminSeoManager } from './admin/pages/AdminSeoManager';
 import { AdminMediaLibrary } from './admin/pages/AdminMediaLibrary';
 import { AdminSettingsManager } from './admin/pages/AdminSettingsManager';
 import { AdminSupportInbox } from './admin/pages/AdminSupportInbox';
+import { AdminNotificationSettings } from './admin/pages/AdminNotificationSettings';
 import { AdminAccessManager } from './admin/pages/AdminAccessManager';
 import { AdminTransfersManager } from './admin/pages/AdminTransfersManager';
 import { AdminWhyStayManager } from './admin/pages/AdminWhyStayManager';
@@ -545,6 +546,7 @@ export default function App() {
         {adminTab === 'contact' && <AdminContactManager />}
         {adminTab === 'seo' && <AdminSeoManager />}
         {adminTab === 'media' && <AdminMediaLibrary />}
+        {adminTab === 'notifications' && <AdminNotificationSettings />}
         {adminTab === 'settings' && (
           <AdminSettingsManager
             onNavigateToTab={(tab) => {

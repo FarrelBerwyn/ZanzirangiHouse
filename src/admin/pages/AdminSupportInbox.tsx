@@ -27,9 +27,6 @@ import {
   VolumeX,
   Camera,
   Image as ImageIcon,
-  Smartphone,
-  ShieldAlert,
-  Radio,
 } from 'lucide-react';
 import { supportApi } from '../../services/supportApi';
 import { contentApi } from '../../services/contentApi';
@@ -43,17 +40,6 @@ import {
   SupportAnalyticsSummary,
   SupportConversationStatus,
 } from '../../../server/database/supportTypes';
-
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
 
 export const AdminSupportInbox: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<'inbox' | 'knowledge' | 'analytics' | 'profile'>('inbox');
@@ -127,16 +113,6 @@ export const AdminSupportInbox: React.FC = () => {
   const [hasNotificationPermission, setHasNotificationPermission] = useState<boolean>(
     typeof Notification !== 'undefined' && Notification.permission === 'granted'
   );
-
-  // -------------------------------------------------------------
-  // STAFF ON-DUTY & MOBILE PUSH STATE
-  // -------------------------------------------------------------
-  const [isOnDuty, setIsOnDuty] = useState<boolean>(true);
-  const [staffDutyList, setStaffDutyList] = useState<any[]>([]);
-  const [hasAgentOnline, setHasAgentOnline] = useState<boolean>(true);
-  const [isPushSubscribed, setIsPushSubscribed] = useState<boolean>(false);
-  const [isPushLoading, setIsPushLoading] = useState<boolean>(false);
-  const [pushStatusMessage, setPushStatusMessage] = useState<string | null>(null);
 
   // -------------------------------------------------------------
   // SUPPORT AVATAR & PROFILE STATE
@@ -307,102 +283,6 @@ export const AdminSupportInbox: React.FC = () => {
   };
 
   // -------------------------------------------------------------
-  // Staff On-Duty & Mobile Web Push Handlers
-  // -------------------------------------------------------------
-  const loadDutyStatus = async () => {
-    try {
-      const res = await supportApi.getDutyStatus();
-      setIsOnDuty(res.isOnDuty);
-      setStaffDutyList(res.staff || []);
-      setHasAgentOnline(res.hasAgentOnline);
-    } catch (e) {
-      console.warn('Duty status error:', e);
-    }
-  };
-
-  const handleToggleDuty = async () => {
-    try {
-      const next = !isOnDuty;
-      const res = await supportApi.toggleDutyStatus(next);
-      setIsOnDuty(res.duty.is_on_duty);
-      setStaffDutyList(res.staff || []);
-      setHasAgentOnline(res.hasAgentOnline);
-    } catch (err: any) {
-      alert('Gagal mengubah status tugas: ' + err.message);
-    }
-  };
-
-  const checkExistingPushSubscription = async () => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-      return;
-    }
-    try {
-      const reg = await navigator.serviceWorker.getRegistration();
-      if (reg) {
-        const sub = await reg.pushManager.getSubscription();
-        setIsPushSubscribed(Boolean(sub));
-      }
-    } catch (e) {}
-  };
-
-  const enableMobileWebPush = async () => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-      alert('Browser atau perangkat HP ini belum mendukung Web Push Notifications.');
-      return;
-    }
-
-    setIsPushLoading(true);
-    setPushStatusMessage(null);
-
-    try {
-      const perm = await Notification.requestPermission();
-      if (perm !== 'granted') {
-        alert('Izin notifikasi ditolak. Mohon izinkan notifikasi pada pengaturan browser/HP Anda.');
-        setIsPushLoading(false);
-        return;
-      }
-      setHasNotificationPermission(true);
-
-      const reg = await navigator.serviceWorker.register('/sw.js');
-      await navigator.serviceWorker.ready;
-
-      const vapidKey = await supportApi.getVapidPublicKey();
-      const convertedKey = urlBase64ToUint8Array(vapidKey);
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: convertedKey,
-      });
-
-      const success = await supportApi.subscribePush(sub.toJSON());
-      if (success) {
-        setIsPushSubscribed(true);
-        setPushStatusMessage('HP Staff Berhasil Terhubung! Notifikasi akan langsung masuk ke HP saat ada pesan.');
-        setTimeout(() => setPushStatusMessage(null), 6000);
-      }
-    } catch (err: any) {
-      console.error('Push setup failed:', err);
-      alert('Gagal mengaktifkan push HP: ' + err.message);
-    } finally {
-      setIsPushLoading(false);
-    }
-  };
-
-  const handleTestPush = async () => {
-    try {
-      setPushStatusMessage('Mengirim notifikasi alert ke HP...');
-      const res = await supportApi.testPushNotification();
-      if (res.sent > 0) {
-        setPushStatusMessage(`Notifikasi terkirim ke ${res.sent} HP/perangkat! Periksa layar HP Anda.`);
-      } else {
-        setPushStatusMessage('Belum ada HP yang terhubung. Klik "Hubungkan HP" terlebih dahulu.');
-      }
-      setTimeout(() => setPushStatusMessage(null), 6000);
-    } catch (err: any) {
-      alert('Gagal mengirim test push: ' + err.message);
-    }
-  };
-
-  // -------------------------------------------------------------
   // Data Loaders
   // -------------------------------------------------------------
   const loadConversations = async (autoSelect = false) => {
@@ -491,11 +371,6 @@ export const AdminSupportInbox: React.FC = () => {
   };
 
   useEffect(() => {
-    loadDutyStatus();
-    checkExistingPushSubscription();
-  }, []);
-
-  useEffect(() => {
     loadConversations(true);
   }, [filterStatus]);
 
@@ -519,7 +394,6 @@ export const AdminSupportInbox: React.FC = () => {
 
     const interval = setInterval(() => {
       loadConversations(false);
-      loadDutyStatus();
       if (selectedConvId) {
         supportApi.adminGetConversation(selectedConvId).then((res) => {
           setSelectedConv(res.conversation);
@@ -785,101 +659,6 @@ export const AdminSupportInbox: React.FC = () => {
             <Camera className="w-3.5 h-3.5" />
             <span>Avatar & Profile</span>
           </button>
-        </div>
-      </div>
-
-      {/* ---------------- MULTI-TIER NOTIFICATION & ON-DUTY COMMAND BAR ---------------- */}
-      <div className="bg-adm-surface border border-adm-line rounded-2xl p-4 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          {/* Left: On Duty Status & Staff List */}
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={handleToggleDuty}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer shadow-sm ${
-                isOnDuty
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                  : 'bg-adm-card hover:bg-adm-card-hover text-adm-muted border border-adm-line'
-              }`}
-              title="Klik untuk mengubah status tugas Anda"
-            >
-              <span className={`w-2 h-2 rounded-full ${isOnDuty ? 'bg-white animate-pulse' : 'bg-zinc-500'}`} />
-              <span>{isOnDuty ? '🟢 Saya ON DUTY' : '⚪ Saya OFF DUTY'}</span>
-            </button>
-
-            <div className="flex items-center space-x-2 text-xs">
-              <span className="text-adm-muted">Status Tim:</span>
-              {hasAgentOnline ? (
-                <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/40 border border-emerald-800/40 text-emerald-300 font-medium text-[11px]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                  <span>
-                    Staff Siaga:{' '}
-                    {staffDutyList
-                      .filter((s) => s.is_on_duty)
-                      .map((s) => s.name)
-                      .join(', ') || '1 Agent'}
-                  </span>
-                </div>
-              ) : (
-                <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-rose-950/50 border border-rose-800/40 text-rose-300 font-medium text-[11px]">
-                  <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
-                  <span>Tidak ada staff online • Auto-Escalation & Push HP Aktif</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Right: HP Push Notification & Test Button */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={enableMobileWebPush}
-              disabled={isPushLoading}
-              className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer ${
-                isPushSubscribed
-                  ? 'bg-sky-950/50 text-sky-300 border border-sky-800/50'
-                  : 'bg-amber-600 hover:bg-amber-500 text-white shadow-sm'
-              }`}
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>{isPushSubscribed ? '📱 HP Push Terhubung' : '📱 Hubungkan Notifikasi HP'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleTestPush}
-              className="px-3 py-2 rounded-xl text-xs font-medium text-adm-text-2 bg-adm-card hover:bg-adm-card-hover border border-adm-line flex items-center space-x-1.5 transition-all cursor-pointer"
-              title="Kirim notifikasi uji coba ke HP yang terdaftar"
-            >
-              <Radio className="w-3.5 h-3.5 text-adm-accent" />
-              <span>Tes Push HP</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Live Notification Feedback Toast */}
-        {pushStatusMessage && (
-          <div className="mt-3 p-2.5 bg-adm-card border border-adm-accent/40 rounded-xl text-xs text-adm-accent flex items-center justify-between animate-fadeIn">
-            <span>{pushStatusMessage}</span>
-            <button
-              type="button"
-              onClick={() => setPushStatusMessage(null)}
-              className="text-xs text-adm-muted hover:text-adm-text ml-3 cursor-pointer"
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
-        {/* Multi-Tier Notification Architecture Bar */}
-        <div className="mt-3 pt-3 border-t border-adm-line/60 flex flex-wrap items-center justify-between text-[11px] text-adm-muted gap-2">
-          <div className="flex items-center space-x-1.5">
-            <span className="font-semibold text-adm-text">4 Lapisan Notifikasi:</span>
-            <span>🔔 Web Chime • 📱 Web Push HP • 📧 Email info@zanzirangihouse.com • ⏱️ Escalation 2m/5m/10m</span>
-          </div>
-          <div className="text-[10px] font-mono text-adm-muted">
-            Pertanyaan simpel dijawab AI • Pertanyaan detail langsung ke HP Staff
-          </div>
         </div>
       </div>
     </div>
@@ -1437,6 +1216,8 @@ export const AdminSupportInbox: React.FC = () => {
                 className="bg-adm-surface border border-adm-line rounded-xl px-3 py-2 text-xs text-adm-text focus:outline-none focus:border-adm-accent"
               >
                 <option value="ALL">All Categories</option>
+                <option value="General">General</option>
+                <option value="Greetings">Greetings</option>
                 <option value="Check-in">Check-in</option>
                 <option value="Pricing">Pricing</option>
                 <option value="Villa">Villa</option>
@@ -1542,23 +1323,75 @@ export const AdminSupportInbox: React.FC = () => {
                       required
                       value={editingKbItem.question || ''}
                       onChange={(e) => setEditingKbItem({ ...editingKbItem, question: e.target.value })}
-                      placeholder="e.g. Can we arrange airport pickup at 11 PM?"
+                      placeholder="e.g. Hello / Hi / Greetings"
                       className="w-full bg-adm-bg border border-adm-line rounded-xl px-3 py-2 text-xs text-adm-text focus:outline-none focus:border-adm-accent"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-mono uppercase text-adm-muted block mb-1">
-                      Authoritative Answer
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-mono uppercase text-adm-muted">
+                        Authoritative Answer
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const current = editingKbItem.answer || '';
+                          setEditingKbItem({
+                            ...editingKbItem,
+                            answer: current + (current ? ' ' : '') + '{name}',
+                          });
+                        }}
+                        className="text-[10px] font-mono text-adm-accent hover:underline flex items-center gap-1 cursor-pointer"
+                        title="Click to insert dynamic recent concierge name placeholder"
+                      >
+                        + Insert <span className="font-bold">{'{name}'}</span>
+                      </button>
+                    </div>
                     <textarea
                       required
                       rows={4}
                       value={editingKbItem.answer || ''}
                       onChange={(e) => setEditingKbItem({ ...editingKbItem, answer: e.target.value })}
-                      placeholder="Provide precise, authoritative answer for Juma AI to utilize..."
+                      placeholder="Provide precise answer. Use {name} to dynamically insert the recent active concierge name..."
                       className="w-full bg-adm-bg border border-adm-line rounded-xl px-3 py-2 text-xs text-adm-text focus:outline-none focus:border-adm-accent"
                     />
+                    <div className="mt-1 flex flex-col sm:flex-row sm:items-center sm:justify-between text-[10px] text-adm-muted gap-1">
+                      <span>💡 <strong>{'{name}'}</strong> automatically resolves to active concierge name.</span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingKbItem({
+                              ...editingKbItem,
+                              question: 'Hello / Hi / Greetings',
+                              answer: 'Hello and welcome to Zanzirangi House! My name is {name}, your private concierge. How may I assist your stay in Zanzibar today?',
+                              category: 'Greetings',
+                              language: 'en',
+                            });
+                          }}
+                          className="hover:text-adm-accent transition-colors underline cursor-pointer"
+                        >
+                          Preset 1: Hello
+                        </button>
+                        <span>•</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingKbItem({
+                              ...editingKbItem,
+                              question: 'Good morning / Good afternoon / Good evening',
+                              answer: 'Jambo and warmest greetings! I am {name}, your personal concierge at Zanzirangi House. How may I be of service to you today?',
+                              category: 'Greetings',
+                              language: 'en',
+                            });
+                          }}
+                          className="hover:text-adm-accent transition-colors underline cursor-pointer"
+                        >
+                          Preset 2: Jambo
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -1571,6 +1404,8 @@ export const AdminSupportInbox: React.FC = () => {
                         onChange={(e) => setEditingKbItem({ ...editingKbItem, category: e.target.value })}
                         className="w-full bg-adm-bg border border-adm-line rounded-xl px-3 py-2 text-xs text-adm-text focus:outline-none focus:border-adm-accent"
                       >
+                        <option value="General">General</option>
+                        <option value="Greetings">Greetings</option>
                         <option value="Check-in">Check-in</option>
                         <option value="Pricing">Pricing</option>
                         <option value="Villa">Villa</option>

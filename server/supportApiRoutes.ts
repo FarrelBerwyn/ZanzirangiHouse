@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { supportRepository } from './database/repositories/supportRepository.ts';
+import { settingsRepository } from './database/repositories/settingsRepository.ts';
 import { supportAiEngine } from './services/supportAiEngine.ts';
 import { authenticateAdmin, AuthenticatedRequest, requirePermission } from './auth.ts';
 import { auditRepository } from './database/repositories/auditRepository.ts';
@@ -143,11 +144,20 @@ supportRouter.post('/conversation/:id/messages', async (req: Request, res: Respo
       metadata,
     });
 
-    // 2. Evaluate query with AI Decision Layer
+    // 2. Evaluate query with AI Decision Layer using recent concierge name from settings
+    let conciergeName = 'Elena';
+    try {
+      const settings = await settingsRepository.getSettings();
+      if (settings?.supportName && settings.supportName.trim()) {
+        conciergeName = settings.supportName.trim();
+      }
+    } catch (_) {}
+
     const evaluation = await supportAiEngine.evaluateQuery(
       msgText,
       conv.language,
-      conv.current_page
+      conv.current_page,
+      conciergeName
     );
 
     // 3. Save AI event audit log

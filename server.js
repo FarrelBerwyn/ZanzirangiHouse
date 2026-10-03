@@ -5381,12 +5381,14 @@ var SupportAiEngine = class {
    * 2. Detailed questions, custom quotes, discounts, or explicit human requests -> HANDOFF_TO_HUMAN (routed to Admin with email alert)
    * 3. Seamless Indonesian and multi-language comprehension
    */
-  async evaluateQuery(query, lang = "en", _currentPage = "/") {
+  async evaluateQuery(query, lang = "en", _currentPage = "/", conciergeName = "Elena") {
     const q = query.trim().toLowerCase();
     const isIndonesian = lang === "id" || /\b(malam|pagi|siang|sore|halo|hai|bisa|berapa|kamar|kolam|sarapan|makan|pantai|tolong|terima kasih|makasih|siapa|admin|staf|dimana|apakah|tanya|pesan|sewa|harga|villa|jemput|bandara|diskon|promo|rombongan|orang|ada|nginap|menginap)\b/i.test(
       q
     );
     const fallbackHandoff = isIndonesian ? HANDOFF_MESSAGES.id : HANDOFF_MESSAGES[lang] || HANDOFF_MESSAGES.en;
+    const name = conciergeName && conciergeName.trim() || "Elena";
+    const nameEscaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const asksForHuman = /\b(admin|staf|staff|human|manusia|orang|manager|manajer|owner|pemilik|hubungi|bicara|talk to|speak to|contact|bantuan langsung|operator|customer care)\b/i.test(
       q
     );
@@ -5414,9 +5416,41 @@ var SupportAiEngine = class {
         handoffReason: "Visitor inquired about discounts, events, or specific high-constraint bookings requiring human management approval."
       };
     }
+    try {
+      const kbItems = await supportRepository.getKnowledgeBase({
+        status: "PUBLISHED"
+      });
+      for (const item of kbItems) {
+        const itemQ = (item.question || "").toLowerCase().trim();
+        if (!itemQ) continue;
+        const phrases = itemQ.split(/[/,|;]/).map((p) => p.trim()).filter((p) => p.length > 0);
+        const isMatch = q === itemQ || q.length > 15 && itemQ.includes(q) || itemQ.length > 15 && q.includes(itemQ) || phrases.some((phrase) => {
+          if (q === phrase) return true;
+          if (phrase.length >= 3) {
+            const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            return new RegExp(`(^|\\s)${escaped}(\\s|$|\\?|!|\\.)`, "i").test(q);
+          }
+          return false;
+        });
+        if (isMatch) {
+          let resolvedAnswer = item.answer.replace(/\{(?:name|concierge_name|support_name|concierge)\}/gi, name);
+          if (name !== "Elena" && name !== "Juma") {
+            resolvedAnswer = resolvedAnswer.replace(/\b(Elena|Juma)\b/g, name);
+          }
+          return {
+            replyText: resolvedAnswer,
+            intent: `kb_${item.category.toLowerCase().replace(/\s+/g, "_")}`,
+            confidence: 0.96,
+            knowledge_source: `KNOWLEDGE_BASE_${item.id}`,
+            decision: "AUTO_ANSWER"
+          };
+        }
+      }
+    } catch {
+    }
     if (/\b(malam|selamat malam|good evening|soir|bonsoir|buonasera|buenas noches|dobry wieczór|مساء الخير|晚上好)\b/i.test(q)) {
       return {
-        replyText: isIndonesian ? "Jambo & selamat malam! Senang bisa menyapa Anda di Zanzirangi House. Saya Elena, concierge Anda. Ada yang bisa kami bantu seputar reservasi villa, fasilitas, atau pengalaman safari & wisata di Zanzibar?" : "Jambo and good evening! Welcome to Zanzirangi House. My name is Elena, your private concierge. How may I assist your stay or inquiries in Zanzibar tonight?",
+        replyText: isIndonesian ? `Jambo & selamat malam! Senang bisa menyapa Anda di Zanzirangi House. Saya ${name}, concierge Anda. Ada yang bisa kami bantu seputar reservasi villa, fasilitas, atau pengalaman safari & wisata di Zanzibar?` : `Jambo and good evening! Welcome to Zanzirangi House. My name is ${name}, your private concierge. How may I assist your stay or inquiries in Zanzibar tonight?`,
         action: { label: isIndonesian ? "Lihat Pilihan Villa" : "View Villas", actionType: "SCROLL", target: "stay" },
         intent: "greeting_evening",
         confidence: 0.98,
@@ -5426,7 +5460,7 @@ var SupportAiEngine = class {
     }
     if (/\b(pagi|selamat pagi|siang|selamat siang|sore|selamat sore|good morning|good afternoon|bonjour|buongiorno|buenos días|dzień dobry|صباح الخير|早上好|下午好)\b/i.test(q)) {
       return {
-        replyText: isIndonesian ? "Jambo & selamat datang! Saya Elena, concierge pribadi Anda di Zanzirangi House. Ada yang bisa kami bantu hari ini seputar pilihan villa, dining, atau safari di Zanzibar?" : "Jambo and welcome! My name is Elena, your personal concierge at Zanzirangi House. How may I assist you today regarding our luxury villas, dining, or safari experiences?",
+        replyText: isIndonesian ? `Jambo & selamat datang! Saya ${name}, concierge pribadi Anda di Zanzirangi House. Ada yang bisa kami bantu hari ini seputar pilihan villa, dining, atau safari di Zanzibar?` : `Jambo and welcome! My name is ${name}, your personal concierge at Zanzirangi House. How may I assist you today regarding our luxury villas, dining, or safari experiences?`,
         action: { label: isIndonesian ? "Lihat Pilihan Villa" : "View Villas", actionType: "SCROLL", target: "stay" },
         intent: "greeting_daytime",
         confidence: 0.98,
@@ -5434,9 +5468,10 @@ var SupportAiEngine = class {
         decision: "AUTO_ANSWER"
       };
     }
-    if (/^(halo|hai|hi|hello|hey|jambo|habari|hola|ciao|salut|cześć|مرحبا|你好)[\s!.?]*$/i.test(q) || /\b(halo elena|hi elena|hello elena|selamat datang)\b/i.test(q)) {
+    const nameGreetingRegex = new RegExp(`\\b(halo|hi|hello|hey)\\s+(${nameEscaped}|elena|juma)\\b`, "i");
+    if (/^(halo|hai|hi|hello|hey|jambo|habari|hola|ciao|salut|cześć|مرحبا|你好)[\s!.?]*$/i.test(q) || nameGreetingRegex.test(q) || /\b(selamat datang)\b/i.test(q)) {
       return {
-        replyText: isIndonesian ? "Jambo! Halo, senang Anda menghubungi kami di Zanzirangi House. Saya Elena, concierge Anda. Silakan tanyakan apa pun seputar reservasi villa, check-in, antar-jemput bandara, atau pengalaman menarik di Zanzibar!" : "Jambo! Welcome to Zanzirangi House. I am Elena, your personal concierge. Feel free to ask about our private villas, check-in, transfers, dining, or bespoke safari journeys!",
+        replyText: isIndonesian ? `Jambo! Halo, senang Anda menghubungi kami di Zanzirangi House. Saya ${name}, concierge Anda. Silakan tanyakan apa pun seputar reservasi villa, check-in, antar-jemput bandara, atau pengalaman menarik di Zanzibar!` : `Jambo! Welcome to Zanzirangi House. I am ${name}, your personal concierge. Feel free to ask about our private villas, check-in, transfers, dining, or bespoke safari journeys!`,
         action: { label: isIndonesian ? "Eksplorasi Sanctuary" : "Explore Sanctuary", actionType: "SCROLL", target: "itinerary" },
         intent: "greeting_general",
         confidence: 0.98,
@@ -5462,32 +5497,15 @@ var SupportAiEngine = class {
         decision: "AUTO_ANSWER"
       };
     }
-    if (/\b(siapa kamu|kamu siapa|who are you|siapa ini|bot atau|apakah bot|elena itu siapa)\b/i.test(q)) {
+    const identityRegex = new RegExp(`\\b(siapa kamu|kamu siapa|who are you|siapa ini|bot atau|apakah bot|(${nameEscaped}|elena|juma) itu siapa)\\b`, "i");
+    if (identityRegex.test(q)) {
       return {
-        replyText: isIndonesian ? "Saya Elena, Customer Support & Concierge pribadi Anda di Zanzirangi House. Saya siap menjawab pertanyaan Anda seputar sanctuary kami, dan staf admin kami juga selalu terhubung langsung di sini jika Anda membutuhkan bantuan khusus." : "I am Elena, your personal Customer Support & Concierge at Zanzirangi House. I am here to assist with all your questions, and our human admin team is also directly connected here whenever you need specialized assistance.",
+        replyText: isIndonesian ? `Saya ${name}, Customer Support & Concierge pribadi Anda di Zanzirangi House. Saya siap menjawab pertanyaan Anda seputar sanctuary kami, dan staf admin kami juga selalu terhubung langsung di sini jika Anda membutuhkan bantuan khusus.` : `I am ${name}, your personal Customer Support & Concierge at Zanzirangi House. I am here to assist with all your questions, and our human admin team is also directly connected here whenever you need specialized assistance.`,
         intent: "faq_identity",
         confidence: 0.95,
         knowledge_source: "DETERMINISTIC_FAQ",
         decision: "AUTO_ANSWER"
       };
-    }
-    try {
-      const kbItems = await supportRepository.getKnowledgeBase({
-        status: "PUBLISHED"
-      });
-      for (const item of kbItems) {
-        const itemQ = item.question.toLowerCase();
-        if (q === itemQ || q.length > 15 && itemQ.includes(q) || itemQ.length > 15 && q.includes(itemQ)) {
-          return {
-            replyText: item.answer,
-            intent: `kb_${item.category.toLowerCase().replace(/\s+/g, "_")}`,
-            confidence: 0.95,
-            knowledge_source: `KNOWLEDGE_BASE_${item.id}`,
-            decision: "AUTO_ANSWER"
-          };
-        }
-      }
-    } catch {
     }
     const checkinKeywords = ["check-in", "checkin", "check out", "checkout", "horaires", "muda wa kuingia", "horario", "arrived", "departure", "jam masuk", "waktu masuk", "jam berapa masuk", "jam keluar", "wymeldowani", "zameldowani", "\u5165\u4F4F", "\u9000\u623F", "\u0627\u0644\u0648\u0635\u0648\u0644", "\u0627\u0644\u0645\u063A\u0627\u062F\u0631\u0629"];
     if (checkinKeywords.some((k) => q.includes(k))) {
@@ -6243,10 +6261,19 @@ supportRouter.post("/conversation/:id/messages", async (req, res) => {
       message_type: "TEXT",
       metadata
     });
+    let conciergeName = "Elena";
+    try {
+      const settings = await settingsRepository.getSettings();
+      if (settings?.supportName && settings.supportName.trim()) {
+        conciergeName = settings.supportName.trim();
+      }
+    } catch (_) {
+    }
     const evaluation = await supportAiEngine.evaluateQuery(
       msgText,
       conv.language,
-      conv.current_page
+      conv.current_page,
+      conciergeName
     );
     await supportRepository.logAiEvent({
       conversation_id: id,
