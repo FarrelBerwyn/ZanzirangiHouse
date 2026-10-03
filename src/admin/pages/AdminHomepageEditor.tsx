@@ -735,8 +735,8 @@ export const AdminHomepageEditor: React.FC<AdminHomepageEditorProps> = ({
                     onChange={(url) =>
                       handleUpdateSlide(selectedSlideIndex, 'heroImage', url)
                     }
-                    label="Foto Latar Belakang Slide (Hero Image)"
-                    hint="Gunakan link foto (URL) atau langsung upload file gambar resolusi tinggi dari komputer."
+                    label="Hero Slide Background Image"
+                    hint="Use an image URL or directly upload a high-resolution image file from your device."
                     altText={currentSlide.title}
                     presets={CURATED_IMAGES.map((img) => ({ label: img.name, url: img.url }))}
                     previewHeight="h-56"

@@ -379,8 +379,8 @@ export const AdminTransfersManager: React.FC = () => {
               <AdminImageInput
                 value={config.vehicleImage}
                 onChange={(url) => setField('vehicleImage', url)}
-                label="Foto Kendaraan (Vehicle Image)"
-                hint="Masukkan URL foto atau langsung upload file gambar dari komputer (JPG, PNG, WebP)."
+                label="Vehicle Photo (Hero Image)"
+                hint="Enter an image URL or directly upload an image file from your device (JPG, PNG, WebP)."
                 altText={config.vehicleImageAlt}
                 onAltTextChange={(alt) => setField('vehicleImageAlt', alt)}
                 previewHeight="h-56"
@@ -388,17 +388,17 @@ export const AdminTransfersManager: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-              {renderInput('routeLabel', 'Route Label', 'Teks kecil di atas overlay foto, contoh: ABEID AMANI KARUME INT\'L (ZNZ) → ZANZIRANGI HOUSE')}
-              {renderInput('routeTitle', 'Route Title', 'Teks judul miring di bawah route label, contoh: Private Coastal Chauffeur Service')}
+              {renderInput('routeLabel', 'Route Label', 'Subtle label above photo overlay, e.g.: ABEID AMANI KARUME INT\'L (ZNZ) → ZANZIRANGI HOUSE')}
+              {renderInput('routeTitle', 'Route Title', 'Italic title below route label, e.g.: Private Coastal Chauffeur Service')}
 
               {/* Overlay preview indicator */}
               <div className="p-3.5 rounded-lg bg-adm-bg border border-adm-line text-xs space-y-1.5">
-                <span className="text-[10px] font-mono text-adm-accent uppercase block">Tampilan Overlay di Website:</span>
+                <span className="text-[10px] font-mono text-adm-accent uppercase block">Website Overlay Preview:</span>
                 <p className="font-mono text-[11px] text-[#FAF8F5] uppercase tracking-wider">
-                  {config.routeLabel || '(Route label belum diisi)'}
+                  {config.routeLabel || '(Route label not set)'}
                 </p>
                 <p className="font-serif italic text-[#D8CCB8]">
-                  {config.routeTitle || '(Route title belum diisi)'}
+                  {config.routeTitle || '(Route title not set)'}
                 </p>
               </div>
             </div>

@@ -440,8 +440,8 @@ export const AdminWhyStayManager: React.FC = () => {
                     <AdminImageInput
                       value={pillar.image}
                       onChange={(url) => handleUpdatePillar(idx, { image: url })}
-                      label="Foto Pilar Sanctuary"
-                      hint="Masukkan link URL atau klik tombol untuk langsung upload file foto dari komputer (JPG, PNG, WebP)."
+                      label="Sanctuary Pillar Photo"
+                      hint="Enter an image URL or click to directly upload a photo file from your device (JPG, PNG, WebP)."
                       altText={pillar.title}
                       previewHeight="h-36"
                     />

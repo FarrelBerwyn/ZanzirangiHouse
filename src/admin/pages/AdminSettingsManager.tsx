@@ -242,7 +242,7 @@ export const AdminSettingsManager: React.FC<AdminSettingsManagerProps> = ({ onNa
                 Property Logo & Visual Identity by Context
               </h3>
               <p className="text-xs text-adm-muted mt-0.5">
-                Kelola dan unggah file logo secara independen untuk masing-masing konteks (Home Navigation Bar, Browser Tabbar / Favicon, dan Admin Dashboard).
+                Manage and upload logo files independently for each context (Home Navigation Bar, Browser Tabbar / Favicon, and Admin Dashboard).
               </p>
             </div>
           </div>
@@ -260,7 +260,7 @@ export const AdminSettingsManager: React.FC<AdminSettingsManagerProps> = ({ onNa
                       Home & Header Navbar Logo
                     </h4>
                     <span className="text-[10px] text-adm-muted font-sans block">
-                      Tampil di bilah navigasi utama website (Home & seluruh subhalaman publik)
+                      Displayed on the main website navigation bar (Home & all public pages)
                     </span>
                   </div>
                 </div>
@@ -294,9 +294,9 @@ export const AdminSettingsManager: React.FC<AdminSettingsManagerProps> = ({ onNa
                 <AdminImageInput
                   value={settings.logo || ''}
                   onChange={(url) => setSettings({ ...settings, logo: url })}
-                  label="Upload Logo Home & Header"
-                  hint="Unggah file foto/logo dari komputer (PNG transparan disarankan) atau masukkan URL."
-                  placeholder="/src/assets/zanzirangi-logo-new.jpeg atau /uploads/..."
+                  label="Upload Home & Header Logo"
+                  hint="Upload photo or logo file from your device (transparent PNG recommended) or enter an image URL."
+                  placeholder="/src/assets/zanzirangi-logo-new.jpeg or /uploads/..."
                   previewHeight="h-32"
                   presets={[
                     { label: 'Default Badge (Square)', url: '/src/assets/zanzirangi-logo-new.jpeg' },
@@ -319,7 +319,7 @@ export const AdminSettingsManager: React.FC<AdminSettingsManagerProps> = ({ onNa
                       Browser Tabbar & Favicon Logo
                     </h4>
                     <span className="text-[10px] text-adm-muted font-sans block">
-                      Tampil di tab browser pengunjung, bookmark bar, dan shortcut mobile
+                      Displayed on visitor browser tabs, bookmark bars, and mobile shortcuts
                     </span>
                   </div>
                 </div>
@@ -348,9 +348,9 @@ export const AdminSettingsManager: React.FC<AdminSettingsManagerProps> = ({ onNa
                 <AdminImageInput
                   value={settings.favicon || ''}
                   onChange={(url) => setSettings({ ...settings, favicon: url })}
-                  label="Upload Logo Tabbar (Favicon)"
-                  hint="Unggah icon favicon (SVG, PNG 32x32, atau 48x48) untuk tab browser."
-                  placeholder="/favicon.svg atau /favicon-32x32.png"
+                  label="Upload Tabbar Logo (Favicon)"
+                  hint="Upload a favicon icon (SVG, PNG 32x32, or 48x48) for browser tabs."
+                  placeholder="/favicon.svg or /favicon-32x32.png"
                   previewHeight="h-32"
                   presets={[
                     { label: 'Default SVG Favicon', url: '/favicon.svg' },
@@ -373,7 +373,7 @@ export const AdminSettingsManager: React.FC<AdminSettingsManagerProps> = ({ onNa
                       Admin Dashboard & Login Logo
                     </h4>
                     <span className="text-[10px] text-adm-muted font-sans block">
-                      Tampil di sudut kiri atas Admin Panel Dashboard dan halaman Login Admin
+                      Displayed in the top-left corner of the Admin Dashboard and Admin Login screen
                     </span>
                   </div>
                 </div>
@@ -407,9 +407,9 @@ export const AdminSettingsManager: React.FC<AdminSettingsManagerProps> = ({ onNa
                 <AdminImageInput
                   value={settings.adminLogo || ''}
                   onChange={(url) => setSettings({ ...settings, adminLogo: url })}
-                  label="Upload Logo Admin Dashboard"
-                  hint="Kosongkan jika ingin menyamakan otomatis dengan logo Home & Header."
-                  placeholder="Kosongkan untuk mengikuti logo Home, atau masukkan URL/upload baru..."
+                  label="Upload Admin Dashboard Logo"
+                  hint="Leave empty to automatically match the Home & Header logo."
+                  placeholder="Leave empty to use Home logo, or enter URL / upload new..."
                   previewHeight="h-32"
                   presets={[
                     { label: 'Default Badge (Square)', url: '/src/assets/zanzirangi-logo-new.jpeg' },

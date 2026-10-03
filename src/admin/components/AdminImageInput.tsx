@@ -39,11 +39,11 @@ const MAX_IMAGE_MB = 25;
 export const AdminImageInput: React.FC<AdminImageInputProps> = ({
   value,
   onChange,
-  label = 'Foto / Gambar',
-  hint = 'Masukkan URL gambar atau unggah langsung file foto dari komputer.',
+  label = 'Photo / Image',
+  hint = 'Enter an image URL or directly upload a photo file from your device.',
   altText,
   onAltTextChange,
-  placeholder = 'https://... atau /uploads/...',
+  placeholder = 'https://... or /uploads/...',
   className = '',
   presets,
   previewHeight = 'h-44',
@@ -64,12 +64,12 @@ export const AdminImageInput: React.FC<AdminImageInputProps> = ({
     const expected = SUPPORTED_MIME_TYPES[ext];
 
     if (!expected && !file.type.startsWith('image/')) {
-      setUploadError(`Format file "${file.name}" tidak didukung. Gunakan JPG, PNG, WebP, GIF, atau AVIF.`);
+      setUploadError(`File format "${file.name}" is not supported. Use JPG, PNG, WebP, GIF, or AVIF.`);
       return;
     }
 
     if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
-      setUploadError(`Ukuran file "${file.name}" melebihi batas maksimum ${MAX_IMAGE_MB} MB.`);
+      setUploadError(`File size of "${file.name}" exceeds the maximum limit of ${MAX_IMAGE_MB} MB.`);
       return;
     }
 
@@ -83,19 +83,19 @@ export const AdminImageInput: React.FC<AdminImageInputProps> = ({
 
       const asset = await contentApi.uploadMediaFile(uploadPayload, altText || file.name);
       if (!asset?.url) {
-        throw new Error('Server tidak mengembalikan URL foto.');
+        throw new Error('Server did not return a valid photo URL.');
       }
 
       onChange(asset.url);
       setImageBroken(false);
-      setUploadSuccess(`✓ Foto "${file.name}" berhasil diunggah!`);
+      setUploadSuccess(`✓ Photo "${file.name}" uploaded successfully!`);
 
       setTimeout(() => {
         setUploadSuccess(null);
       }, 4000);
     } catch (err: any) {
       console.error('Upload image error:', err);
-      setUploadError(err.message || 'Gagal mengunggah foto.');
+      setUploadError(err.message || 'Failed to upload photo.');
     } finally {
       setIsUploading(false);
     }
@@ -161,7 +161,7 @@ export const AdminImageInput: React.FC<AdminImageInputProps> = ({
                 onChange('');
                 setImageBroken(false);
               }}
-              title="Kosongkan URL"
+              title="Clear URL"
               className="absolute right-2 top-1/2 -translate-y-1/2 text-adm-muted hover:text-adm-text cursor-pointer p-1"
             >
               <X className="w-3.5 h-3.5" />
@@ -191,12 +191,12 @@ export const AdminImageInput: React.FC<AdminImageInputProps> = ({
           {isUploading ? (
             <>
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              <span>Mengunggah...</span>
+              <span>Uploading...</span>
             </>
           ) : (
             <>
               <Upload className="w-3.5 h-3.5" />
-              <span>Upload dari PC</span>
+              <span>Upload File</span>
             </>
           )}
         </button>
@@ -212,7 +212,7 @@ export const AdminImageInput: React.FC<AdminImageInputProps> = ({
             type="text"
             value={altText || ''}
             onChange={(e) => onAltTextChange(e.target.value)}
-            placeholder="Deskripsi singkat foto untuk SEO & screen reader"
+            placeholder="Short photo description for SEO & screen reader"
             className="w-full px-2.5 py-1 bg-adm-bg border border-adm-line rounded text-xs text-adm-text focus:border-adm-accent outline-none"
           />
         </div>
@@ -236,7 +236,7 @@ export const AdminImageInput: React.FC<AdminImageInputProps> = ({
       {/* Presets if provided */}
       {presets && presets.length > 0 && (
         <div className="space-y-1">
-          <span className="text-[10px] font-mono text-adm-muted uppercase">Pilihan Cepat / Preset Foto:</span>
+          <span className="text-[10px] font-mono text-adm-muted uppercase">Quick Presets:</span>
           <div className="flex flex-wrap gap-1.5">
             {presets.map((p, idx) => (
               <button
@@ -286,7 +286,7 @@ export const AdminImageInput: React.FC<AdminImageInputProps> = ({
                   {value}
                 </p>
                 <p className="text-[10px] text-adm-muted truncate">
-                  {isDragging ? 'Lepaskan file untuk mengganti foto ini' : 'Foto siap disimpan ke database'}
+                  {isDragging ? 'Drop file to replace this photo' : 'Ready to save with current photo'}
                 </p>
               </div>
 
@@ -295,7 +295,7 @@ export const AdminImageInput: React.FC<AdminImageInputProps> = ({
                   href={value}
                   target="_blank"
                   rel="noreferrer"
-                  title="Lihat ukuran penuh"
+                  title="View full size"
                   className="p-1.5 rounded-lg bg-black/60 hover:bg-black text-[#FAF8F5] border border-white/20 transition-colors"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
@@ -303,7 +303,7 @@ export const AdminImageInput: React.FC<AdminImageInputProps> = ({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  title="Ganti Foto"
+                  title="Replace Photo"
                   className="p-1.5 rounded-lg bg-black/60 hover:bg-black text-[#FAF8F5] border border-white/20 transition-colors cursor-pointer"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
@@ -320,12 +320,12 @@ export const AdminImageInput: React.FC<AdminImageInputProps> = ({
               {imageBroken ? <AlertCircle className="w-5 h-5 text-amber-400" /> : <FileImage className="w-5 h-5 text-adm-accent" />}
             </div>
             <p className="text-xs font-mono text-adm-text font-medium">
-              {imageBroken ? 'Link gambar tidak dapat dimuat' : 'Belum ada foto atau tarik file ke sini'}
+              {imageBroken ? 'Image could not be loaded' : 'No photo uploaded yet — click or drag file here'}
             </p>
             <p className="text-[10px] text-adm-muted mt-0.5">
               {imageBroken
-                ? 'Periksa URL atau klik untuk upload file gambar baru dari komputer.'
-                : 'Klik untuk memilih file gambar dari komputer (JPG, PNG, WebP, max 25MB).'}
+                ? 'Check the URL or click to upload a new image.'
+                : 'Click to select an image from your device (JPG, PNG, WebP, max 25MB).'}
             </p>
           </div>
         )}
