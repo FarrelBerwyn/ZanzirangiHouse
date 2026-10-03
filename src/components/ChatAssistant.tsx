@@ -1363,9 +1363,13 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
             <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden p-0.5 bg-gradient-to-tr from-[#B8966C] via-[#C4A27A] to-[#FAF8F5] shadow-2xl transform transition-transform duration-300 group-hover:scale-110">
               <div className="w-full h-full rounded-full overflow-hidden bg-[#141413]">
                 <img
-                  src={supportAvatar}
-                  alt={`${supportName} - ${supportTitle}`}
+                  src={supportAvatar || '/zanzirangi-logo-circle.png'}
+                  alt=""
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = '/zanzirangi-logo-circle.png';
+                  }}
                 />
               </div>
             </div>
@@ -1434,9 +1438,13 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
               <div className="relative flex-shrink-0">
                 <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-[#C4A27A] bg-[#2C2B28] shadow-md">
                   <img
-                    src={supportAvatar}
-                    alt={`${supportName} - ${supportTitle}`}
+                    src={supportAvatar || '/zanzirangi-logo-circle.png'}
+                    alt=""
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = '/zanzirangi-logo-circle.png';
+                    }}
                   />
                 </div>
                 <span className="absolute bottom-0 right-0 flex h-3.5 w-3.5">
