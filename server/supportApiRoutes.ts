@@ -117,7 +117,7 @@ supportRouter.get('/conversation/:id', async (req: Request, res: Response) => {
 supportRouter.post('/conversation/:id/messages', async (req: Request, res: Response) => {
   try {
     const id = toStr(req.params.id);
-    const { message, visitor_id, metadata } = req.body;
+    const { message, visitor_id, metadata, language } = req.body;
     const msgText = toStr(message).trim();
 
     if (!msgText) {
@@ -153,9 +153,22 @@ supportRouter.post('/conversation/:id/messages', async (req: Request, res: Respo
       }
     } catch (_) {}
 
+    const activeLang = (typeof language === 'string' && language.trim())
+      ? language.trim().toLowerCase()
+      : (typeof metadata?.language === 'string' && metadata.language.trim())
+      ? metadata.language.trim().toLowerCase()
+      : (conv.language || 'en');
+
+    if (activeLang && activeLang !== conv.language) {
+      try {
+        await supportRepository.updateConversation(id, { language: activeLang });
+        conv.language = activeLang;
+      } catch (_) {}
+    }
+
     const evaluation = await supportAiEngine.evaluateQuery(
       msgText,
-      conv.language,
+      activeLang,
       conv.current_page,
       conciergeName
     );

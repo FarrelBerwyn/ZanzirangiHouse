@@ -1100,7 +1100,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
         setConversationStatus(initRes.conversation.status);
       }
 
-      const res = await supportApi.sendVisitorMessage(convId, session.visitorId, query, customBookingContext);
+      const res = await supportApi.sendVisitorMessage(convId, session.visitorId, query, customBookingContext, currentLang);
       setConversationStatus(res.conversationStatus);
 
       // Adopt the server id so polling recognises this message instead of re-appending it.

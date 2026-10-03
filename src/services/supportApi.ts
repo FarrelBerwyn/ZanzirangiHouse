@@ -90,7 +90,8 @@ class SupportApiClient {
     conversationId: string,
     visitorId: string,
     message: string,
-    metadata?: any
+    metadata?: any,
+    language?: string
   ): Promise<{
     userMessage: SupportMessageRecord;
     botMessage: SupportMessageRecord | null;
@@ -99,7 +100,7 @@ class SupportApiClient {
     const res = await fetch(`${API_BASE}/conversation/${conversationId}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ visitor_id: visitorId, message, metadata }),
+      body: JSON.stringify({ visitor_id: visitorId, message, metadata, language }),
     });
     const json = await res.json();
     if (!json.success) throw new Error(json.error || 'Failed to send message');

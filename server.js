@@ -5366,6 +5366,15 @@ init_env();
 import { Router } from "express";
 
 // server/services/supportAiEngine.ts
+function resolveLang(lang) {
+  if (!lang) return "en";
+  const clean = lang.trim().toLowerCase().slice(0, 2);
+  const supported = ["en", "fr", "sw", "es", "it", "ar", "zh", "pl", "id"];
+  return supported.includes(clean) ? clean : "en";
+}
+function getLocalized(dict, lang) {
+  return dict[lang] || dict.en;
+}
 var HANDOFF_MESSAGES = {
   id: "Pertanyaan detail Anda telah kami teruskan langsung ke Admin / Tim Concierge Zanzirangi House. Staf kami akan segera membalas pesan Anda di sini secara langsung. Terima kasih atas kesabaran Anda!",
   en: "Your detailed request has been forwarded directly to our Admin & Concierge team. A staff member will assist you shortly here in the chat. Thank you for your patience!",
@@ -5377,27 +5386,398 @@ var HANDOFF_MESSAGES = {
   ar: "\u062A\u0645 \u062A\u0648\u062C\u064A\u0647 \u0627\u0633\u062A\u0641\u0633\u0627\u0631\u0643 \u0627\u0644\u062A\u0641\u0635\u064A\u0644\u064A \u0645\u0628\u0627\u0634\u0631\u0629 \u0625\u0644\u0649 \u0641\u0631\u064A\u0642 \u0627\u0644\u0643\u0648\u0646\u0633\u064A\u0631\u062C \u0648\u0633\u064A\u0642\u0648\u0645 \u0623\u062D\u062F \u0645\u0648\u0638\u0641\u064A\u0646\u0627 \u0628\u0627\u0644\u0631\u062F \u0639\u0644\u064A\u0643 \u0647\u0646\u0627 \u0642\u0631\u064A\u0628\u0627\u064B.",
   zh: "\u60A8\u7684\u8BE6\u7EC6\u54A8\u8BE2\u5DF2\u76F4\u63A5\u8F6C\u4EA4\u7ED9\u6211\u4EEC\u7684\u79C1\u4EBA\u793C\u5BBE\u7BA1\u5BB6\u56E2\u961F\uFF0C\u5DE5\u4F5C\u4EBA\u5458\u5C06\u5F88\u5FEB\u5728\u6B64\u4E3A\u60A8\u89E3\u7B54\uFF0C\u611F\u8C22\u60A8\u7684\u8010\u5FC3\u7B49\u5F85\uFF01"
 };
+var HUMAN_REQUEST_MESSAGES = {
+  en: "Certainly! Your request has been forwarded directly to our Zanzirangi House Admin team. A staff member will assist you here in just a moment.",
+  fr: "Certainement ! Votre message a \xE9t\xE9 transmis directement \xE0 notre \xE9quipe d'administration. Un membre du personnel vous r\xE9pondra sous peu.",
+  sw: "Bila shaka! Ujumbe wako umetumwa moja kwa moja kwa wasimamizi wetu wa Zanzirangi House. Mhudumu atakujibu hapa punde.",
+  es: "\xA1Por supuesto! Su solicitud ha sido enviada directamente a nuestro equipo de administraci\xF3n. Un miembro del personal le asistir\xE1 en breve.",
+  it: "Certamente! La tua richiesta \xE8 stata inoltrata direttamente al nostro team di amministrazione. Un nostro collaboratore ti assister\xE0 a breve.",
+  pl: "Oczywi\u015Bcie! Twoja wiadomo\u015B\u0107 zosta\u0142a przekazana bezpo\u015Brednio do naszego zespo\u0142u administracyjnego. Nasz pracownik wkr\xF3tce Ci pomo\u017Ce.",
+  ar: "\u0628\u0627\u0644\u062A\u0623\u0643\u064A\u062F! \u062A\u0645 \u062A\u0648\u062C\u064A\u0647 \u0631\u0633\u0627\u0644\u062A\u0643 \u0645\u0628\u0627\u0634\u0631\u0629 \u0625\u0644\u0649 \u0641\u0631\u064A\u0642 \u0625\u062F\u0627\u0631\u0629 \u0632\u0646\u062C\u064A\u0631\u0627\u0646\u062C\u064A \u0647\u0627\u0648\u0633. \u0633\u064A\u0642\u0648\u0645 \u0623\u062D\u062F \u0645\u0648\u0638\u0641\u064A\u0646\u0627 \u0628\u0645\u0633\u0627\u0639\u062F\u062A\u0643 \u0647\u0646\u0627 \u0641\u064A \u0623\u0642\u0631\u0628 \u0648\u0642\u062A.",
+  zh: "\u5F53\u7136\u53EF\u4EE5\uFF01\u60A8\u7684\u4FE1\u606F\u5DF2\u76F4\u63A5\u8F6C\u4EA4\u7ED9 Zanzirangi House \u7BA1\u7406\u56E2\u961F\uFF0C\u5DE5\u4F5C\u4EBA\u5458\u5C06\u5F88\u5FEB\u5728\u6B64\u4E3A\u60A8\u63D0\u4F9B\u534F\u52A9\u3002",
+  id: "Tentu! Pesan Anda telah kami teruskan langsung ke Admin Zanzirangi House. Staf kami akan segera merespons Anda di sini dalam hitungan menit."
+};
+var HIGH_CONSTRAINT_MESSAGES = {
+  en: "For customized requests, best rate inquiries, and large group arrangements, your request is being forwarded directly to our Reservation Manager for prompt confirmation.",
+  fr: "Pour toute demande personnalis\xE9e, offre sp\xE9ciale ou groupe, votre requ\xEAte est transmise directement \xE0 notre responsable des r\xE9servations.",
+  sw: "Kwa maombi maalum, punguzo la bei na makundi makubwa, ombi lako linatumwa moja kwa moja kwa Meneja wa Uhifadhi kwa uthibitisho wa haraka.",
+  es: "Para solicitudes personalizadas, mejores tarifas y grupos grandes, su consulta se env\xEDa directamente a nuestro Gerente de Reservas para su pronta confirmaci\xF3n.",
+  it: "Per richieste personalizzate, tariffe speciali e gruppi numerosi, la tua richiesta \xE8 stata inoltrata direttamente al nostro Responsabile Prenotazioni.",
+  pl: "W przypadku zapyta\u0144 o oferty specjalne, zni\u017Cki lub rezerwacje grupowe, Twoja wiadomo\u015B\u0107 trafia bezpo\u015Brednio do Mened\u017Cera Rezerwacji.",
+  ar: "\u0644\u0644\u0637\u0644\u0628\u0627\u062A \u0627\u0644\u0645\u062E\u0635\u0635\u0629 \u0648\u0639\u0631\u0648\u0636 \u0627\u0644\u0623\u0633\u0639\u0627\u0631 \u0627\u0644\u062E\u0627\u0635\u0629 \u0648\u0627\u0644\u0645\u062C\u0645\u0648\u0639\u0627\u062A \u0627\u0644\u0643\u0628\u064A\u0631\u0629\u060C \u064A\u062A\u0645 \u062A\u062D\u0648\u064A\u0644 \u0637\u0644\u0628\u0643 \u0645\u0628\u0627\u0634\u0631\u0629 \u0625\u0644\u0649 \u0645\u062F\u064A\u0631 \u0627\u0644\u062D\u062C\u0648\u0632\u0627\u062A \u0644\u062A\u0623\u0643\u064A\u062F\u0647 \u0641\u064A \u0623\u0642\u0631\u0628 \u0648\u0642\u062A.",
+  zh: "\u5BF9\u4E8E\u5B9A\u5236\u8981\u6C42\u3001\u7279\u60E0\u4EF7\u683C\u53CA\u5927\u578B\u56E2\u961F\u9884\u8BA2\uFF0C\u60A8\u7684\u54A8\u8BE2\u5DF2\u76F4\u63A5\u8F6C\u4EA4\u7ED9\u9884\u8BA2\u90E8\u7ECF\u7406\u4EE5\u4FBF\u5C3D\u5FEB\u4E3A\u60A8\u786E\u8BA4\u3002",
+  id: "Untuk permintaan khusus, penawaran harga terbaik, serta ketersediaan rombongan detail, pertanyaan Anda sedang kami teruskan langsung ke Admin / Manajer Reservasi kami untuk dikonfirmasi secepatnya."
+};
+var ACTION_LABELS = {
+  view_villas: {
+    en: "View Private Villas",
+    fr: "Voir les Villas Priv\xE9es",
+    sw: "Angalia Villa Binafsi",
+    es: "Ver Villas Privadas",
+    it: "Visualizza Ville Private",
+    ar: "\u0639\u0631\u0636 \u0627\u0644\u0641\u0644\u0644 \u0627\u0644\u062E\u0627\u0635\u0629",
+    zh: "\u67E5\u770B\u79C1\u4EBA\u72EC\u7ACB\u522B\u5885",
+    pl: "Zobacz Prywatne Wille",
+    id: "Lihat Private Villa"
+  },
+  book_villa: {
+    en: "Book a Villa",
+    fr: "R\xE9server une villa",
+    sw: "Weka Villa Sasa",
+    es: "Reservar Villa",
+    it: "Prenota una Villa",
+    ar: "\u0627\u062D\u062C\u0632 \u0641\u064A\u0644\u0627 \u0627\u0644\u0622\u0646",
+    zh: "\u7ACB\u5373\u9884\u8BA2\u522B\u5885",
+    pl: "Zarezerwuj Will\u0119",
+    id: "Reservasi Villa"
+  },
+  check_villa: {
+    en: "Check Villa Features",
+    fr: "D\xE9couvrir les Villas",
+    sw: "Vipengele vya Villa",
+    es: "Ver Detalles de la Villa",
+    it: "Dettagli delle Ville",
+    ar: "\u0645\u0632\u0627\u064A\u0627 \u0648\u062A\u062C\u0647\u064A\u0632\u0627\u062A \u0627\u0644\u0641\u0644\u0644",
+    zh: "\u67E5\u770B\u522B\u5885\u8BBE\u65BD\u8BE6\u60C5",
+    pl: "Szczeg\xF3\u0142y Wyposa\u017Cenia Willi",
+    id: "Cek Fasilitas Villa"
+  },
+  view_transfers: {
+    en: "View Transfer Details",
+    fr: "D\xE9tails du Transfert",
+    sw: "Maelezo ya Usafiri",
+    es: "Detalles del Traslado",
+    it: "Dettagli Trasferimento",
+    ar: "\u062A\u0641\u0627\u0635\u064A\u0644 \u062E\u062F\u0645\u0629 \u0627\u0644\u0646\u0642\u0644",
+    zh: "\u67E5\u770B\u4E13\u8F66\u63A5\u9001\u8BE6\u60C5",
+    pl: "Szczeg\xF3\u0142y Transferu",
+    id: "Detail Layanan Transfer"
+  },
+  view_dining: {
+    en: "Taste Dining & Garden Menu",
+    fr: "D\xE9couvrir la Gastronomie",
+    sw: "Menyu ya Vyakula na Bustani",
+    es: "Ver Men\xFA y Gastronom\xEDa",
+    it: "Menu e Ristorazione",
+    ar: "\u0642\u0627\u0626\u0645\u0629 \u0627\u0644\u0637\u0639\u0627\u0645 \u0648\u0627\u0644\u0645\u0637\u0639\u0645",
+    zh: "\u54C1\u5473\u7F8E\u9994\u4E0E\u82B1\u56ED\u83DC\u5355",
+    pl: "Menu Restauracji i Ogrodu",
+    id: "Lihat Menu & Dining"
+  },
+  view_safari: {
+    en: "View Safari Destinations",
+    fr: "Destinations de Safari",
+    sw: "Maeneo ya Safari",
+    es: "Destinos de Safari",
+    it: "Destinazioni Safari",
+    ar: "\u0648\u062C\u0647\u0627\u062A \u0631\u062D\u0644\u0627\u062A \u0627\u0644\u0633\u0641\u0627\u0631\u064A",
+    zh: "\u63A2\u7D22\u91CE\u751F\u52A8\u7269\u6E38\u730E",
+    pl: "Kierunki Safari",
+    id: "Lihat Destinasi Safari"
+  },
+  explore_ngorongoro: {
+    en: "Explore Ngorongoro",
+    fr: "Explorer le Ngorongoro",
+    sw: "Gundua Ngorongoro",
+    es: "Explorar Ngorongoro",
+    it: "Esplora Ngorongoro",
+    ar: "\u0627\u0633\u062A\u0643\u0634\u0627\u0641 \u0646\u062C\u0648\u0631\u0648\u0646\u062C\u0648\u0631\u0648",
+    zh: "\u63A2\u7D22\u6069\u6208\u7F57\u6069\u6208\u7F57",
+    pl: "Odkryj Ngorongoro",
+    id: "Eksplorasi Ngorongoro"
+  },
+  plan_kilimanjaro: {
+    en: "Plan Safari & Kilimanjaro",
+    fr: "Organiser Safari & Kilimandjaro",
+    sw: "Panga Safari & Kilimanjaro",
+    es: "Planear Safari y Kilimanjaro",
+    it: "Pianifica Safari e Kilimangiaro",
+    ar: "\u062A\u062E\u0637\u064A\u0637 \u0631\u062D\u0644\u0629 \u0643\u0644\u064A\u0645\u0646\u062C\u0627\u0631\u0648",
+    zh: "\u89C4\u5212\u4E5E\u529B\u9A6C\u624E\u7F57\u4E0E\u6E38\u730E",
+    pl: "Zaplanuj Safari i Kilimand\u017Caro",
+    id: "Rencanakan Safari & Kilimanjaro"
+  },
+  explore_dolphins: {
+    en: "Explore Dolphin Safaris",
+    fr: "Safari Dauphins",
+    sw: "Safari ya Pomboo",
+    es: "Safari de Delfines",
+    it: "Safari con i Delfini",
+    ar: "\u0631\u062D\u0644\u0627\u062A \u0627\u0644\u062F\u0644\u0627\u0641\u064A\u0646",
+    zh: "\u63A2\u7D22\u6D77\u8C5A\u4E4B\u65C5",
+    pl: "Spotkanie z Delfinami",
+    id: "Eksplorasi Safari Lumba-Lumba"
+  },
+  view_sunset_sailing: {
+    en: "View Sunset Sailing",
+    fr: "Coucher de Soleil en Dhow",
+    sw: "Safari ya Dau Machweo",
+    es: "Navegaci\xF3n al Atardecer",
+    it: "Crociera al Tramonto",
+    ar: "\u0627\u0644\u0625\u0628\u062D\u0627\u0631 \u0648\u0642\u062A \u0627\u0644\u063A\u0631\u0648\u0628",
+    zh: "\u843D\u65E5\u5E06\u8239\u51FA\u6D77",
+    pl: "Rejs o Zachodzie S\u0142o\u0144ca",
+    id: "Lihat Sunset Sailing"
+  },
+  view_spa: {
+    en: "View Wellness & Spa",
+    fr: "Soins Spa & Bien-\xEAtre",
+    sw: "Huduma za Spa & Masaji",
+    es: "Ver Spa y Bienestar",
+    it: "Spa e Benessere",
+    ar: "\u0639\u0644\u0627\u062C\u0627\u062A \u0627\u0644\u0633\u0628\u0627 \u0648\u0627\u0644\u0627\u0633\u062A\u0631\u062E\u0627\u0621",
+    zh: "\u67E5\u770B\u6C34\u7597\u517B\u751F\u62A4\u7406",
+    pl: "Zabiegi Spa i Masa\u017Ce",
+    id: "Lihat Layanan Spa"
+  },
+  explore_sanctuary: {
+    en: "Explore Sanctuary",
+    fr: "Explorer le Domaine",
+    sw: "Gundua Zanzirangi House",
+    es: "Explorar Zanzirangi House",
+    it: "Esplora il Resort",
+    ar: "\u0627\u0633\u062A\u0643\u0634\u0627\u0641 \u0627\u0644\u0645\u0646\u062A\u062C\u0639",
+    zh: "\u63A2\u7D22\u5EA6\u5047\u5E84\u56ED",
+    pl: "Odkryj Zanzirangi House",
+    id: "Eksplorasi Sanctuary"
+  }
+};
+var FAQ_REPLIES = {
+  checkin: {
+    en: "Standard check-in is from 14:00 (2:00 PM) and check-out is until 11:00 AM. Flexible early check-in or late checkout can be accommodated based on villa availability.",
+    fr: "L'enregistrement s'effectue \xE0 partir de 14h00 et le d\xE9part jusqu'\xE0 11h00. Des am\xE9nagements horaires sont possibles selon disponibilit\xE9.",
+    sw: "Kuingia ni kuanzia saa 8:00 mchana (14:00) na kuondoka ni hadi saa 5:00 asubuhi (11:00 AM). Mabadiliko ya muda yanawezekana kulingana na nafasi.",
+    es: "El check-in es a partir de las 14:00 y el check-out hasta las 11:00. Salida tard\xEDa o entrada temprana seg\xFAn disponibilidad.",
+    it: "Check-in dalle 14:00 e check-out fino alle 11:00. Possibilit\xE0 di orari flessibili su richiesta e secondo disponibilit\xE0.",
+    ar: "\u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u0648\u0635\u0648\u0644 \u064A\u0628\u062F\u0623 \u0645\u0646 \u0627\u0644\u0633\u0627\u0639\u0629 14:00 \u0648\u0627\u0644\u0645\u063A\u0627\u062F\u0631\u0629 \u062D\u062A\u0649 \u0627\u0644\u0633\u0627\u0639\u0629 11:00 \u0635\u0628\u0627\u062D\u0627\u064B. \u064A\u0645\u0643\u0646 \u062A\u0648\u0641\u064A\u0631 \u062A\u0633\u062C\u064A\u0644 \u0648\u0635\u0648\u0644 \u0645\u0628\u0643\u0631 \u0623\u0648 \u0645\u063A\u0627\u062F\u0631\u0629 \u0645\u062A\u0623\u062E\u0631\u0629 \u0639\u0646\u062F \u062A\u0648\u0641\u0631 \u0627\u0644\u0641\u0644\u0644.",
+    zh: "\u6807\u51C6\u5165\u4F4F\u65F6\u95F4\u4E3A 14:00 \u8D77\uFF0C\u9000\u623F\u65F6\u95F4\u4E3A\u4E0A\u5348 11:00 \u524D\u3002\u5728\u623F\u6001\u5141\u8BB8\u7684\u60C5\u51B5\u4E0B\u53EF\u514D\u8D39\u5B89\u6392\u63D0\u524D\u5165\u4F4F\u6216\u5EF6\u8FDF\u9000\u623F\u3002",
+    pl: "Zameldowanie od 14:00, wymeldowanie do 11:00. Wcze\u015Bniejszy przyjazd lub p\xF3\u017Aniejszy wyjazd w miar\u0119 dost\u0119pno\u015Bci willi.",
+    id: "Waktu check-in standar kami mulai pukul 14:00 (2:00 siang) dan check-out hingga pukul 11:00 pagi. Early check-in atau late check-out dapat disesuaikan secara fleksibel tergantung ketersediaan villa Anda."
+  },
+  wifi: {
+    en: "High-speed Starlink satellite Wi-Fi (150+ Mbps) is complimentary across all private villas, gardens, and dining pavilions, ensuring reliable connectivity for streaming or remote work.",
+    fr: "Une connexion satellite Starlink haut d\xE9bit (150+ Mbps) est offerte dans toutes les villas, jardins et espaces de restauration pour vos loisirs ou le t\xE9l\xE9travail.",
+    sw: "Mtandao wa Wi-Fi ya kasi ya juu kupitia Starlink (150+ Mbps) unapatikana bila malipo katika villa zote, bustani, na migahawa yetu.",
+    es: "Contamos con internet satelital Starlink de alta velocidad (150+ Mbps) gratuito en todas las villas privadas, jardines y restaurantes para streaming o teletrabajo.",
+    it: "Wi-Fi satellitare Starlink ad altissima velocit\xE0 (150+ Mbps) gratuito in tutte le ville, nei giardini e nelle aree ristorante per lo streaming e il lavoro da remoto.",
+    ar: "\u062A\u062A\u0648\u0641\u0631 \u062E\u062F\u0645\u0629 \u0633\u062A\u0627\u0631\u0644\u064A\u0646\u0643 \u0627\u0644\u0641\u0636\u0627\u0626\u064A\u0629 \u0641\u0627\u0626\u0642\u0629 \u0627\u0644\u0633\u0631\u0639\u0629 (150+ \u0645\u064A\u063A\u0627\u0628\u062A/\u062B\u0627\u0646\u064A\u0629) \u0645\u062C\u0627\u0646\u0627\u064B \u0641\u064A \u062C\u0645\u064A\u0639 \u0627\u0644\u0641\u0644\u0644 \u0648\u0627\u0644\u062D\u062F\u0627\u0626\u0642 \u0648\u0645\u0631\u0627\u0641\u0642 \u062A\u0646\u0627\u0648\u0644 \u0627\u0644\u0637\u0639\u0627\u0645 \u0644\u0636\u0645\u0627\u0646 \u0627\u062A\u0635\u0627\u0644 \u0645\u0645\u062A\u0627\u0632.",
+    zh: "\u5168\u5E84\u56ED\u65E0\u6B7B\u89D2\u8986\u76D6\u514D\u8D39 Starlink \u661F\u94FE\u9AD8\u901F\u536B\u661F Wi-Fi\uFF08150+ Mbps\uFF09\uFF0C\u65E0\u8BBA\u5728\u522B\u5885\u3001\u6CF3\u6C60\u6216\u82B1\u56ED\u5747\u53EF\u7545\u4EAB\u6781\u901F\u7F51\u7EDC\uFF0C\u8F7B\u677E\u6EE1\u8DB3\u529E\u516C\u6216\u6D41\u5A92\u4F53\u9700\u6C42\u3002",
+    pl: "Na terenie ca\u0142ego obiektu dzia\u0142a bezp\u0142atny, szybki internet satelitarny Starlink (150+ Mbps), zapewniaj\u0105cy stabilne po\u0142\u0105czenie w willach, ogrodach i restauracji.",
+    id: "Internet satelit Starlink kecepatan tinggi (150+ Mbps) tersedia gratis tanpa batas di seluruh private villa, taman santuari, dan paviliun restoran kami untuk kenyamanan streaming maupun remote work."
+  },
+  pools_beach: {
+    en: "Every single one of our 8 luxury sanctuaries features its own private freshwater plunge pool, sun loungers, and direct private pathway access to the pristine shores of the Indian Ocean.",
+    fr: "Chacune de nos 8 villas de prestige dispose de sa propre piscine priv\xE9e d'eau douce, de bains de soleil et d'un acc\xE8s priv\xE9 direct aux rives pr\xE9serv\xE9es de l'oc\xE9an Indien.",
+    sw: "Kila moja ya villa zetu 8 za kifahari ina bwawa lake binafsi la maji safi, vitanda vya jua, na njia ya kibinafsi inayoelekea moja kwa moja kwenye ufukwe mzuri wa Bahari ya Hindi.",
+    es: "Cada una de nuestras 8 exclusivas villas cuenta con su propia piscina privada de agua dulce, tumbonas y acceso privado directo a la playa virgen del Oc\xE9ano \xCDndico.",
+    it: "Ognuna delle nostre 8 ville di lusso dispone di piscina privata ad acqua dolce, lettini prendisole e accesso privato diretto alla spiaggia incontaminata dell'Oceano Indiano.",
+    ar: "\u062A\u062A\u0645\u064A\u0632 \u0643\u0644 \u0641\u064A\u0644\u0627 \u0645\u0646 \u0641\u0644\u0644\u0646\u0627 \u0627\u0644\u0641\u0627\u062E\u0631\u0629 \u0627\u0644\u062B\u0645\u0627\u0646\u064A\u0629 \u0628\u0645\u0633\u0628\u062D \u062E\u0627\u0635 \u0644\u0644\u0645\u064A\u0627\u0647 \u0627\u0644\u0639\u0630\u0628\u0629\u060C \u0648\u0643\u0631\u0627\u0633\u064A \u0627\u0633\u062A\u0644\u0642\u0627\u0621 \u0644\u0644\u062A\u0634\u0645\u0633\u060C \u0648\u0645\u0645\u0631 \u062E\u0627\u0635 \u0645\u0628\u0627\u0634\u0631 \u0625\u0644\u0649 \u0634\u0627\u0637\u0626 \u0627\u0644\u0645\u062D\u064A\u0637 \u0627\u0644\u0647\u0646\u062F\u064A \u0627\u0644\u062E\u0644\u0627\u0628.",
+    zh: "\u6211\u4EEC\u76848\u680B\u5962\u534E\u5E84\u56ED\u522B\u5885\u5747\u914D\u6709\u72EC\u7ACB\u79C1\u4EBA\u6DE1\u6C34\u51B2\u6C34\u65E0\u8FB9\u6CF3\u6C60\u3001\u65E5\u5149\u8EBA\u6905\u4EE5\u53CA\u76F4\u8FBE\u5370\u5EA6\u6D0B\u7EAF\u51C0\u6C99\u6EE9\u7684\u4E13\u5C5E\u79C1\u4EBA\u901A\u9053\u3002",
+    pl: "Ka\u017Cda z naszych 8 luksusowych willi posiada prywatny basen ze s\u0142odk\u0105 wod\u0105, le\u017Caki oraz bezpo\u015Brednie, prywatne przej\u015Bcie na dziewicz\u0105 pla\u017C\u0119 Oceanu Indyjskiego.",
+    id: "Setiap villa dari 8 private sanctuary kami memiliki kolam renang pribadi (freshwater plunge pool), sun loungers, dan akses jalur pribadi langsung ke pantai Kizimkazi Samudra Hindia yang tenang."
+  },
+  villas_rates: {
+    en: "Zanzirangi House features 8 handcrafted luxury sanctuaries including oceanfront pool villas and secluded garden bungalows. Direct rates include gourmet breakfast, butler service, and private plunge pools. Would you like to check dates and availability?",
+    fr: "Zanzirangi House propose 8 villas de luxe priv\xE9es avec piscines privatives et service de majordome. Les tarifs incluent le petit-d\xE9jeuner gastronomique. Souhaitez-vous v\xE9rifier les dates et disponibilit\xE9s ?",
+    sw: "Zanzirangi House ina villa 8 za kifahari zenye mabwawa binafsi na huduma ya mhudumu binafsi. Bei inajumuisha kifungua kinywa cha kifahari. Je, ungependa kuangalia tarehe na upatikanaji?",
+    es: "Zanzirangi House cuenta con 8 exclusivas villas con piscina privada y servicio de mayordomo. Las tarifas incluyen desayuno gourmet. \xBFDesea consultar fechas y disponibilidad?",
+    it: "Zanzirangi House offre 8 esclusive ville di lusso con piscina privata e maggiordomo. Le tariffe includono la colazione gourmet. Vuoi verificare date e disponibilit\xE0?",
+    ar: "\u064A\u0636\u0645 \u0632\u0646\u062C\u064A\u0631\u0627\u0646\u062C\u064A \u0647\u0627\u0648\u0633 8 \u0641\u0644\u0644 \u062E\u0627\u0635\u0629 \u0641\u0627\u062E\u0631\u0629 \u0645\u0639 \u0645\u0633\u0627\u0628\u062D \u062E\u0627\u0635\u0629 \u0648\u062E\u062F\u0645\u0629 \u062E\u0627\u062F\u0645 \u0634\u062E\u0635\u064A. \u062A\u0634\u0645\u0644 \u0627\u0644\u0623\u0633\u0639\u0627\u0631 \u0627\u0644\u0625\u0641\u0637\u0627\u0631 \u0627\u0644\u0641\u0627\u062E\u0631. \u0647\u0644 \u062A\u0631\u063A\u0628 \u0641\u064A \u0627\u0644\u062A\u062D\u0642\u0642 \u0645\u0646 \u0627\u0644\u062A\u0648\u0627\u0631\u064A\u062E \u0648\u0627\u0644\u062A\u0648\u0641\u0631 \u0627\u0644\u0622\u0646\u061F",
+    zh: "Zanzirangi House \u62E5\u67098\u680B\u914D\u5907\u72EC\u7ACB\u79C1\u4EBA\u6CF3\u6C60\u548C\u4E13\u5C5E\u7BA1\u5BB6\u670D\u52A1\u7684\u5962\u534E\u72EC\u7ACB\u522B\u5885\u3002\u623F\u4EF7\u5747\u5305\u542B\u7CBE\u81F4\u70ED\u5E26\u65E9\u9910\u3002\u60A8\u60F3\u67E5\u770B\u5177\u4F53\u65E5\u671F\u7684\u7A7A\u623F\u4E0E\u4EF7\u683C\u5417\uFF1F",
+    pl: "Zanzirangi House oferuje 8 luksusowych willi z prywatnymi basenami i dedykowan\u0105 obs\u0142ug\u0105 lokaja. Ceny obejmuj\u0105 wyborne \u015Bniadanie. Czy chcesz sprawdzi\u0107 terminy i dost\u0119pno\u015B\u0107?",
+    id: "Zanzirangi House menyediakan 8 private pool sanctuary eksklusif termasuk oceanfront villa dan garden sanctuary yang tenang. Apakah Anda ingin mengecek tanggal dan ketersediaan sekarang?"
+  },
+  transfers: {
+    en: "We provide private VIP meet-and-greet and chauffeur shuttle transfers from Abeid Amani Karume International Airport (ZNZ) directly to our sanctuary in Kizimkazi (approx. 55 minutes).",
+    fr: "Zanzirangi House est situ\xE9 \xE0 Kizimkazi Dimbani, \xE0 environ 55 minutes de l'a\xE9roport international de Zanzibar (ZNZ). Nous assurons des transferts priv\xE9s VIP avec chauffeur.",
+    sw: "Zanzirangi House ipo Kizimkazi Dimbani, takriban dakika 55 kutoka Uwanja wa Ndege wa Kimataifa wa Zanzibar (ZNZ). Tunatoa usafiri binafsi wa kifahari wa VIP na dereva.",
+    es: "Zanzirangi House est\xE1 ubicado en Kizimkazi Dimbani, a unos 55 minutos del Aeropuerto Internacional de Zanz\xEDbar (ZNZ). Ofrecemos traslados VIP privados con chofer.",
+    it: "Zanzirangi House si trova a Kizimkazi Dimbani, a circa 55 minuti dall'Aeroporto Internazionale di Zanzibar (ZNZ). Offriamo trasferimenti VIP privati con autista.",
+    ar: "\u064A\u0642\u0639 \u0632\u0646\u062C\u064A\u0631\u0627\u0646\u062C\u064A \u0647\u0627\u0648\u0633 \u0641\u064A \u0643\u064A\u0632\u064A\u0645\u0643\u0627\u0632\u064A \u062F\u064A\u0645\u0628\u0627\u0646\u064A\u060C \u0639\u0644\u0649 \u0628\u064F\u0639\u062F \u062D\u0648\u0627\u0644\u064A 55 \u062F\u0642\u064A\u0642\u0629 \u0645\u0646 \u0645\u0637\u0627\u0631 \u0632\u0646\u062C\u0628\u0627\u0631 \u0627\u0644\u062F\u0648\u0644\u064A (ZNZ). \u0646\u0648\u0641\u0631 \u062E\u062F\u0645\u0627\u062A \u0646\u0642\u0644 VIP \u062E\u0627\u0635\u0629 \u0645\u0639 \u0633\u0627\u0626\u0642 \u0634\u062E\u0635\u064A.",
+    zh: "Zanzirangi House \u4F4D\u4E8E\u6851\u7ED9\u5DF4\u5C14\u5357\u90E8\u7684 Kizimkazi Dimbani\uFF0C\u8DDD\u56FD\u9645\u673A\u573A\uFF08ZNZ\uFF09\u7EA655\u5206\u949F\u8F66\u7A0B\u3002\u6211\u4EEC\u63D0\u4F9B\u5E26\u4E13\u5C5E\u53F8\u673A\u7684\u8C6A\u534E VIP \u4E13\u8F66\u63A5\u9001\u670D\u52A1\u3002",
+    pl: "Zanzirangi House znajduje si\u0119 w Kizimkazi Dimbani, oko\u0142o 55 minut od mi\u0119dzynarodowego lotniska na Zanzibarze (ZNZ). Zapewniamy prywatne transfery VIP z szoferem.",
+    id: "Zanzirangi House berlokasi di Kizimkazi Dimbani, pesisir selatan Zanzibar. Kami menyediakan layanan antar-jemput VIP chauffeur pribadi dari Bandara Internasional Zanzibar (ZNZ) langsung ke sanctuary (~55 menit perjalanan)."
+  },
+  dining: {
+    en: "Our gastronomic philosophy embraces organic garden-to-table produce and line-caught seafood with authentic Swahili spices and fine international dining. Gourmet tropical breakfast is included daily.",
+    fr: "Notre philosophie gastronomique associe produits bio du potager et poissons frais locaux aux \xE9pices swahilies et \xE0 la haute cuisine internationale. Le petit-d\xE9jeuner tropical est inclus chaque matin.",
+    sw: "Mtindo wetu wa chakula unazingatia mazao safi ya bustani na samaki wabichi wa baharini pamoja na viungo asilia vya Kiswahili na vyakula bora vya kimataifa. Kifungua kinywa kinajumuishwa kila siku.",
+    es: "Nuestra propuesta gastron\xF3mica combina productos org\xE1nicos de nuestra huerta y pesca del d\xEDa con especias swahilis y alta cocina internacional. Desayuno gourmet incluido diariamente.",
+    it: "La nostra cucina unisce prodotti biologici del nostro orto e pescato fresco a spezie Swahili e alta gastronomia internazionale. La colazione gourmet \xE8 inclusa ogni giorno.",
+    ar: "\u062A\u0631\u062A\u0643\u0632 \u0641\u0644\u0633\u0641\u062A\u0646\u0627 \u0641\u064A \u0627\u0644\u0637\u0647\u064A \u0639\u0644\u0649 \u0627\u0644\u0645\u0643\u0648\u0646\u0627\u062A \u0627\u0644\u0639\u0636\u0648\u064A\u0629 \u0627\u0644\u0637\u0627\u0632\u062C\u0629 \u0645\u0646 \u062D\u062F\u0627\u0626\u0642\u0646\u0627 \u0648\u0627\u0644\u0645\u0623\u0643\u0648\u0644\u0627\u062A \u0627\u0644\u0628\u062D\u0631\u064A\u0629 \u0627\u0644\u0637\u0627\u0632\u062C\u0629 \u0645\u0639 \u0627\u0644\u062A\u0648\u0627\u0628\u0644 \u0627\u0644\u0633\u0648\u0627\u062D\u0644\u064A\u0629 \u0627\u0644\u0623\u0635\u064A\u0644\u0629 \u0648\u0627\u0644\u0645\u0623\u0643\u0648\u0644\u0627\u062A \u0627\u0644\u0639\u0627\u0644\u0645\u064A\u0629 \u0627\u0644\u0641\u0627\u062E\u0631\u0629. \u0627\u0644\u0625\u0641\u0637\u0627\u0631 \u0627\u0644\u0627\u0633\u062A\u0648\u0627\u0626\u064A \u0645\u0634\u0645\u0648\u0644 \u064A\u0648\u0645\u064A\u0627\u064B.",
+    zh: "\u6211\u4EEC\u7684\u6599\u7406\u54F2\u5B66\u5021\u5BFC\u5E84\u56ED\u6709\u673A\u519C\u573A\u5230\u9910\u684C\u7684\u65B0\u9C9C\u7406\u5FF5\uFF0C\u7504\u9009\u5370\u5EA6\u6D0B\u6BCF\u65E5\u6355\u635E\u7684\u6D77\u9C9C\uFF0C\u878D\u5408\u7EAF\u6B63\u65AF\u74E6\u5E0C\u91CC\u9999\u6599\u4E0E\u56FD\u9645\u9AD8\u7AEF\u7F8E\u9994\u3002\u6BCF\u65E5\u63D0\u4F9B\u7CBE\u7F8E\u70ED\u5E26\u65E9\u9910\u3002",
+    pl: "Nasza filozofia kulinarna \u0142\u0105czy ekologiczne produkty z w\u0142asnego ogrodu i \u015Bwie\u017Ce owoce morza z autentycznymi przyprawami suahili i kuchni\u0105 mi\u0119dzynarodow\u0105. \u015Aniadanie w cenie ka\u017Cdego pobytu.",
+    id: "Filosofi kuliner kami menyajikan hasil bumi organik dari kebun sendiri (garden-to-table) dan hidangan seafood segar tangkapan harian nelayan lokal dengan sentuhan Swahili otentik dan menu internasional mewah."
+  },
+  serengeti: {
+    en: "Serengeti National Park is an extraordinary safari experience. Zanzirangi House arranges direct chartered fly-in safaris from Zanzibar airport (approx. 1h 45m) with luxury partner tented camps overlooking migration corridors.",
+    fr: "Le parc national du Serengeti offre une exp\xE9rience de safari extraordinaire. Zanzirangi House organise des safaris en vol charter direct depuis Zanzibar (env. 1h45) avec des camps de tentes de luxe partenaires.",
+    sw: "Hifadhi ya Taifa ya Serengeti ni uzoefu wa kipekee wa safari. Zanzirangi House inaandaa safari za ndege za moja kwa moja kutoka uwanja wa ndege wa Zanzibar (takriban saa 1 na dakika 45) na malazi ya kambi za kifahari.",
+    es: "El Parque Nacional Serengeti es una experiencia de safari legendaria. Zanzirangi House organiza vuelos ch\xE1rter directos desde Zanz\xEDbar (aprox. 1h 45m) con campamentos asociados de lujo.",
+    it: "Il Parco Nazionale del Serengeti offre un'esperienza di safari indimenticabile. Zanzirangi House organizza safari con voli charter diretti da Zanzibar (circa 1h 45m) con campi tendati di lusso partner.",
+    ar: "\u062A\u0639\u062A\u0628\u0631 \u062D\u062F\u064A\u0642\u0629 \u0633\u064A\u0631\u064A\u0646\u062C\u064A\u062A\u064A \u0627\u0644\u0648\u0637\u0646\u064A\u0629 \u062A\u062C\u0631\u0628\u0629 \u0633\u0641\u0627\u0631\u064A \u0627\u0633\u062A\u062B\u0646\u0627\u0626\u064A\u0629. \u064A\u0646\u0638\u0645 \u0632\u0646\u062C\u064A\u0631\u0627\u0646\u062C\u064A \u0647\u0627\u0648\u0633 \u0631\u062D\u0644\u0627\u062A \u0633\u0641\u0627\u0631\u064A \u0628\u0637\u064A\u0631\u0627\u0646 \u0634\u0627\u0631\u062A\u0631 \u0645\u0628\u0627\u0634\u0631 \u0645\u0646 \u0645\u0637\u0627\u0631 \u0632\u0646\u062C\u0628\u0627\u0631 (\u062D\u0648\u0627\u0644\u064A \u0633\u0627\u0639\u0629 \u064845 \u062F\u0642\u064A\u0642\u0629) \u0645\u0639 \u0645\u062E\u064A\u0645\u0627\u062A \u0641\u0627\u062E\u0631\u0629 \u0634\u0631\u064A\u0643\u0629.",
+    zh: "\u585E\u4F26\u76D6\u8482\u56FD\u5BB6\u516C\u56ED\u662F\u4E00\u751F\u5FC5\u53BB\u4E00\u6B21\u7684\u91CE\u751F\u52A8\u7269\u6E38\u730E\u4F53\u9A8C\u3002Zanzirangi House \u5B89\u6392\u4ECE\u6851\u7ED9\u5DF4\u5C14\u673A\u573A\u76F4\u98DE\u7684\u5927\u8349\u539F\u4E13\u673A\uFF08\u7EA61\u5C0F\u65F645\u5206\uFF09\uFF0C\u5165\u4F4F\u4FEF\u77B0\u52A8\u7269\u5927\u8FC1\u5F99\u8DEF\u7EBF\u7684\u9AD8\u7AEF\u5E10\u7BF7\u8425\u5730\u3002",
+    pl: "Park Narodowy Serengeti to niezwyk\u0142e prze\u017Cycie safari. Zanzirangi House organizuje bezpo\u015Brednie loty czarterowe z Zanzibaru (ok. 1h 45m) z noclegami w luksusowych obozach partnerskich.",
+    id: "Taman Nasional Serengeti adalah pengalaman safari legendaris. Zanzirangi House mengatur safari terbang carter langsung dari Zanzibar (\xB11 jam 45 menit) dengan akomodasi tenda mewah mitra kami."
+  },
+  ngorongoro: {
+    en: "Ngorongoro Crater offers Africa\u2019s densest predator populations inside a UNESCO volcanic caldera. We organize chartered fly-in packages combining your beach retreat with panoramic crater floor game drives.",
+    fr: "Le crat\xE8re du Ngorongoro abrite la plus dense population de pr\xE9dateurs d'Afrique dans une caldeira class\xE9e par l'UNESCO. Nous organisons des s\xE9jours combin\xE9s plage et safari dans le crat\xE8re.",
+    sw: "Kreta ya Ngorongoro ina idadi kubwa ya wanyama wanaowinda barani Afrika ndani ya volkano ya UNESCO. Tunaandaa vifurushi vya ndege vinavyochanganya mapumziko ya ufukweni na safari ya kreta.",
+    es: "El Cr\xE1ter del Ngorongoro alberga la mayor densidad de depredadores de \xC1frica dentro de una caldera de la UNESCO. Organizamos paquetes de vuelo combinando playa y safari en el cr\xE1ter.",
+    it: "Il Cratere di Ngorongoro offre la pi\xF9 alta densit\xE0 di predatori d'Africa all'interno di una caldera UNESCO. Organizziamo pacchetti con volo combinando soggiorno mare e safari nel cratere.",
+    ar: "\u062A\u0636\u0645 \u0641\u0648\u0647\u0629 \u0646\u062C\u0648\u0631\u0648\u0646\u062C\u0648\u0631\u0648 \u0623\u0639\u0644\u0649 \u0643\u062B\u0627\u0641\u0629 \u0644\u0644\u062D\u064A\u0648\u0627\u0646\u0627\u062A \u0627\u0644\u0645\u0641\u062A\u0631\u0633\u0629 \u0641\u064A \u0625\u0641\u0631\u064A\u0642\u064A\u0627 \u0636\u0645\u0646 \u0641\u0648\u0647\u0629 \u0628\u0631\u0643\u0627\u0646\u064A\u0629 \u0645\u0635\u0646\u0641\u0629 \u0644\u062F\u0649 \u0627\u0644\u064A\u0648\u0646\u0633\u0643\u0648. \u0646\u0646\u0638\u0645 \u0628\u0627\u0642\u0627\u062A \u0637\u064A\u0631\u0627\u0646 \u062A\u062C\u0645\u0639 \u0628\u064A\u0646 \u0627\u0644\u0625\u0642\u0627\u0645\u0629 \u0627\u0644\u0634\u0627\u0637\u0626\u064A\u0629 \u0648\u0631\u062D\u0644\u0627\u062A \u0627\u0644\u0633\u0641\u0627\u0631\u064A.",
+    zh: "\u6069\u6208\u7F57\u6069\u6208\u7F57\u706B\u5C71\u53E3\u62E5\u6709\u5168\u975E\u6D32\u5BC6\u5EA6\u6700\u9AD8\u7684\u98DF\u8089\u52A8\u7269\u79CD\u7FA4\u3002\u6211\u4EEC\u63D0\u4F9B\u5305\u542B\u6851\u7ED9\u5DF4\u5C14\u6D77\u6EE9\u5EA6\u5047\u4E0E\u706B\u5C71\u53E3\u76C6\u5730\u5168\u666F\u6E38\u730E\u7684\u76F4\u98DE\u5C0A\u4EAB\u5957\u9910\u3002",
+    pl: "Krater Ngorongoro to kaldera UNESCO z najwi\u0119ksz\u0105 g\u0119sto\u015Bci\u0105 drapie\u017Cnik\xF3w w Afryce. Organizujemy pakiety z przelotem \u0142\u0105cz\u0105ce relaks na pla\u017Cy z safari na dnie krateru.",
+    id: "Kawah Ngorongoro menyimpan populasi predator terpadat di Afrika di dalam kaldera vulkanik UNESCO. Kami menyediakan paket safari terbang kombinasi liburan pantai dan game drive kawah."
+  },
+  kilimanjaro: {
+    en: "Mount Kilimanjaro expeditions and scenic fly-over safaris are arranged through our certified mainland mountain guide partners. We can curate pre-climb acclimatization stays or relaxing post-climb beach recovery.",
+    fr: "Les exp\xE9ditions au Kilimandjaro et les survols panoramiques sont organis\xE9s avec nos guides de montagne partenaires certifi\xE9s, avec s\xE9jours d'acclimatation ou repos apr\xE8s l'ascension.",
+    sw: "Safari za Mlima Kilimanjaro na safari za ndege za mandhari hupangwa kupitia waelekezi wetu walioidhinishwa wa milimani, ikiwa ni pamoja na maandalizi kabla ya kupanda au kupumzika baada ya kuteremka.",
+    es: "Las expediciones al Monte Kilimanjaro y sobrevuelos panor\xE1micos se coordinan con gu\xEDas certificados, incluyendo aclimataci\xF3n previa o descanso en la playa tras la cumbre.",
+    it: "Le spedizioni sul Kilimangiaro e i voli panoramici sono organizzati con guide alpine partner certificate, con soggiorni di acclimatazione o relax post-scalata.",
+    ar: "\u064A\u062A\u0645 \u062A\u0631\u062A\u064A\u0628 \u0631\u062D\u0644\u0627\u062A \u062A\u0633\u0644\u0642 \u062C\u0628\u0644 \u0643\u0644\u064A\u0645\u0646\u062C\u0627\u0631\u0648 \u0648\u0627\u0644\u062C\u0648\u0644\u0627\u062A \u0627\u0644\u062C\u0648\u064A\u0629 \u0627\u0644\u0628\u0627\u0646\u0648\u0631\u0627\u0645\u064A\u0629 \u0645\u0639 \u0634\u0631\u0643\u0627\u0626\u0646\u0627 \u0627\u0644\u0645\u0639\u062A\u0645\u062F\u064A\u0646\u060C \u0645\u0639 \u0625\u0645\u0643\u0627\u0646\u064A\u0629 \u062A\u0646\u0638\u064A\u0645 \u0625\u0642\u0627\u0645\u0629 \u0644\u0644\u062A\u0623\u0642\u0644\u0645 \u0642\u0628\u0644 \u0627\u0644\u062A\u0633\u0644\u0642 \u0623\u0648 \u0627\u0644\u0627\u0633\u062A\u0631\u062E\u0627\u0621 \u0639\u0644\u0649 \u0627\u0644\u0634\u0627\u0637\u0626 \u0628\u0639\u062F\u0647.",
+    zh: "\u4E5E\u529B\u9A6C\u624E\u7F57\u5C71\u6500\u767B\u63A2\u9669\u53CA\u5168\u666F\u7A7A\u4E2D\u822A\u62CD\u6E38\u730E\u5747\u7531\u6211\u4EEC\u8BA4\u8BC1\u7684\u9AD8\u5C71\u5411\u5BFC\u56E2\u961F\u627F\u529E\uFF0C\u53EF\u4E3A\u60A8\u5B9A\u5236\u767B\u9876\u524D\u7684\u9002\u5E94\u8BAD\u7EC3\u6216\u767B\u9876\u540E\u7684\u6D77\u6EE9\u6DF1\u5EA6\u653E\u677E\u5047\u671F\u3002",
+    pl: "Wyprawy na Kilimand\u017Caro i widokowe przeloty organizujemy z certyfikowanymi przewodnikami g\xF3rskimi, wraz z pobytem aklimatyzacyjnym lub relaksem na pla\u017Cy po wspinaczce.",
+    id: "Ekspedisi Gunung Kilimanjaro dan safari penerbangan panorama diatur bersama mitra pemandu gunung resmi kami, lengkap dengan aklimatisasi sebelum pendakian atau istirahat relaksasi setelahnya."
+  },
+  dolphins: {
+    en: "Kizimkazi is world-famous for resident dolphin pods in the Menai Bay Conservation Area. We organize ethical sunrise dolphin safaris directly from our shore.",
+    fr: "Kizimkazi est r\xE9put\xE9 dans le monde entier pour ses dauphins dans la r\xE9serve de Menai Bay. Nous organisons des sorties \xE9thiques \xE0 l'aube directement depuis notre plage.",
+    sw: "Kizimkazi ni maarufu duniani kwa makundi ya pomboo katika Hifadhi ya Menai Bay. Tunapanga safari za boti alfajiri zenye maadili moja kwa moja kutoka ufukweni mwetu.",
+    es: "Kizimkazi es mundialmente famoso por sus colonias de delfines en la Bah\xEDa de Menai. Organizamos salidas \xE9ticas al amanecer directamente desde nuestra orilla.",
+    it: "Kizimkazi \xE8 famosa nel mondo per i delfini nella riserva di Menai Bay. Organizziamo uscite etiche in barca all\u2019alba direttamente dalla nostra spiaggia.",
+    ar: "\u062A\u0634\u062A\u0647\u0631 \u0643\u064A\u0632\u064A\u0645\u0643\u0627\u0632\u064A \u0639\u0627\u0644\u0645\u064A\u0627\u064B \u0628\u0648\u062C\u0648\u062F \u0623\u0633\u0631\u0627\u0628 \u0627\u0644\u062F\u0644\u0627\u0641\u064A\u0646 \u0641\u064A \u0645\u062D\u0645\u064A\u0629 \u0645\u064A\u0646\u0627\u064A \u0628\u0627\u064A. \u0646\u0646\u0638\u0645 \u062C\u0648\u0644\u0627\u062A \u0628\u062D\u0631\u064A\u0629 \u0635\u0628\u0627\u062D\u064A\u0629 \u0645\u0639\u062A\u0645\u062F\u0629 \u0628\u064A\u0626\u064A\u0627\u064B \u0645\u0628\u0627\u0634\u0631\u0629 \u0645\u0646 \u0634\u0627\u0637\u0626\u0646\u0627.",
+    zh: "\u57FA\u6D4E\u59C6\u5361\u9F50\u4EE5 Menai Bay \u6D77\u6D0B\u4FDD\u62A4\u533A\u5E38\u9A7B\u7684\u91CE\u751F\u6D77\u8C5A\u7FA4\u95FB\u540D\u4E16\u754C\u3002\u6211\u4EEC\u5728\u6E05\u6668\u5B89\u6392\u4E13\u5C5E\u5C0F\u8247\uFF0C\u5E26\u60A8\u4F53\u9A8C\u751F\u6001\u53CB\u597D\u7684\u65E5\u51FA\u6D77\u8C5A\u5BFB\u8E2A\u4E4B\u65C5\u3002",
+    pl: "Kizimkazi s\u0142ynie z dzikich delfin\xF3w w zatoce Menai Bay. Organizujemy etyczne, poranne rejsy z licencjonowanymi przewodnikami prosto z naszej pla\u017Cy.",
+    id: "Kizimkazi terkenal di dunia dengan kawanan lumba-lumba di Kawasan Konservasi Menai Bay. Kami mengadakan safari lumba-lumba etis saat matahari terbit langsung dari tepi pantai kami."
+  },
+  dhow: {
+    en: "Glide across the turquoise Indian Ocean aboard a handcrafted wooden dhow while enjoying chilled Champagne and fresh Swahili canap\xE9s as the sun sets.",
+    fr: "Glissez sur l'oc\xE9an Indien \xE0 bord d'un dhow traditionnel en bois tout en savourant du champagne frais et des canap\xE9s swahilis au coucher du soleil.",
+    sw: "Safiri katika Bahari ya Hindi yenye rangi ya feruzi ukiwa ndani ya dau la mbao la jadi huku ukifurahia vinywaji baridi na vitafunio vya Kiswahili wakati wa jua kuzama.",
+    es: "Navegue por las aguas turquesas del Oc\xE9ano \xCDndico a bordo de un dhow tradicional de madera mientras disfruta de champ\xE1n y canap\xE9s swahilis al atardecer.",
+    it: "Naviga sulle acque turchesi dell'Oceano Indiano a bordo di un dhow tradizionale in legno gustando champagne freddo e canap\xE8 Swahili al tramonto.",
+    ar: "\u0623\u0628\u062D\u0631 \u0639\u0628\u0631 \u0645\u064A\u0627\u0647 \u0627\u0644\u0645\u062D\u064A\u0637 \u0627\u0644\u0647\u0646\u062F\u064A \u0627\u0644\u0641\u064A\u0631\u0648\u0632\u064A\u0629 \u0639\u0644\u0649 \u0645\u062A\u0646 \u0642\u0627\u0631\u0628 \u062F\u0627\u0648 \u062E\u0634\u0628\u064A \u062A\u0642\u0644\u064A\u062F\u064A \u0645\u0639 \u0627\u0644\u0627\u0633\u062A\u0645\u062A\u0627\u0639 \u0628\u0627\u0644\u0645\u0634\u0631\u0648\u0628\u0627\u062A \u0627\u0644\u0645\u0646\u0639\u0634\u0629 \u0648\u0627\u0644\u0645\u0642\u0628\u0644\u0627\u062A \u0627\u0644\u0633\u0648\u0627\u062D\u0644\u064A\u0629 \u0627\u0644\u0637\u0627\u0632\u062C\u0629 \u0648\u0642\u062A \u063A\u0631\u0648\u0628 \u0627\u0644\u0634\u0645\u0633.",
+    zh: "\u4E58\u5750\u7EAF\u624B\u5DE5\u6253\u9020\u7684\u4F20\u7EDF\u6728\u8D28 Dhow \u5E06\u8239\u5728\u7EFF\u677E\u77F3\u822C\u7684\u5370\u5EA6\u6D0B\u4E0A\u7834\u6D6A\u524D\u884C\uFF0C\u5728\u9189\u4EBA\u65E5\u843D\u4E2D\u54C1\u5473\u51B0\u9547\u9999\u69DF\u4E0E\u65B0\u9C9C\u7279\u5236\u7684\u65AF\u74E6\u5E0C\u91CC\u5C0F\u98DF\u3002",
+    pl: "P\u0142y\u0144 po turkusowych wodach Oceanu Indyjskiego tradycyjn\u0105 drewnian\u0105 \u0142odzi\u0105 dhow, delektuj\u0105c si\u0119 sch\u0142odzonym szampanem i przek\u0105skami o zachodzie s\u0142o\u0144ca.",
+    id: "Nikmati pelayaran magis di atas perahu kayu tradisional Dhow menyusuri Samudra Hindia pirus sambil menikmati Champagne dingin dan canap\xE9 Swahili saat matahari terbenam."
+  },
+  spa: {
+    en: "Our in-villa wellness treatments feature cold-pressed Zanzibari coconut oils, clove and cinnamon body scrubs, and soothing deep-tissue massages performed on your private ocean deck.",
+    fr: "Nos soins bien-\xEAtre en villa utilisent des huiles de coco pures de Zanzibar, des gommages au clou de girofle et des massages relaxants sur votre terrasse priv\xE9e face \xE0 la mer.",
+    sw: "Huduma zetu za spa ndani ya villa hutumia mafuta asilia ya nazi, viungo vya karafuu na mdalasini, pamoja na masaji ya kina ya kutuliza mwili kwenye deki ya villa yako.",
+    es: "Nuestros tratamientos de spa en la villa emplean aceite puro de coco de Zanz\xEDbar, exfoliaciones con clavo y canela, y masajes descontracturantes en su terraza privada.",
+    it: "I nostri trattamenti benessere in villa prevedono oli di cocco puri di Zanzibar, scrub ai chiodi di garofano e cannella e massaggi rilassanti sul tuo solarium privato.",
+    ar: "\u062A\u062A\u0645\u064A\u0632 \u0639\u0644\u0627\u062C\u0627\u062A \u0627\u0644\u0633\u0628\u0627 \u0641\u064A \u0627\u0644\u0641\u064A\u0644\u0627 \u0628\u0627\u0633\u062A\u062E\u062F\u0627\u0645 \u0632\u064A\u0648\u062A \u062C\u0648\u0632 \u0627\u0644\u0647\u0646\u062F \u0627\u0644\u0632\u0646\u062C\u0628\u0627\u0631\u064A\u0629 \u0627\u0644\u0646\u0642\u064A\u0629\u060C \u0648\u0645\u0642\u0634\u0631\u0627\u062A \u0627\u0644\u0642\u0631\u0646\u0641\u0644 \u0648\u0627\u0644\u0642\u0631\u0641\u0629\u060C \u0648\u062C\u0644\u0633\u0627\u062A \u0627\u0644\u062A\u062F\u0644\u064A\u0643 \u0627\u0644\u0645\u0647\u062F\u0626\u0629 \u0639\u0644\u0649 \u0627\u0644\u062A\u0631\u0627\u0633 \u0627\u0644\u062E\u0627\u0635 \u0628\u0643 \u0627\u0644\u0645\u0637\u0644 \u0639\u0644\u0649 \u0627\u0644\u0645\u062D\u064A\u0637.",
+    zh: "\u6211\u4EEC\u7684\u522B\u5885\u5185\u6C34\u7597\u62A4\u7406\u91C7\u7528\u521D\u69A8\u5929\u7136\u6851\u7ED9\u5DF4\u5C14\u6930\u5B50\u6CB9\u3001\u4E01\u9999\u4E0E\u8089\u6842\u78E8\u7802\u818F\uFF0C\u7531\u8D44\u6DF1\u7406\u7597\u5E08\u5728\u60A8\u9762\u5411\u5927\u6D77\u7684\u79C1\u4EBA\u9633\u5149\u9732\u53F0\u4E0A\u63D0\u4F9B\u6DF1\u5EA6\u5168\u8EAB\u8212\u7F13\u6309\u6469\u3002",
+    pl: "Nasze zabiegi spa w willi wykorzystuj\u0105 t\u0142oczony na zimno zanzibarski olej kokosowy, peelingi z go\u017Adzik\xF3w i cynamonu oraz relaksuj\u0105ce masa\u017Ce na Twoim prywatnym tarasie.",
+    id: "Layanan spa & wellness in-villa kami menggunakan minyak kelapa Zanzibari murni, scrub cengkeh & kayu manis, serta deep-tissue massage yang menenangkan langsung di dek oceanfront pribadi Anda."
+  },
+  payment: {
+    en: "We accept major credit cards (Visa, MasterCard, Amex), international bank transfers, and mobile payments. Cancellation terms offer full flexibility up to 14 days prior to arrival.",
+    fr: "Nous acceptons les cartes Visa, MasterCard, Amex et les virements bancaires internationaux. Annulation flexible sans frais jusqu\u2019\xE0 14 jours avant votre arriv\xE9e.",
+    sw: "Tunapokea kadi zote kuu za benki (Visa, MasterCard, Amex) na uhamisho wa benki wa kimataifa. Kughairi bila malipo hadi siku 14 kabla ya kuwasili.",
+    es: "Aceptamos tarjetas de cr\xE9dito (Visa, MasterCard, Amex) y transferencias bancarias internacionales. Cancelaci\xF3n gratuita hasta 14 d\xEDas antes de la llegada.",
+    it: "Accettiamo le principali carte di credito (Visa, MasterCard, Amex) e bonifici bancari internazionali. Condizioni di cancellazione flessibili fino a 14 giorni prima dell\u2019arrivo.",
+    ar: "\u0646\u0642\u0628\u0644 \u0628\u0637\u0627\u0642\u0627\u062A \u0627\u0644\u0627\u0626\u062A\u0645\u0627\u0646 \u0627\u0644\u0631\u0626\u064A\u0633\u064A\u0629 (\u0641\u064A\u0632\u0627\u060C \u0645\u0627\u0633\u062A\u0631\u0643\u0627\u0631\u062F\u060C \u0623\u0645\u0631\u064A\u0643\u0627\u0646 \u0625\u0643\u0633\u0628\u0631\u064A\u0633) \u0648\u0627\u0644\u062A\u062D\u0648\u064A\u0644\u0627\u062A \u0627\u0644\u0628\u0646\u0643\u064A\u0629 \u0627\u0644\u062F\u0648\u0644\u064A\u0629. \u062A\u062A\u064A\u062D \u0633\u064A\u0627\u0633\u0629 \u0627\u0644\u0625\u0644\u063A\u0627\u0621 \u0645\u0631\u0648\u0646\u0629 \u0643\u0627\u0645\u0644\u0629 \u062D\u062A\u0649 14 \u064A\u0648\u0645\u0627\u064B \u0642\u0628\u0644 \u0645\u0648\u0639\u062F \u0627\u0644\u0648\u0635\u0648\u0644.",
+    zh: "\u652F\u6301\u4E3B\u6D41\u4FE1\u7528\u5361\uFF08Visa\u3001MasterCard\u3001American Express\uFF09\u3001\u56FD\u9645\u94F6\u884C\u7535\u6C47\u4EE5\u53CA\u79FB\u52A8\u652F\u4ED8\u3002\u5165\u4F4F\u524D14\u5929\u4EAB\u53D7\u5168\u989D\u9000\u6B3E\u7684\u7075\u6D3B\u53D6\u6D88\u653F\u7B56\u3002",
+    pl: "Akceptujemy g\u0142\xF3wne karty kredytowe (Visa, MasterCard, Amex) oraz mi\u0119dzynarodowe przelewy bankowe. Pe\u0142na elastyczno\u015B\u0107 bezp\u0142atnej anulacji do 14 dni przed przyjazdem.",
+    id: "Kami menerima kartu kredit utama (Visa, MasterCard, Amex), transfer bank internasional, dan pembayaran digital. Kebijakan pembatalan fleksibel penuh hingga 14 hari sebelum tanggal kedatangan."
+  }
+};
+var GREETINGS = {
+  evening: {
+    en: "Jambo and good evening! Welcome to Zanzirangi House. My name is {name}, your private concierge. How may I assist your stay or inquiries in Zanzibar tonight?",
+    fr: "Jambo et bonsoir ! Bienvenue \xE0 Zanzirangi House. Je m'appelle {name}, votre concierge priv\xE9. Comment puis-je vous aider pour votre s\xE9jour \xE0 Zanzibar ce soir ?",
+    sw: "Jambo na habari ya jioni! Karibu Zanzirangi House. Naitwa {name}, mhudumu wako binafsi. Nawezaje kukusaidia kuhusu makazi yako au maswali ya Zanzibar jioni ya leo?",
+    es: "\xA1Jambo y buenas noches! Bienvenido a Zanzirangi House. Mi nombre es {name}, su conserje privado. \xBFC\xF3mo puedo asistirle hoy con su estad\xEDa en Zanz\xEDbar esta noche?",
+    it: "Jambo e buona sera! Benvenuto a Zanzirangi House. Mi chiamo {name}, il tuo concierge privato. Come posso assisterti per il tuo soggiorno a Zanzibar questa sera?",
+    ar: "\u062C\u0627\u0645\u0628\u0648 \u0648\u0645\u0633\u0627\u0621 \u0627\u0644\u062E\u064A\u0631! \u0623\u0647\u0644\u0627\u064B \u0628\u0643\u0645 \u0641\u064A \u0632\u0646\u062C\u064A\u0631\u0627\u0646\u062C\u064A \u0647\u0627\u0648\u0633. \u0623\u0646\u0627 {name}\u060C \u0643\u0648\u0646\u0633\u064A\u0631\u062C\u0643 \u0627\u0644\u062E\u0627\u0635. \u0643\u064A\u0641 \u064A\u0645\u0643\u0646\u0646\u064A \u0645\u0633\u0627\u0639\u062F\u062A\u0643 \u0641\u064A \u0625\u0642\u0627\u0645\u062A\u0643 \u0648\u0627\u0633\u062A\u0641\u0633\u0627\u0631\u0627\u062A\u0643 \u0641\u064A \u0632\u0646\u062C\u0628\u0627\u0631 \u0627\u0644\u0644\u064A\u0644\u0629\u061F",
+    zh: "Jambo\uFF01\u665A\u4E0A\u597D\uFF0C\u6B22\u8FCE\u6765\u5230 Zanzirangi House\u3002\u6211\u662F\u60A8\u7684\u4E13\u5C5E\u79C1\u4EBA\u7BA1\u5BB6 {name}\u3002\u8BF7\u95EE\u4ECA\u665A\u80FD\u4E3A\u60A8\u7684\u6851\u7ED9\u5DF4\u5C14\u5047\u671F\u63D0\u4F9B\u4EC0\u4E48\u534F\u52A9\uFF1F",
+    pl: "Jambo i dobry wiecz\xF3r! Witamy w Zanzirangi House. Nazywam si\u0119 {name}, Tw\xF3j prywatny konsjer\u017C. W czym mog\u0119 pom\xF3c w planowaniu pobytu na Zanzibarze tego wieczoru?",
+    id: "Jambo & selamat malam! Senang bisa menyapa Anda di Zanzirangi House. Saya {name}, concierge Anda. Ada yang bisa kami bantu seputar reservasi villa, fasilitas, atau pengalaman di Zanzibar malam ini?"
+  },
+  daytime: {
+    en: "Jambo and welcome! My name is {name}, your personal concierge at Zanzirangi House. How may I assist you today regarding our luxury villas, dining, or safari experiences?",
+    fr: "Jambo et bienvenue ! Je m'appelle {name}, votre concierge personnel \xE0 Zanzirangi House. Comment puis-je vous aider aujourd'hui concernant nos villas de luxe, nos repas ou nos safaris ?",
+    sw: "Jambo na karibu! Naitwa {name}, mhudumu wako binafsi katika Zanzirangi House. Nawezaje kukusaidia leo kuhusu villa zetu, vyakula, au safari za Zanzibar?",
+    es: "\xA1Jambo y bienvenido! Mi nombre es {name}, su conserje privado en Zanzirangi House. \xBFC\xF3mo puedo asistirle hoy con nuestras villas de lujo, gastronom\xEDa o experiencias de safari?",
+    it: "Jambo e benvenuto! Mi chiamo {name}, il tuo concierge personale a Zanzirangi House. Come posso assisterti oggi per le nostre ville di lusso, ristorazione o esperienze di safari?",
+    ar: "\u062C\u0627\u0645\u0628\u0648 \u0648\u0623\u0647\u0644\u0627\u064B \u0628\u0643! \u0623\u0646\u0627 {name}\u060C \u0643\u0648\u0646\u0633\u064A\u0631\u062C\u0643 \u0627\u0644\u062E\u0627\u0635 \u0641\u064A \u0632\u0646\u062C\u064A\u0631\u0627\u0646\u062C\u064A \u0647\u0627\u0648\u0633. \u0643\u064A\u0641 \u064A\u0645\u0643\u0646\u0646\u064A \u0645\u0633\u0627\u0639\u062F\u062A\u0643 \u0627\u0644\u064A\u0648\u0645 \u0628\u062E\u0635\u0648\u0635 \u0641\u0644\u0644\u0646\u0627 \u0627\u0644\u0641\u0627\u062E\u0631\u0629 \u0623\u0648 \u062A\u062C\u0627\u0631\u0628 \u0627\u0644\u0637\u0639\u0627\u0645 \u0648\u0627\u0644\u0633\u0641\u0627\u0631\u064A\u061F",
+    zh: "Jambo\uFF01\u6B22\u8FCE\u5149\u4E34\u3002\u6211\u662F\u60A8\u5728 Zanzirangi House \u7684\u4E13\u5C5E\u79C1\u4EBA\u7BA1\u5BB6 {name}\u3002\u8BF7\u95EE\u4ECA\u5929\u80FD\u4E3A\u60A8\u7684\u5962\u534E\u72EC\u7ACB\u522B\u5885\u3001\u9910\u996E\u7F8E\u9994\u6216\u6E38\u730E\u63A2\u7D22\u63D0\u4F9B\u4EC0\u4E48\u534F\u52A9\uFF1F",
+    pl: "Jambo i witamy! Nazywam si\u0119 {name}, Tw\xF3j osobisty konsjer\u017C w Zanzirangi House. W czym mog\u0119 pom\xF3c dzisiaj w kwestii naszych luksusowych willi, gastronomii lub safari?",
+    id: "Jambo & selamat datang! Saya {name}, concierge pribadi Anda di Zanzirangi House. Ada yang bisa kami bantu hari ini seputar pilihan villa, dining, atau safari di Zanzibar?"
+  },
+  general: {
+    en: "Jambo! Welcome to Zanzirangi House. I am {name}, your personal concierge. Feel free to ask about our private villas, check-in, transfers, dining, or bespoke safari journeys!",
+    fr: "Jambo ! Bienvenue \xE0 Zanzirangi House. Je suis {name}, votre concierge personnel. N'h\xE9sitez pas \xE0 poser vos questions sur nos villas priv\xE9es, transferts, repas ou safaris sur-mesure !",
+    sw: "Jambo na karibu Zanzirangi House! Mimi ni {name}, mhudumu wako binafsi. Jisikie huru kuuliza kuhusu villa zetu binafsi, kuingia, usafiri, vyakula, au safari zetu maalum!",
+    es: "\xA1Jambo! Bienvenido a Zanzirangi House. Soy {name}, su conserje personal. No dude en consultarme sobre nuestras villas privadas, traslados, gastronom\xEDa o safaris exclusivos.",
+    it: "Jambo! Benvenuto a Zanzirangi House. Sono {name}, il tuo concierge personale. Chiedimi pure informazioni sulle nostre ville private, check-in, trasferimenti, ristorazione o safari esclusivi!",
+    ar: "\u062C\u0627\u0645\u0628\u0648! \u0623\u0647\u0644\u0627\u064B \u0628\u0643\u0645 \u0641\u064A \u0632\u0646\u062C\u064A\u0631\u0627\u0646\u062C\u064A \u0647\u0627\u0648\u0633. \u0623\u0646\u0627 {name}\u060C \u0643\u0648\u0646\u0633\u064A\u0631\u062C\u0643 \u0627\u0644\u0634\u062E\u0635\u064A. \u0644\u0627 \u062A\u062A\u0631\u062F\u062F \u0641\u064A \u0627\u0644\u0627\u0633\u062A\u0641\u0633\u0627\u0631 \u0639\u0646 \u0641\u0644\u0644\u0646\u0627 \u0627\u0644\u062E\u0627\u0635\u0629\u060C \u0645\u0648\u0627\u0639\u064A\u062F \u0627\u0644\u0648\u0635\u0648\u0644\u060C \u062E\u062F\u0645\u0627\u062A \u0627\u0644\u0646\u0642\u0644\u060C \u0627\u0644\u0637\u0639\u0627\u0645\u060C \u0623\u0648 \u0631\u062D\u0644\u0627\u062A \u0627\u0644\u0633\u0641\u0627\u0631\u064A \u0627\u0644\u0645\u062E\u0635\u0635\u0629!",
+    zh: "Jambo\uFF01\u6B22\u8FCE\u6765\u5230 Zanzirangi House\u3002\u6211\u662F\u60A8\u7684\u4E13\u5C5E\u7BA1\u5BB6 {name}\u3002\u968F\u65F6\u5411\u6211\u54A8\u8BE2\u5173\u4E8E\u72EC\u680B\u522B\u5885\u9884\u8BA2\u3001\u5165\u4F4F\u3001\u63A5\u9001\u673A\u3001\u9910\u996E\u6216\u5B9A\u5236\u6E38\u730E\u4E4B\u65C5\u7684\u4EFB\u4F55\u7591\u95EE\uFF01",
+    pl: "Jambo! Witamy w Zanzirangi House. Nazywam si\u0119 {name}, Tw\xF3j prywatny konsjer\u017C. \u015Amia\u0142o pytaj o nasze prywatne wille, zameldowanie, transfery, wy\u017Cywienie lub wyprawy na safari!",
+    id: "Jambo! Halo, senang Anda menghubungi kami di Zanzirangi House. Saya {name}, concierge Anda. Silakan tanyakan apa pun seputar reservasi villa, check-in, antar-jemput bandara, atau pengalaman di Zanzibar!"
+  },
+  thanks: {
+    en: "You are most welcome! It is our pleasure. Please let us know if there is anything else we can arrange for your luxury retreat in Zanzibar.",
+    fr: "Je vous en prie ! C'est un r\xE9el plaisir. Faites-nous savoir si nous pouvons vous aider pour d'autres aspects de votre s\xE9jour \xE0 Zanzibar.",
+    sw: "Karibu sana! Ni furaha yetu kukuhudumia. Tafadhali tujulishe ikiwa kuna chochote kingine tunachoweza kukuandalia kwa ajili ya mapumziko yako Zanzibar.",
+    es: "\xA1De nada! Es un aut\xE9ntico placer. H\xE1ganos saber si hay algo m\xE1s en lo que podamos asistirle para su estad\xEDa de lujo en Zanz\xEDbar.",
+    it: "Prego, \xE8 un vero piacere! Facci sapere se c\u2019\xE8 altro che possiamo organizzare per rendere indimenticabile il tuo soggiorno a Zanzibar.",
+    ar: "\u0639\u0644\u0649 \u0627\u0644\u0631\u062D\u0628 \u0648\u0627\u0644\u0633\u0639\u0629 \u062F\u0627\u0626\u0645\u0627\u064B! \u064A\u0633\u0639\u062F\u0646\u0627 \u062E\u062F\u0645\u062A\u0643\u0645 \u0641\u064A \u0623\u064A \u0648\u0642\u062A. \u064A\u0631\u062C\u0649 \u0625\u0639\u0644\u0627\u0645\u0646\u0627 \u0625\u0630\u0627 \u0643\u0627\u0646 \u0628\u0625\u0645\u0643\u0627\u0646\u0646\u0627 \u062A\u0631\u062A\u064A\u0628 \u0623\u064A \u0634\u064A\u0621 \u0622\u062E\u0631 \u0644\u0625\u0642\u0627\u0645\u062A\u0643\u0645 \u0627\u0644\u0641\u0627\u062E\u0631\u0629 \u0641\u064A \u0632\u0646\u062C\u0628\u0627\u0631.",
+    zh: "\u4E0D\u5BA2\u6C14\uFF01\u975E\u5E38\u8363\u5E78\u80FD\u4E3A\u60A8\u670D\u52A1\u3002\u5982\u679C\u8FD8\u6709\u4EFB\u4F55\u6211\u4EEC\u53EF\u4EE5\u4E3A\u60A8\u5728\u6851\u7ED9\u5DF4\u5C14\u5962\u534E\u5EA6\u5047\u671F\u95F4\u5B89\u6392\u7684\u4E8B\u5B9C\uFF0C\u8BF7\u968F\u65F6\u544A\u8BC9\u6211\u3002",
+    pl: "Ca\u0142a przyjemno\u015B\u0107 po naszej stronie! Daj nam zna\u0107, je\u015Bli mo\u017Cemy w czym\u015B jeszcze pom\xF3c, aby Tw\xF3j luksusowy wypoczynek na Zanzibarze by\u0142 idealny.",
+    id: "Sama-sama! Dengan senang hati. Jika Anda membutuhkan informasi lebih lanjut atau ingin memesan villa, tim kami selalu siap membantu."
+  },
+  acknowledgement: {
+    en: "Wonderful! We are right here whenever you need assistance with your booking or stay arrangements. Enjoy your time!",
+    fr: "Parfait ! Nous restons \xE0 votre enti\xE8re disposition d\xE8s que vous aurez besoin d'aide pour vos r\xE9servations. Passez un excellent moment !",
+    sw: "Safi sana! Tuko hapa wakati wowote unapohitaji msaada wa nafasi au huduma za makazi yako. Furahia wakati wako!",
+    es: "\xA1Excelente! Estamos aqu\xED para asistirle cuando est\xE9 listo con su reserva o detalles de estad\xEDa. \xA1Que disfrute de su d\xEDa!",
+    it: "Perfetto! Siamo qui a tua disposizione ogni volta che avrai bisogno di assistenza per la prenotazione o il soggiorno. Buona giornata!",
+    ar: "\u0631\u0627\u0626\u0639 \u062C\u062F\u0627\u064B! \u0646\u062D\u0646 \u0645\u062A\u0648\u0627\u062C\u062F\u0648\u0646 \u0647\u0646\u0627 \u062F\u0627\u0626\u0645\u0627\u064B \u0644\u0645\u0633\u0627\u0639\u062F\u062A\u0643 \u0641\u064A \u0623\u064A \u0648\u0642\u062A \u062A\u0631\u063A\u0628 \u0641\u064A\u0647 \u0628\u0625\u062A\u0645\u0627\u0645 \u0627\u0644\u062D\u062C\u0632 \u0623\u0648 \u062A\u0631\u062A\u064A\u0628\u0627\u062A \u0627\u0644\u0625\u0642\u0627\u0645\u0629. \u0646\u062A\u0645\u0646\u0649 \u0644\u0643 \u0623\u0648\u0642\u0627\u062A\u0627\u064B \u0633\u0639\u064A\u062F\u0629!",
+    zh: "\u592A\u597D\u4E86\uFF01\u53EA\u8981\u60A8\u9700\u8981\u9884\u8BA2\u6216\u884C\u7A0B\u65B9\u9762\u7684\u534F\u52A9\uFF0C\u6211\u4EEC\u968F\u65F6\u5728\u6B64\u4E3A\u60A8\u670D\u52A1\u3002\u795D\u60A8\u62E5\u6709\u6109\u5FEB\u7684\u7F8E\u597D\u65F6\u5149\uFF01",
+    pl: "Wspaniale! Jeste\u015Bmy do Twojej dyspozycji w ka\u017Cdej chwili, gdy zechcesz dokona\u0107 rezerwacji lub o co\u015B zapyta\u0107. Mi\u0142ego dnia!",
+    id: "Baik, terima kasih! Silakan beri tahu kami kapan pun Anda siap melakukan reservasi atau membutuhkan bantuan lainnya."
+  },
+  identity: {
+    en: "I am {name}, your personal Customer Support & Concierge at Zanzirangi House. I am here to assist with all your questions, and our human admin team is also directly connected here whenever you need specialized assistance.",
+    fr: "Je suis {name}, votre concierge et service client personnel \xE0 Zanzirangi House. Je suis l\xE0 pour r\xE9pondre \xE0 toutes vos questions, et notre \xE9quipe d'administration est \xE9galement connect\xE9e en direct.",
+    sw: "Naitwa {name}, mhudumu wako binafsi wa huduma kwa wateja katika Zanzirangi House. Niko hapa kukusaidia kwa maswali yako yote, na wasimamizi wetu wapo moja kwa moja hapa.",
+    es: "Soy {name}, su conserje personal y atenci\xF3n al cliente en Zanzirangi House. Estoy aqu\xED para asistirle con cualquier consulta, y nuestro equipo de administraci\xF3n est\xE1 conectado directamente.",
+    it: "Sono {name}, il tuo concierge e supporto clienti personale a Zanzirangi House. Sono qui per rispondere a tutte le tue domande, e il nostro team di amministratori \xE8 sempre connesso qui.",
+    ar: "\u0623\u0646\u0627 {name}\u060C \u0643\u0648\u0646\u0633\u064A\u0631\u062C\u0643 \u0627\u0644\u0634\u062E\u0635\u064A \u0648\u062E\u062F\u0645\u0629 \u0627\u0644\u0639\u0645\u0644\u0627\u0621 \u0641\u064A \u0632\u0646\u062C\u064A\u0631\u0627\u0646\u062C\u064A \u0647\u0627\u0648\u0633. \u0623\u0646\u0627 \u0647\u0646\u0627 \u0644\u0644\u0625\u062C\u0627\u0628\u0629 \u0639\u0644\u0649 \u062C\u0645\u064A\u0639 \u0627\u0633\u062A\u0641\u0633\u0627\u0631\u0627\u062A\u0643\u060C \u0643\u0645\u0627 \u0623\u0646 \u0641\u0631\u064A\u0642 \u0627\u0644\u0625\u062F\u0627\u0631\u0629 \u0627\u0644\u0628\u0634\u0631\u064A \u0645\u062A\u0635\u0644 \u0647\u0646\u0627 \u0645\u0628\u0627\u0634\u0631\u0629 \u0639\u0646\u062F \u0627\u0644\u062D\u0627\u062C\u0629.",
+    zh: "\u6211\u662F {name}\uFF0C\u60A8\u5728 Zanzirangi House \u7684\u4E13\u5C5E\u79C1\u4EBA\u7BA1\u5BB6\u4E0E\u5BA2\u6237\u652F\u6301\u3002\u6211\u5728\u6B64\u534F\u52A9\u89E3\u7B54\u60A8\u7684\u6240\u6709\u7591\u95EE\uFF0C\u540C\u65F6\u6211\u4EEC\u7684\u4EBA\u5DE5\u7BA1\u7406\u56E2\u961F\u4E5F\u968F\u65F6\u5728\u7EBF\u8FDE\u7EBF\u4E3A\u60A8\u63D0\u4F9B\u652F\u6301\u3002",
+    pl: "Nazywam si\u0119 {name}, Tw\xF3j osobisty konsjer\u017C i wsparcie klienta w Zanzirangi House. Jestem tutaj, aby pom\xF3c we wszystkich pytaniach, a nasz zesp\xF3\u0142 administrator\xF3w jest r\xF3wnie\u017C po\u0142\u0105czony bezpo\u015Brednio w tym czacie.",
+    id: "Saya {name}, Customer Support & Concierge pribadi Anda di Zanzirangi House. Saya siap menjawab pertanyaan Anda seputar sanctuary kami, dan staf admin kami juga selalu terhubung langsung di sini jika Anda membutuhkan bantuan khusus."
+  }
+};
 var SupportAiEngine = class {
   /**
    * Evaluates a visitor query through the Support Decision Layer:
-   * 1. Simple greetings, pleasantries & FAQs -> AUTO_ANSWER immediately by Elena
-   * 2. Detailed questions, custom quotes, discounts, or explicit human requests -> HANDOFF_TO_HUMAN (routed to Admin with email alert)
-   * 3. Seamless Indonesian and multi-language comprehension
+   * 1. Simple greetings, pleasantries & FAQs -> AUTO_ANSWER immediately by active concierge
+   * 2. Detailed questions, custom quotes, discounts, or explicit human requests -> HANDOFF_TO_HUMAN
+   * 3. Answers strictly in the language picked on the language setting. Never mixes languages.
    */
   async evaluateQuery(query, lang = "en", _currentPage = "/", conciergeName = "Elena") {
     const q = query.trim().toLowerCase();
-    const isIndonesian = lang === "id" || /\b(malam|pagi|siang|sore|halo|hai|bisa|berapa|kamar|kolam|sarapan|makan|pantai|tolong|terima kasih|makasih|siapa|admin|staf|dimana|apakah|tanya|pesan|sewa|harga|villa|jemput|bandara|diskon|promo|rombongan|orang|ada|nginap|menginap)\b/i.test(
-      q
-    );
-    const fallbackHandoff = isIndonesian ? HANDOFF_MESSAGES.id : HANDOFF_MESSAGES[lang] || HANDOFF_MESSAGES.en;
+    const activeLang = resolveLang(lang);
+    const fallbackHandoff = getLocalized(HANDOFF_MESSAGES, activeLang);
+    const humanRequestMsg = getLocalized(HUMAN_REQUEST_MESSAGES, activeLang);
+    const highConstraintMsg = getLocalized(HIGH_CONSTRAINT_MESSAGES, activeLang);
     const name = conciergeName && conciergeName.trim() || "Elena";
     const nameEscaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const asksForHuman = /\b(admin|staf|staff|human|manusia|orang|manager|manajer|owner|pemilik|hubungi|bicara|talk to|speak to|contact|bantuan langsung|operator|customer care)\b/i.test(
+    const resolveGreeting = (template) => template.replace(/\{name\}/g, name);
+    const getActionLabel = (actionKey) => ACTION_LABELS[actionKey]?.[activeLang] || ACTION_LABELS[actionKey]?.en || "View";
+    const asksForHuman = /\b(admin|staf|staff|human|manusia|orang|manager|manajer|owner|pemilik|hubungi|bicara|talk to|speak to|contact|bantuan langsung|operator|customer care|człowiek|człowiekiem|humain|administrateur|humano|umano|binadamu|mtu|بشري|إنسان|人工|真人)\b/i.test(
       q
     );
     if (asksForHuman) {
       return {
-        replyText: isIndonesian ? "Tentu! Pesan Anda telah kami teruskan langsung ke Admin Zanzirangi House. Staf kami akan segera merespons Anda di sini dalam hitungan menit." : HANDOFF_MESSAGES[lang] || HANDOFF_MESSAGES.en,
+        replyText: humanRequestMsg,
         intent: "human_concierge_requested",
         confidence: 0.98,
         knowledge_source: "NONE",
@@ -5405,13 +5785,13 @@ var SupportAiEngine = class {
         handoffReason: "Visitor explicitly requested to communicate with a human staff member / admin."
       };
     }
-    const hasDiscountInquiry = /\b(diskon|discount|promo|potongan|tawar|nego|best price|special rate)\b/i.test(q);
-    const hasEventInquiry = /\b(wedding|nikah|pernikahan|event|acara|gathering|party|anniversary khusus|charter)\b/i.test(q);
+    const hasDiscountInquiry = /\b(diskon|discount|promo|potongan|tawar|nego|best price|special rate|rabais|remise|descuento|sconto|zniżka|خصم|折扣)\b/i.test(q);
+    const hasEventInquiry = /\b(wedding|nikah|pernikahan|event|acara|gathering|party|mariage|harusi|boda|matrimonio|wesele|حفل|婚礼)\b/i.test(q);
     const hasImmediateDate = /\b(tomorrow|tonight|today|besok|malam ini|demain|ce soir|mañana|domani|jutro|غدا|اليوم|明天|今晚)\b/i.test(q);
     const hasSpecificLargeGroup = /\b(1[0-9]|[2-9][0-9])\s*(people|guests|persons|orang|personnes|personas|persone|osób|شخص|位|人)\b/i.test(q) || /\b(for|untuk|pour|para|per|dla|li|共)\s*(1[0-9]|[2-9][0-9])\b/i.test(q);
     if (hasDiscountInquiry || hasEventInquiry || hasImmediateDate && hasSpecificLargeGroup) {
       return {
-        replyText: isIndonesian ? "Untuk permintaan khusus, penawaran harga terbaik, serta ketersediaan rombongan detail, pertanyaan Anda sedang kami teruskan langsung ke Admin / Manajer Reservasi kami untuk dikonfirmasi secepatnya." : fallbackHandoff,
+        replyText: highConstraintMsg,
         intent: "custom_inquiry_handoff",
         confidence: 0.92,
         knowledge_source: "NONE",
@@ -5423,7 +5803,11 @@ var SupportAiEngine = class {
       const kbItems = await supportRepository.getKnowledgeBase({
         status: "PUBLISHED"
       });
-      for (const item of kbItems) {
+      const langKbItems = kbItems.filter(
+        (item) => !item.language || item.language.toLowerCase() === activeLang
+      );
+      for (const item of langKbItems.length > 0 ? langKbItems : kbItems) {
+        if (item.language && item.language.toLowerCase() !== activeLang) continue;
         const itemQ = (item.question || "").toLowerCase().trim();
         if (!itemQ) continue;
         const phrases = itemQ.split(/[/,|;]/).map((p) => p.trim()).filter((p) => p.length > 0);
@@ -5453,8 +5837,8 @@ var SupportAiEngine = class {
     }
     if (/\b(malam|selamat malam|good evening|soir|bonsoir|buonasera|buenas noches|dobry wieczór|مساء الخير|晚上好)\b/i.test(q)) {
       return {
-        replyText: isIndonesian ? `Jambo & selamat malam! Senang bisa menyapa Anda di Zanzirangi House. Saya ${name}, concierge Anda. Ada yang bisa kami bantu seputar reservasi villa, fasilitas, atau pengalaman safari & wisata di Zanzibar?` : `Jambo and good evening! Welcome to Zanzirangi House. My name is ${name}, your private concierge. How may I assist your stay or inquiries in Zanzibar tonight?`,
-        action: { label: isIndonesian ? "Lihat Pilihan Villa" : "View Villas", actionType: "SCROLL", target: "stay" },
+        replyText: resolveGreeting(getLocalized(GREETINGS.evening, activeLang)),
+        action: { label: getActionLabel("view_villas"), actionType: "SCROLL", target: "stay" },
         intent: "greeting_evening",
         confidence: 0.98,
         knowledge_source: "DETERMINISTIC_FAQ",
@@ -5463,8 +5847,8 @@ var SupportAiEngine = class {
     }
     if (/\b(pagi|selamat pagi|siang|selamat siang|sore|selamat sore|good morning|good afternoon|bonjour|buongiorno|buenos días|dzień dobry|صباح الخير|早上好|下午好)\b/i.test(q)) {
       return {
-        replyText: isIndonesian ? `Jambo & selamat datang! Saya ${name}, concierge pribadi Anda di Zanzirangi House. Ada yang bisa kami bantu hari ini seputar pilihan villa, dining, atau safari di Zanzibar?` : `Jambo and welcome! My name is ${name}, your personal concierge at Zanzirangi House. How may I assist you today regarding our luxury villas, dining, or safari experiences?`,
-        action: { label: isIndonesian ? "Lihat Pilihan Villa" : "View Villas", actionType: "SCROLL", target: "stay" },
+        replyText: resolveGreeting(getLocalized(GREETINGS.daytime, activeLang)),
+        action: { label: getActionLabel("view_villas"), actionType: "SCROLL", target: "stay" },
         intent: "greeting_daytime",
         confidence: 0.98,
         knowledge_source: "DETERMINISTIC_FAQ",
@@ -5474,17 +5858,17 @@ var SupportAiEngine = class {
     const nameGreetingRegex = new RegExp(`\\b(halo|hi|hello|hey)\\s+(${nameEscaped}|elena|juma)\\b`, "i");
     if (/^(halo|hai|hi|hello|hey|jambo|habari|hola|ciao|salut|cześć|مرحبا|你好)[\s!.?]*$/i.test(q) || nameGreetingRegex.test(q) || /\b(selamat datang)\b/i.test(q)) {
       return {
-        replyText: isIndonesian ? `Jambo! Halo, senang Anda menghubungi kami di Zanzirangi House. Saya ${name}, concierge Anda. Silakan tanyakan apa pun seputar reservasi villa, check-in, antar-jemput bandara, atau pengalaman menarik di Zanzibar!` : `Jambo! Welcome to Zanzirangi House. I am ${name}, your personal concierge. Feel free to ask about our private villas, check-in, transfers, dining, or bespoke safari journeys!`,
-        action: { label: isIndonesian ? "Eksplorasi Sanctuary" : "Explore Sanctuary", actionType: "SCROLL", target: "itinerary" },
+        replyText: resolveGreeting(getLocalized(GREETINGS.general, activeLang)),
+        action: { label: getActionLabel("explore_sanctuary"), actionType: "SCROLL", target: "itinerary" },
         intent: "greeting_general",
         confidence: 0.98,
         knowledge_source: "DETERMINISTIC_FAQ",
         decision: "AUTO_ANSWER"
       };
     }
-    if (/\b(terima kasih|makasih|matur suwun|thank you|thanks|asante|merci|grazie|gracias|dzięk|شكرا|谢谢)\b/i.test(q)) {
+    if (/\b(terima kasih|makasih|matur suwun|thank you|thanks|asante|merci|grazie|gracias|dzięk|dzieki|شكرا|谢谢)\b/i.test(q)) {
       return {
-        replyText: isIndonesian ? "Sama-sama! Dengan senang hati. Jika Anda membutuhkan informasi lebih lanjut atau ingin memesan villa, tim kami selalu siap membantu." : "You are most welcome! It is our pleasure. Please let us know if there is anything else we can arrange for your luxury retreat in Zanzibar.",
+        replyText: getLocalized(GREETINGS.thanks, activeLang),
         intent: "polite_thank_you",
         confidence: 0.96,
         knowledge_source: "DETERMINISTIC_FAQ",
@@ -5493,18 +5877,60 @@ var SupportAiEngine = class {
     }
     if (/^(ok|oke|okay|baik|siap|noted|siap kak|siap min|roger|alright|fine|yes|ya)[\s!.?]*$/i.test(q)) {
       return {
-        replyText: isIndonesian ? "Baik, terima kasih! Silakan beri tahu kami kapan pun Anda siap melakukan reservasi atau membutuhkan bantuan lainnya." : "Wonderful! We are right here whenever you need assistance with your booking or stay arrangements. Enjoy your time!",
+        replyText: getLocalized(GREETINGS.acknowledgement, activeLang),
         intent: "polite_acknowledgement",
         confidence: 0.95,
         knowledge_source: "DETERMINISTIC_FAQ",
         decision: "AUTO_ANSWER"
       };
     }
-    const identityRegex = new RegExp(`\\b(siapa kamu|kamu siapa|who are you|siapa ini|bot atau|apakah bot|(${nameEscaped}|elena|juma) itu siapa)\\b`, "i");
+    const identityRegex = new RegExp(`\\b(siapa kamu|kamu siapa|who are you|siapa ini|qui \xEAtes-vous|wewe ni nani|qui\xE9n eres|chi sei|kim jeste\u015B|\u0645\u0646 \u0623\u0646\u062A|\u4F60\u662F\u8C01|bot atau|apakah bot|(${nameEscaped}|elena|juma) itu siapa)\\b`, "i");
     if (identityRegex.test(q)) {
       return {
-        replyText: isIndonesian ? `Saya ${name}, Customer Support & Concierge pribadi Anda di Zanzirangi House. Saya siap menjawab pertanyaan Anda seputar sanctuary kami, dan staf admin kami juga selalu terhubung langsung di sini jika Anda membutuhkan bantuan khusus.` : `I am ${name}, your personal Customer Support & Concierge at Zanzirangi House. I am here to assist with all your questions, and our human admin team is also directly connected here whenever you need specialized assistance.`,
+        replyText: resolveGreeting(getLocalized(GREETINGS.identity, activeLang)),
         intent: "faq_identity",
+        confidence: 0.95,
+        knowledge_source: "DETERMINISTIC_FAQ",
+        decision: "AUTO_ANSWER"
+      };
+    }
+    const villaRateKeywords = [
+      "cost",
+      "price",
+      "rate",
+      "how much",
+      "tarif",
+      "harga",
+      "sewa",
+      "biaya",
+      "combien",
+      "prix",
+      "co\xFBt",
+      "cuanto",
+      "precio",
+      "tarifa",
+      "quanto",
+      "costa",
+      "prezzo",
+      "ile",
+      "cena",
+      "koszt",
+      "bei",
+      "gharama",
+      "\u0633\u0639\u0631",
+      "\u0643\u0645",
+      "\u062A\u0643\u0644\u0641\u0629",
+      "\u591A\u5C11\u94B1",
+      "\u4EF7\u683C",
+      "\u623F\u4EF7"
+    ];
+    const isPriceOrRateInquiry = villaRateKeywords.some((k) => q.includes(k));
+    const isVillaMentioned = /\b(villa|sanctuary|suite|bungalow|room|stay|kamar|chambre|chumba|habitación|pokój|فلل|فيلا|别墅)\b/i.test(q);
+    if (isPriceOrRateInquiry && isVillaMentioned) {
+      return {
+        replyText: getLocalized(FAQ_REPLIES.villas_rates, activeLang),
+        action: { label: getActionLabel("book_villa"), actionType: "MODAL", target: "booking_modal" },
+        intent: "faq_villas_rates",
         confidence: 0.95,
         knowledge_source: "DETERMINISTIC_FAQ",
         decision: "AUTO_ANSWER"
@@ -5513,8 +5939,8 @@ var SupportAiEngine = class {
     const checkinKeywords = ["check-in", "checkin", "check out", "checkout", "horaires", "muda wa kuingia", "horario", "arrived", "departure", "jam masuk", "waktu masuk", "jam berapa masuk", "jam keluar", "wymeldowani", "zameldowani", "\u5165\u4F4F", "\u9000\u623F", "\u0627\u0644\u0648\u0635\u0648\u0644", "\u0627\u0644\u0645\u063A\u0627\u062F\u0631\u0629"];
     if (checkinKeywords.some((k) => q.includes(k))) {
       return {
-        replyText: isIndonesian ? "Waktu check-in standar kami mulai pukul 14:00 (2:00 siang) dan check-out hingga pukul 11:00 pagi. Early check-in atau late check-out dapat disesuaikan secara fleksibel tergantung ketersediaan villa Anda." : "Standard check-in is from 14:00 (2:00 PM) and check-out is until 11:00 AM. Flexible early check-in or late checkout can be accommodated based on villa availability.",
-        action: { label: isIndonesian ? "Reservasi Villa" : "Book a Villa", actionType: "MODAL", target: "booking_modal" },
+        replyText: getLocalized(FAQ_REPLIES.checkin, activeLang),
+        action: { label: getActionLabel("book_villa"), actionType: "MODAL", target: "booking_modal" },
         intent: "faq_checkin_checkout",
         confidence: 0.94,
         knowledge_source: "DETERMINISTIC_FAQ",
@@ -5524,8 +5950,8 @@ var SupportAiEngine = class {
     const wifiKeywords = ["wifi", "wi-fi", "internet", "speed", "starlink", "network", "koneksi", "sinyal", "connect", "online", "\u0633\u062A\u0627\u0631\u0644\u064A\u0646\u0643", "\u661F\u94FE", "\u65E0\u7EBF"];
     if (wifiKeywords.some((k) => q.includes(k))) {
       return {
-        replyText: isIndonesian ? "Internet satelit Starlink kecepatan tinggi (150+ Mbps) tersedia gratis tanpa batas di seluruh private villa, taman santuari, dan paviliun restoran kami untuk kenyamanan streaming maupun remote work." : "High-speed Starlink satellite Wi-Fi (150+ Mbps) is complimentary across all private villas, gardens, and dining pavilions, ensuring reliable connectivity for streaming or remote work.",
-        action: { label: isIndonesian ? "Cek Fasilitas Villa" : "Check Villa Features", actionType: "SCROLL", target: "stay" },
+        replyText: getLocalized(FAQ_REPLIES.wifi, activeLang),
+        action: { label: getActionLabel("check_villa"), actionType: "SCROLL", target: "stay" },
         intent: "faq_starlink_wifi",
         confidence: 0.95,
         knowledge_source: "DETERMINISTIC_FAQ",
@@ -5535,8 +5961,8 @@ var SupportAiEngine = class {
     const poolKeywords = ["pool", "plunge", "swim", "beach", "ocean", "piscine", "bwawa", "piscina", "pantai", "kolam", "renang", "basen", "\u0627\u0644\u0645\u0633\u0628\u062D", "\u0627\u0644\u0634\u0627\u0637\u0626", "\u6CF3\u6C60", "\u6C99\u6EE9"];
     if (poolKeywords.some((k) => q.includes(k))) {
       return {
-        replyText: isIndonesian ? "Setiap villa dari 8 private sanctuary kami memiliki kolam renang pribadi (freshwater plunge pool), sun loungers, dan akses jalur pribadi langsung ke pantai Kizimkazi Samudra Hindia yang tenang." : "Every single one of our 8 luxury sanctuaries features its own private freshwater plunge pool, sun loungers, and direct private pathway access to the pristine shores of the Indian Ocean.",
-        action: { label: isIndonesian ? "Lihat Private Villa" : "View Private Villas", actionType: "SCROLL", target: "stay" },
+        replyText: getLocalized(FAQ_REPLIES.pools_beach, activeLang),
+        action: { label: getActionLabel("view_villas"), actionType: "SCROLL", target: "stay" },
         intent: "faq_pools_beach",
         confidence: 0.94,
         knowledge_source: "DETERMINISTIC_FAQ",
@@ -5546,8 +5972,8 @@ var SupportAiEngine = class {
     const transferKeywords = ["airport", "transfer", "location", "where", "car", "distance", "arrive", "driver", "taxi", "shuttle", "jemput", "antar jemput", "bandara", "lokasi", "dimana", "alamat", "jauh", "usafiri", "\u0645\u0637\u0627\u0631", "\u63A5\u9001"];
     if (transferKeywords.some((k) => q.includes(k))) {
       return {
-        replyText: isIndonesian ? "Zanzirangi House berlokasi di Kizimkazi Dimbani, pesisir selatan Zanzibar. Kami menyediakan layanan antar-jemput VIP chauffeur pribadi dari Bandara Internasional Zanzibar (ZNZ) langsung ke sanctuary (~55 menit perjalanan)." : "We provide private VIP meet-and-greet and chauffeur shuttle transfers from Abeid Amani Karume International Airport (ZNZ) directly to our sanctuary in Kizimkazi (approx. 55 minutes).",
-        action: { label: isIndonesian ? "Detail Layanan Transfer" : "View Transfer Details", actionType: "SCROLL", target: "shuttle" },
+        replyText: getLocalized(FAQ_REPLIES.transfers, activeLang),
+        action: { label: getActionLabel("view_transfers"), actionType: "SCROLL", target: "shuttle" },
         intent: "faq_transfers",
         confidence: 0.92,
         knowledge_source: "DETERMINISTIC_FAQ",
@@ -5557,38 +5983,38 @@ var SupportAiEngine = class {
     const diningKeywords = ["din", "food", "restaurant", "chef", "breakfast", "menu", "lunch", "eat", "drink", "makan", "makanan", "sarapan", "restoran", "kuliner", "halal", "seafood", "cuisine", "chakula", "comida", "\u0645\u0637\u0639\u0645", "\u9910\u5385"];
     if (diningKeywords.some((k) => q.includes(k))) {
       return {
-        replyText: isIndonesian ? "Filosofi kuliner kami menyajikan hasil bumi organik dari kebun sendiri (garden-to-table) dan hidangan seafood segar tangkapan harian nelayan lokal dengan sentuhan Swahili otentik dan menu internasional mewah." : "Our gastronomic philosophy embraces organic garden-to-table produce and line-caught seafood with authentic Swahili and fine international dining.",
-        action: { label: isIndonesian ? "Lihat Menu & Dining" : "Taste Dining & Garden Menu", actionType: "SCROLL", target: "dining" },
+        replyText: getLocalized(FAQ_REPLIES.dining, activeLang),
+        action: { label: getActionLabel("view_dining"), actionType: "SCROLL", target: "dining" },
         intent: "faq_dining",
         confidence: 0.92,
         knowledge_source: "DETERMINISTIC_FAQ",
         decision: "AUTO_ANSWER"
       };
     }
-    if (q.includes("serengeti") || q.includes("great migration")) {
+    if (q.includes("serengeti") || q.includes("great migration") || q.includes("\u0633\u064A\u0631\u064A\u0646\u062C\u064A\u062A\u064A") || q.includes("\u585E\u4F26\u76D6\u8482")) {
       return {
-        replyText: isIndonesian ? "Taman Nasional Serengeti adalah pengalaman safari legendaris. Zanzirangi House mengatur safari terbang carter langsung dari Zanzibar (\xB11 jam 45 menit) dengan akomodasi tenda mewah mitra kami." : "Serengeti National Park is an extraordinary safari experience. Zanzirangi House arranges direct chartered fly-in safaris from Zanzibar airport (approx. 1h 45m) with luxury partner tented camps overlooking migration corridors.",
-        action: { label: isIndonesian ? "Lihat Destinasi Safari" : "View Safari Destinations", actionType: "SCROLL", target: "tanzania" },
+        replyText: getLocalized(FAQ_REPLIES.serengeti, activeLang),
+        action: { label: getActionLabel("view_safari"), actionType: "SCROLL", target: "tanzania" },
         intent: "safari_serengeti",
         confidence: 0.95,
         knowledge_source: "DETERMINISTIC_FAQ",
         decision: "AUTO_ANSWER"
       };
     }
-    if (q.includes("ngorongoro") || q.includes("crater")) {
+    if (q.includes("ngorongoro") || q.includes("crater") || q.includes("\u0646\u062C\u0648\u0631\u0648\u0646\u062C\u0648\u0631\u0648") || q.includes("\u706B\u5C71\u53E3")) {
       return {
-        replyText: isIndonesian ? "Kawah Ngorongoro menyimpan populasi predator terpadat di Afrika di dalam kaldera vulkanik UNESCO. Kami menyediakan paket safari terbang kombinasi liburan pantai dan game drive kawah." : "Ngorongoro Crater offers Africa\u2019s densest predator populations inside a UNESCO volcanic caldera. We organize chartered fly-in packages combining your beach retreat with panoramic crater floor game drives.",
-        action: { label: isIndonesian ? "Eksplorasi Ngorongoro" : "Explore Ngorongoro", actionType: "SCROLL", target: "tanzania" },
+        replyText: getLocalized(FAQ_REPLIES.ngorongoro, activeLang),
+        action: { label: getActionLabel("explore_ngorongoro"), actionType: "SCROLL", target: "tanzania" },
         intent: "safari_ngorongoro",
         confidence: 0.95,
         knowledge_source: "DETERMINISTIC_FAQ",
         decision: "AUTO_ANSWER"
       };
     }
-    if (q.includes("kilimanjaro")) {
+    if (q.includes("kilimanjaro") || q.includes("kilimangiaro") || q.includes("\u0643\u0644\u064A\u0645\u0646\u062C\u0627\u0631\u0648") || q.includes("\u4E5E\u529B\u9A6C\u624E\u7F57")) {
       return {
-        replyText: isIndonesian ? "Ekspedisi Gunung Kilimanjaro dan safari penerbangan panorama diatur bersama mitra pemandu gunung resmi kami, lengkap dengan aklimatisasi sebelum pendakian atau istirahat relaksasi setelahnya." : "Mount Kilimanjaro expeditions and scenic fly-over safaris are arranged through our certified mainland mountain guide partners. We can curate pre-climb acclimatization stays or relaxing post-climb beach recovery.",
-        action: { label: isIndonesian ? "Rencanakan Safari & Kilimanjaro" : "Plan Safari & Kilimanjaro", actionType: "SCROLL", target: "tanzania" },
+        replyText: getLocalized(FAQ_REPLIES.kilimanjaro, activeLang),
+        action: { label: getActionLabel("plan_kilimanjaro"), actionType: "SCROLL", target: "tanzania" },
         intent: "safari_kilimanjaro",
         confidence: 0.92,
         knowledge_source: "DETERMINISTIC_FAQ",
@@ -5598,8 +6024,8 @@ var SupportAiEngine = class {
     const dolphinKeywords = ["dolphin", "lumba", "pomboo", "dauphin", "delfin", "\u062F\u0644\u0627\u0641\u064A\u0646", "\u6D77\u8C5A"];
     if (dolphinKeywords.some((k) => q.includes(k))) {
       return {
-        replyText: isIndonesian ? "Kizimkazi terkenal di dunia dengan kawanan lumba-lumba di Kawasan Konservasi Menai Bay. Kami mengadakan safari lumba-lumba etis saat matahari terbit langsung dari tepi pantai kami." : "Kizimkazi is world-famous for resident dolphin pods in the Menai Bay Conservation Area. We organize ethical sunrise dolphin safaris directly from our shore.",
-        action: { label: isIndonesian ? "Eksplorasi Safari Lumba-Lumba" : "Explore Dolphin Safaris", actionType: "SCROLL", target: "experiences" },
+        replyText: getLocalized(FAQ_REPLIES.dolphins, activeLang),
+        action: { label: getActionLabel("explore_dolphins"), actionType: "SCROLL", target: "experiences" },
         intent: "experience_dolphins",
         confidence: 0.94,
         knowledge_source: "DETERMINISTIC_FAQ",
@@ -5609,8 +6035,8 @@ var SupportAiEngine = class {
     const dhowKeywords = ["dhow", "sunset", "perahu", "kapal", "jahazi", "layar", "senja", "matahari terbenam", "voilier", "\u0642\u0627\u0631\u0628", "\u0627\u0644\u062F\u0627\u0648", "\u6728\u8239"];
     if (dhowKeywords.some((k) => q.includes(k))) {
       return {
-        replyText: isIndonesian ? "Nikmati pelayaran magis di atas perahu kayu tradisional Dhow menyusuri Samudra Hindia pirus sambil menikmati Champagne dingin dan canap\xE9 Swahili saat matahari terbenam." : "Glide across the turquoise Indian Ocean aboard a handcrafted wooden dhow while enjoying chilled Champagne and fresh Swahili canap\xE9s as the sun sets.",
-        action: { label: isIndonesian ? "Lihat Sunset Sailing" : "View Sunset Sailing", actionType: "SCROLL", target: "experiences" },
+        replyText: getLocalized(FAQ_REPLIES.dhow, activeLang),
+        action: { label: getActionLabel("view_sunset_sailing"), actionType: "SCROLL", target: "experiences" },
         intent: "experience_sunset_dhow",
         confidence: 0.93,
         knowledge_source: "DETERMINISTIC_FAQ",
@@ -5620,30 +6046,30 @@ var SupportAiEngine = class {
     const spaKeywords = ["spa", "massage", "pijat", "masaji", "relaksasi", "bien-\xEAtre", "\u062A\u062F\u0644\u064A\u0643", "\u6C34\u7597", "\u6309\u6469", "wellness"];
     if (spaKeywords.some((k) => q.includes(k))) {
       return {
-        replyText: isIndonesian ? "Layanan spa & wellness in-villa kami menggunakan minyak kelapa Zanzibari murni, scrub cengkeh & kayu manis, serta deep-tissue massage yang menenangkan langsung di dek oceanfront pribadi Anda." : "Our in-villa wellness treatments feature cold-pressed Zanzibari coconut oils, clove and cinnamon body scrubs, and soothing deep-tissue massages performed on your private ocean deck.",
-        action: { label: isIndonesian ? "Lihat Layanan Spa" : "View Wellness & Spa", actionType: "SCROLL", target: "experiences" },
+        replyText: getLocalized(FAQ_REPLIES.spa, activeLang),
+        action: { label: getActionLabel("view_spa"), actionType: "SCROLL", target: "experiences" },
         intent: "experience_spa",
         confidence: 0.92,
         knowledge_source: "DETERMINISTIC_FAQ",
         decision: "AUTO_ANSWER"
       };
     }
-    const villaKeywords = ["villa", "rate", "price", "stay", "room", "kamar", "harga", "sewa", "tarif", "tipe", "bungalow", "availab", "chambre", "chumba", "\u0641\u0644\u0644", "\u522B\u5885"];
-    if (villaKeywords.some((k) => q.includes(k))) {
+    const generalVillaKeywords = ["villa", "stay", "room", "bungalow", "kamar", "chambre", "chumba", "habitaci\xF3n", "pok\xF3j", "\u0641\u0644\u0644", "\u0641\u064A\u0644\u0627", "\u522B\u5885"];
+    if (generalVillaKeywords.some((k) => q.includes(k))) {
       return {
-        replyText: isIndonesian ? "Zanzirangi House menyediakan 8 private pool sanctuary eksklusif termasuk oceanfront villa dan garden sanctuary yang tenang. Apakah Anda ingin mengecek tanggal dan ketersediaan sekarang?" : "We feature 8 handcrafted luxury sanctuaries including oceanfront pool villas and secluded garden bungalows. Would you like to check dates and availability?",
-        action: { label: isIndonesian ? "Cek Ketersediaan Villa" : "Check Villa Availability", actionType: "MODAL", target: "booking_modal" },
+        replyText: getLocalized(FAQ_REPLIES.villas_rates, activeLang),
+        action: { label: getActionLabel("book_villa"), actionType: "MODAL", target: "booking_modal" },
         intent: "faq_villas_rates",
         confidence: 0.9,
         knowledge_source: "DETERMINISTIC_FAQ",
         decision: "AUTO_ANSWER"
       };
     }
-    const paymentKeywords = ["payment", "pay", "cancel", "deposit", "card", "visa", "mastercard", "bayar", "pembayaran", "batal", "pembatalan", "kartu kredit", "malipo", "\u0627\u0644\u062F\u0641\u0639"];
+    const paymentKeywords = ["payment", "pay", "cancel", "deposit", "card", "visa", "mastercard", "bayar", "pembayaran", "batal", "pembatalan", "kartu kredit", "malipo", "\u0627\u0644\u062F\u0641\u0639", "\u652F\u4ED8"];
     if (paymentKeywords.some((k) => q.includes(k))) {
       return {
-        replyText: isIndonesian ? "Kami menerima kartu kredit utama (Visa, MasterCard, Amex), transfer bank internasional, dan pembayaran digital. Kebijakan pembatalan fleksibel penuh hingga 14 hari sebelum tanggal kedatangan." : "We accept major credit cards (Visa, MasterCard, Amex), international bank transfers, and mobile payments. Cancellation terms offer full flexibility up to 14 days prior to arrival.",
-        action: { label: isIndonesian ? "Reservasi Sekarang" : "Reserve a Villa", actionType: "MODAL", target: "booking_modal" },
+        replyText: getLocalized(FAQ_REPLIES.payment, activeLang),
+        action: { label: getActionLabel("book_villa"), actionType: "MODAL", target: "booking_modal" },
         intent: "faq_payment_cancellation",
         confidence: 0.9,
         knowledge_source: "DETERMINISTIC_FAQ",
@@ -6243,7 +6669,7 @@ supportRouter.get("/conversation/:id", async (req, res) => {
 supportRouter.post("/conversation/:id/messages", async (req, res) => {
   try {
     const id = toStr(req.params.id);
-    const { message, visitor_id, metadata } = req.body;
+    const { message, visitor_id, metadata, language } = req.body;
     const msgText = toStr(message).trim();
     if (!msgText) {
       return res.status(400).json({ success: false, error: "Message cannot be empty" });
@@ -6272,9 +6698,17 @@ supportRouter.post("/conversation/:id/messages", async (req, res) => {
       }
     } catch (_) {
     }
+    const activeLang = typeof language === "string" && language.trim() ? language.trim().toLowerCase() : typeof metadata?.language === "string" && metadata.language.trim() ? metadata.language.trim().toLowerCase() : conv.language || "en";
+    if (activeLang && activeLang !== conv.language) {
+      try {
+        await supportRepository.updateConversation(id, { language: activeLang });
+        conv.language = activeLang;
+      } catch (_) {
+      }
+    }
     const evaluation = await supportAiEngine.evaluateQuery(
       msgText,
-      conv.language,
+      activeLang,
       conv.current_page,
       conciergeName
     );
